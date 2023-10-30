@@ -1,5 +1,5 @@
 // ==========================================================
-//  BRUSHBOX 1.0 (c) 2023.
+//  p5.brush 1.0 (c) 2023.
 //  License: MIT License
 //  Author: Alejandro Campos (@acamposuribe)
 // ==========================================================
@@ -7,7 +7,7 @@
 (function (global, factory) {
     typeof exports === 'object' && typeof module !== 'undefined' ? factory(exports) :
     typeof define === 'function' && define.amd ? define(['exports'], factory) :
-    (global = global || self, factory(global.brushbox = {}));
+    (global = global || self, factory(global.brush = {}));
 } (this, (function (exports) { 
     'use strict';
 
@@ -20,7 +20,7 @@
     }
     p5.prototype.registerMethod('beforePreload', config);
     function load (canvasID = false,field = false) {
-        _r = (!canvasID) ? window : canvasID; // Set buffer
+        _r = (!canvasID) ? window.self : canvasID; // Set buffer
         Mix.load(); // Load Color-Mix system
         if (field) FF.create(field); // Create flow_field if needed
     }
@@ -72,7 +72,7 @@
     }
 
     //////////////////////////////////////////////////
-    // COLOR-MIX FUNCTIONS (Using Mixbox right now)
+    // COLOR-MIX FUNCTIONS (Using Spectral.js right now)
     const Mix = {
         loaded: false,
         load() {
@@ -80,25 +80,7 @@
             this.mask = _r.createFramebuffer({width: _r.width, height: _r.height, density: _r.pixelDensity()});    
             this.mask.begin(), _r.clear(), this.mask.end();                                                        
             if (!Mix.loaded) {
-                // Create texture for mixing
-                if (!this.tex) {
-                    this.tex = createGraphics(512, 512);
-                    this.tex.pixelDensity(1);
-                    this.tex.loadPixels();
-                    for (var b = 0; b < 64; b++)
-                        for (var g = 0; g < 64; g++)
-                            for (var r = 0; r < 64; r++) {
-                                var x = (b % 8) * 64 + r;
-                                var y = ((b / 8) | 0) * 64 + g;
-                                var xyz = r + g * 64 + b * 64 * 64;
-                                this.tex.pixels[(x + y * 512) * 4 + 0] = mixbox.lut[xyz + 192];
-                                this.tex.pixels[(x + y * 512) * 4 + 1] = mixbox.lut[xyz + 262336];
-                                this.tex.pixels[(x + y * 512) * 4 + 2] = mixbox.lut[xyz + 524480];
-                                this.tex.pixels[(x + y * 512) * 4 + 3] = 255;
-                            }
-                    this.tex.updatePixels();
-                }
-                this.frag = this.frag.replace('#include "mixbox.glsl"', mixbox.glsl());
+                this.frag = this.frag.replace('#include "spectral.glsl"', spectral.glsl());
             }
             this.shader = _r.createShader(this.vert, this.frag);
             Mix.loaded = true;
@@ -110,7 +92,6 @@
             // Load shader and send data from canvas
             _r.shader(this.shader);
             this.shader.setUniform('addColor', this.pigment);
-            this.shader.setUniform('mixbox_lut', this.tex._renderer);
             this.shader.setUniform('source', _r._renderer);
             this.shader.setUniform('mask', this.mask);
             // Give geometry to shader
@@ -126,9 +107,8 @@
         precision highp float;varying vec2 vVertTexCoord;
         uniform sampler2D source;
         uniform sampler2D mask;
-        uniform sampler2D mixbox_lut;
         uniform vec4 addColor;
-        #include "mixbox.glsl"
+        #include "spectral.glsl"
 
         vec3 rgb(float r, float g, float b){return vec3(r / 255.0, g / 255.0, b / 255.0);}
         float rand(vec2 co, float a, float b, float c){return fract(sin(dot(co, vec2(a, b))) * c);}
@@ -142,7 +122,7 @@
                 float r3 = map(rand(vVertTexCoord,17.9898,3.233,33358.5453),0.0,1.0,-1.0,1.0);
                 float d; if (maskColor.r == 1.0)  {d = maskColor.b * 0.2;} else {d = 0.0;}
                 vec4 canvasColor = texture2D(source, vVertTexCoord);
-                vec3 mixedColor = mixbox_lerp(vec3(canvasColor.r,canvasColor.g,canvasColor.b), rgb(addColor.r,addColor.g,addColor.b), maskColor.a);
+                vec3 mixedColor = spectral_mix(vec3(canvasColor.r,canvasColor.g,canvasColor.b), rgb(addColor.r,addColor.g,addColor.b), maskColor.a * 0.9);
                 gl_FragColor = vec4(mixedColor.r + 0.03 * r1 - d,mixedColor.g + 0.03 * r2 - d,mixedColor.b + 0.03 * r3 - d,1.0);
             }
             else {
@@ -351,6 +331,7 @@
                 T.add(b.image.src);
                 b.tip = function() {_r.image(T.tips.get(B.p.image.src),-B.p.weight/2,-B.p.weight/2,B.p.weight,B.p.weight)}
             }
+            if ((b.blend !== false) && (b.type === "marker" || b.type === "custom" || b.type === "image" )) { b.blend = true } else {b.blend = false}
             B.list.set(a,{param:b,colors:[],buffers:[]})
             if (S.on) S.b.push(B.list.get(a).buffers)
         },
@@ -395,20 +376,19 @@
         },
         push() {
             B.p = B.list.get(B.name).param
-            B.mode = (B.p.type === "marker" || B.p.type === "custom" || B.p.type === "image") ? "blend" : "normal";
             if (B.p.pressure.type !== "custom") {B.a = R.random(-1,1), B.b = R.random(1,1.5), B.cp = R.random(3,4.5);}
             else {B.cp = R.random(-0.2,0.2)}
             B.min = B.p.pressure.min_max[0], B.max = B.p.pressure.min_max[1];
             if (S.on) B.pickBuffer(), B.buffer.beginShape();
-            if (B.mode === "blend") Mix.mask.begin();
+            if (B.p.blend) Mix.mask.begin();
             _r.push(), _r.translate(trans[0],trans[1]), B.c = _r.color(B.c), _r.noStroke();
-            if (B.mode === "blend") B.markerTip();
+            if (B.p.blend) B.markerTip();
         },
         tip() {
             if (S.on) B.buffer.vertex(B.position.x,B.position.y) // SVG
             let pressure = B.plot ? B.simPressure() * B.plot.pressure(B.position.plotted) : B.simPressure(); // Pressure
             let alpha = Math.floor(B.p.opacity * Math.pow(pressure,B.p.type === "marker" ? 1 : 1.5)); // Alpha
-            if (B.mode === "blend") {_r.fill(255,0,1,alpha)} else {B.c.setAlpha(alpha), _r.fill(B.c)}; // Color
+            if (B.p.blend) {_r.fill(255,0,1,alpha)} else {B.c.setAlpha(alpha), _r.fill(B.c)}; // Color
             if (B.crop()) {
                 if (B.p.type === "spray") { // SPRAY TYPE BRUSHES
                     let vibration = (B.w * B.p.vibration * pressure) + B.w * randomGaussian() * B.p.vibration / 3;
@@ -438,16 +418,18 @@
         },
         adjust_tip(pressure, alpha, mode) {
             _r.scale(pressure);
-            if (B.p.type === "image") _r.tint(255,0,1,alpha);
+            if (B.p.type === "image") {
+                (B.p.blend) ? _r.tint(255,0,1,alpha) : _r.tint(_r.red(B.c),_r.green(B.c),_r.blue(B.c),alpha);
+            }
             if (mode === "random") _r.rotate(R.randInt(0,360));
             if (mode === "natural") {
                 _r.rotate(((B.plot) ? - B.plot.angle(B.position.plotted) : - B.dir) + (B.flow ? B.position.angle() : 0));
             }
         },
         pop() {
-            if (B.mode === "blend") B.markerTip();
+            if (B.p.blend) B.markerTip();
             _r.pop();
-            if (B.mode === "blend") Mix.mask.end(), Mix.blend(B.c);
+            if (B.p.blend) Mix.mask.end(), Mix.blend(B.c);
             if (S.on) B.buffer.endShape();
         },
         markerTip() {
@@ -458,7 +440,7 @@
                 for (let s = 0; s < 5; s++) {
                     if (B.p.type === "marker") {
                         _r.circle(B.position.x,B.position.y, s/5 * B.w * B.p.weight * pressure)
-                    } else {
+                    } else if (B.p.type === "custom" || B.p.type === "image") {
                         _r.push(); 
                         _r.translate(B.position.x, B.position.y), 
                         B.adjust_tip(B.w * s/5 * pressure,alpha,B.p.rotate)
@@ -552,8 +534,8 @@
             for (let i = 0; i < 4 * image.width * image.height; i += 4) {
                 let a = (imageData.data[i] + imageData.data[i + 1] + imageData.data[i + 2]) / 3;
                 imageData.data[i] = 255;
-                imageData.data[i + 1] = 0;
-                imageData.data[i + 2] = 0;
+                imageData.data[i + 1] = 255;
+                imageData.data[i + 2] = 255;
                 imageData.data[i + 3] = 255 - a;
             }
             context.putImageData(imageData,0,0);
@@ -736,7 +718,7 @@
         }
         draw (x,y,scale) {
             if (this.origin) x = this.origin[0], y = this.origin[1], scale = 1;
-            brushbox.flowShape(this,x,y,scale)
+            B.flowShape(this,x,y,scale)
         }
     }
 

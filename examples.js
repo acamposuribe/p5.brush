@@ -33,22 +33,23 @@ let palette = ["#7b4800", "#002185", "#003c32", "#fcd300", "#ff2702", "#6b9404"]
 
 
 //////////////////////////////////////////////////
-// BRUSHBOX
+// p5.brush
 
 // YOU CAN SEED THE BRUSHBOX RANDOM NUMBER GENERATOR for determinism
-brushbox.config({
+brush.config({
     // R: function () { return YOUR_RNG() },
 })
 
 // YOU CAN CREATE YOU OWN BRUSHES
-brushbox.newBrush("watercolor", {
+brush.newBrush("watercolor", {
     type: "image",       // this is the TIP TYPE: choose standard / spray / marker / custom / image
-    weight: 17,           // Base weight of the brush tip
+    weight: 17,          // Base weight of the brush tip
     vibration: 2,        // Vibration of the lines, spread
     definition: 0.5,     // Between 0 and 1
     quality: 8,          // + quality = more continuous line
     opacity: 10,         // Base opacity of the brush (this will be affected by pressure)
     spacing: 1,          // Spacing between the points that compose the brush stroke
+    blend: true,         // Activate / Disable realistic color mixing. By default, this is active for marker-custom-image brushes 
     pressure: {
         type: "custom",                       // "standard" or "custom". Use "custom"" for custom pressure curves. Use standard for simple gauss bell curve
         //curve: [0.15,0.2],                  // If "standard", pick a and b values for the gauss curve.
@@ -61,7 +62,7 @@ brushbox.newBrush("watercolor", {
     },
     // if you select the image type brush, link your image below. If not, you can remove these lines.
     image: {
-        src: "./brush.jpg",
+        src: "./brush_tips/brush.jpg",
     },
     // For "custom" and "image" types, you can define the tip angle rotation here.
     rotate: "natural", // "none" disables rotation | "natural" follows the direction of the stroke | "random"
@@ -72,7 +73,7 @@ brushbox.newBrush("watercolor", {
 
 function preload() {
     // If you are going to use custom image brush tips, include this in preload!
-    brushbox.preload();
+    brush.preload();
 }
 
 function setup () {
@@ -84,63 +85,65 @@ function setup () {
 
     // USE BRUSHBOX LIBRARY
     // Load BrushBox: load(BUFFER) -> Leave empty if you want to draw to the main p5 canvas
-    brushbox.load();
+    brush.load();
     // Set your brush name, color, and weight. There are 9 standard brushes to select from.
     // Select colors with HEX codes, arrays of [r,g,b] or names
-    brushbox.set("marker","black",1)
+    brush.set("marker","black",1)
     // Translate(x,y) - here I'm translating, so to draw like a 2D canvas
-    brushbox.translate(-width/2,-height/2)
+    brush.translate(-width/2,-height/2)
     // Draw a line (x1,y1,x2,y2)
-    brushbox.line(20,20,200,20)
+    brush.line(20,20,200,20)
     // Change the color or weight scale. Use hex color codes
-    brushbox.color("#002185")
-    brushbox.strokeWeight(1.2)
+    brush.color("#002185")
+    brush.strokeWeight(1.2)
     // You can also draw flowlines (x1,y1,distance,angle)
     // If you want to draw flowLines, you need to select one of the provided flow_fields.
-    brushbox.flowField("seabed");
-    brushbox.flowLine(20,40,180,0)
+    brush.flowField("seabed");
+    brush.flowLine(20,40,180,0)
     // You can also clip all following lines with a rectangle (x1,y1,x2,y2)
-    brushbox.clip([30,10,100,100]);
-    brushbox.flowLine(20,60,100,0)
+    brush.clip([30,10,100,100]);
+    brush.flowLine(20,60,100,0)
     // And remove the clip
-    brushbox.clip(false);
+    brush.clip(false);
     // You can set a different brush
-    brushbox.brush("marker")
+    brush.brush("marker")
     // You can create and draw polygons
-    brushbox.strokeWeight(1)
-    let polygon = new brushbox.Polygon([
+    brush.strokeWeight(1)
+    let polygon = new brush.Polygon([
         [20,80],
         [100,80],
         [100,120],
         [30,140],
     ]);
     //polygon.draw();
-    brushbox.set("rotring","#9c2128",1)
+    brush.set("rotring","#9c2128",1)
     // You can also atch these polygons .hath(distance_between_lines, angle_of_lines, 0-1.0 for % precission)
     //polygon.hatch(2,45,0.05)
-    // You can also hatch arrays of polygons brushbox.hatch(ARRAY WITH POLS, distance_between_lines, angle_of_lines, 0-1.0 for % precission)
-    brushbox.color("#080f15")
+    // You can also hatch arrays of polygons brush.hatch(ARRAY WITH POLS, distance_between_lines, angle_of_lines, 0-1.0 for % precission)
+    brush.color("#080f15")
     let pol_array = []
     for (let i = 0; i < 5; i++) {
-        pol_array.push(new brushbox.Polygon([
+        pol_array.push(new brush.Polygon([
             [random(width),random(height)],
             [random(width),random(height)],
             [random(width),random(height)],
             [random(width),random(height)]
         ]));
     }
-    brushbox.hatch(pol_array,3,0)
+    brush.hatch(pol_array,3,0)
     // You can draw rectangles (x,y,width,height,mode) - mode is optional, you can set it to "center"
-    brushbox.set("charcoal","#6b9404",1)
-    //brushbox.rect(100,100,100,100,"center")
+    brush.set("charcoal","#6b9404",1)
+    //brush.rect(100,100,100,100,"center")
     // You can draw ricles (x,y,radius)
-    brushbox.color("#7b4800")
-    brushbox.circle(100,100,50)
+    brush.color("#002185")
+    brush.circle(100,100,50)
+    brush.color("#fcd300")
+    brush.circle(102,100,50)
     // You can create curves/plots (here I'm creating 4 spirals). This offers full control of the brush pressure, though it's a tad more complicated
-    brushbox.brush("marker2")
-    brushbox.flowField("seabed")
+    brush.brush("watercolor")
+    brush.flowField("seabed")
     for (let j = 0; j < 4; j++) {
-        let plot = new brushbox.Plot("curve")
+        let plot = new brush.Plot("curve")
         for (let i = 0; i < Math.floor(random(40,90)); i++) {
             plot.addSegment(0,1+i*4,random(1.2))
             plot.addSegment(90,2+i*4,random(1.2))
@@ -149,36 +152,37 @@ function setup () {
         }
         plot.endPlot(0,1)
         plot.rotate(Math.floor(random(0,180)))
-        brushbox.color(random(palette))
-        //brushbox.flowShape(plot,width*random(0.3,0.7),height*random(0.1,0.9),random(0.5,1))
+        brush.color(random(palette))
+        brush.flowShape(plot,width*random(0.3,0.7),height*random(0.1,0.9),random(0.5,1))
     }
 
-    brushbox.disableField()
-    brushbox.brush("HB")
+    brush.disableField()
+    brush.brush("HB")
     // A different way of creating curves, by an array of points [x, y, brush pressure at that point]
     let points = []
     for (let i = 0; i < 55; i++) {
         points.push([random(width),random(height),random(0.7,1.2)])
     }
-    // brushbox.spline(array_points, curvature) curvature is a value 0-1. Use 0 for a truncated line
+    // brush.spline(array_points, curvature) curvature is a value 0-1. Use 0 for a truncated line
     // The curve will go from the first point to the last one, using the rest as control points
-    //brushbox.spline(points,1)
+    //brush.spline(points,1)
 
-    brushbox.flowField("seabed")
+    brush.flowField("seabed")
 }
 
 function draw() {
-    brushbox.set(random(brushbox.brushes()),random(palette),random(1,1.5))
-    //brushbox.flowLine(width*random(0,1),height*random(0,1),width*random(0.5,0.8),random(0,360))
+    //brush.set(random(brush.brushes()),random(palette),random(1,1.5))
+    //brush.flowLine(width*random(0,1),height*random(0,1),width*random(0.5,0.8),random(0,360))
 
-    
-    let polygon = new brushbox.Polygon([
+    /*
+    let polygon = new brush.Polygon([
         [random(width),random(height)],
         [random(width),random(height)],
         [random(width),random(height)],
         [random(width),random(height)]
     ])
-    brushbox.hatch(polygon,random(1,5),random(0,180))    
+    brush.hatch(polygon,random(1,5),random(0,180))  
+    */  
     
 }
 
