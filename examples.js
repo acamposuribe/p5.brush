@@ -106,7 +106,7 @@ function setup () {
     // And remove the clip
     brush.clip(false);
     // You can set a different brush
-    brush.brush("marker")
+    brush.pick("marker")
     // You can create and draw polygons
     brush.strokeWeight(1)
     let polygon = new brush.Polygon([
@@ -140,7 +140,7 @@ function setup () {
     brush.color("#fcd300")
     brush.circle(102,100,50)
     // You can create curves/plots (here I'm creating 4 spirals). This offers full control of the brush pressure, though it's a tad more complicated
-    brush.brush("watercolor")
+    brush.pick("watercolor")
     brush.flowField("seabed")
     for (let j = 0; j < 4; j++) {
         let plot = new brush.Plot("curve")
@@ -153,11 +153,11 @@ function setup () {
         plot.endPlot(0,1)
         plot.rotate(Math.floor(random(0,180)))
         brush.color(random(palette))
-        brush.flowShape(plot,width*random(0.3,0.7),height*random(0.1,0.9),random(0.5,1))
+        //brush.flowShape(plot,width*random(0.3,0.7),height*random(0.1,0.9),random(0.5,1))
     }
 
     brush.disableField()
-    brush.brush("HB")
+    brush.pick("HB")
     // A different way of creating curves, by an array of points [x, y, brush pressure at that point]
     let points = []
     for (let i = 0; i < 55; i++) {
@@ -171,8 +171,8 @@ function setup () {
 }
 
 function draw() {
-    //brush.set(random(brush.brushes()),random(palette),random(1,1.5))
-    //brush.flowLine(width*random(0,1),height*random(0,1),width*random(0.5,0.8),random(0,360))
+    brush.set(random(brush.box()),random(palette),random(1,1.5))
+    brush.flowLine(width*random(0,1),height*random(0,1),width*random(0.5,0.8),random(0,360))
 
     /*
     let polygon = new brush.Polygon([

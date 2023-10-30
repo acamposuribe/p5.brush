@@ -23,6 +23,7 @@
         _r = (!canvasID) ? window.self : canvasID; // Set buffer
         Mix.load(); // Load Color-Mix system
         if (field) FF.create(field); // Create flow_field if needed
+        globalScale(_r.width/250)
     }
     function preload () {
         T.load();  // Load custom image TIPS
@@ -724,17 +725,28 @@
 
     //////////////////////////////////////////////////
     // STANDARD BRUSHES
-    B.add("pen", {weight: 0.4, vibration: 0.12, definition: 0.5, quality: 8, opacity: 200, spacing: 0.3, pressure: {curve: [0.15,0.2], min_max: [1.3,1]} })
-    B.add("rotring", {weight: 0.2, vibration: 0.1, definition: 0.9, quality: 20, opacity: 250, spacing: 0.2, pressure: {curve: [0.05,0.2], min_max: [1.2,0.95]} })
-    B.add("2B", {weight: 0.4, vibration: 0.45, definition: 0.2, quality: 10, opacity: 150, spacing: 0.25, pressure: {curve: [0.15,0.2], min_max: [1.2,1]} })
-    B.add("HB", {weight: 0.3, vibration: 0.6, definition: 0.4, quality: 4,  opacity: 180, spacing: 0.25, pressure: {curve: [0.15,0.2], min_max: [1.2,0.9]} })
-    B.add("2H", {weight: 0.2, vibration: 0.4, definition: 0.3, quality: 2,  opacity: 150, spacing: 0.2, pressure: {curve: [0.15,0.2], min_max: [1.2,0.9]} })
-    B.add("cpencil", {weight: 0.4, vibration: 0.6, definition: 0.8, quality: 7,  opacity: 120, spacing: 0.15, pressure: {curve: [0.15,0.2], min_max: [0.95,1.15]} })
-    B.add("charcoal", {weight: 0.5, vibration: 2, definition: 0.7, quality: 300,  opacity: 110, spacing: 0.07, pressure: {curve: [0.15,0.2], min_max: [1.3,0.95]} })
-    B.add("hatch_brush", {weight: 0.2, vibration: 0.4, definition: 0.3, quality: 2,  opacity: 150, spacing: 0.15, pressure: {curve: [0.93,0.7], min_max: [1,1.5]} })
-    B.add("spray", {type: "spray", weight: 0.4, vibration: 12, definition: 15, quality: 40,  opacity: 120, spacing: 0.75, pressure: {curve: [0.3,0.15], min_max: [0.35,1.2]} })
-    B.add("marker", {type: "marker", weight: 2.5, vibration: 0.08, opacity: 15, spacing: 0.5, pressure: {curve: [0.15,0.2], min_max: [1.4,1]} })
-    B.add("marker2", {type: "custom", weight: 3, vibration: 0, opacity: 10, spacing: 0.35, pressure: {type: "custom", curve: function(x) {return 1-x}, min_max: [0.5,1.5]}, tip() {_r.rotate(45),_r.rect(-1.5,-1.5,3,3),_r.rect(1,1,1,1)}, rotate: "natural" })
+    const standard_brushes = [
+        ["pen", { weight: 0.4, vibration: 0.12, definition: 0.5, quality: 8, opacity: 200, spacing: 0.3, pressure: {curve: [0.15,0.2], min_max: [1.3,1]} }],
+        ["rotring", { weight: 0.2, vibration: 0.1, definition: 0.9, quality: 20, opacity: 250, spacing: 0.2, pressure: {curve: [0.05,0.2], min_max: [1.2,0.95]} }],
+        ["2B", { weight: 0.4, vibration: 0.45, definition: 0.2, quality: 10, opacity: 150, spacing: 0.25, pressure: {curve: [0.15,0.2], min_max: [1.2,1]} }],
+        ["HB", { weight: 0.3, vibration: 0.6, definition: 0.4, quality: 4,  opacity: 180, spacing: 0.25, pressure: {curve: [0.15,0.2], min_max: [1.2,0.9]} }],
+        ["2H", { weight: 0.2, vibration: 0.4, definition: 0.3, quality: 2,  opacity: 150, spacing: 0.2, pressure: {curve: [0.15,0.2], min_max: [1.2,0.9]} }],
+        ["cpencil", { weight: 0.4, vibration: 0.6, definition: 0.8, quality: 7,  opacity: 120, spacing: 0.15, pressure: {curve: [0.15,0.2], min_max: [0.95,1.15]} }],
+        ["charcoal", { weight: 0.5, vibration: 2, definition: 0.7, quality: 300,  opacity: 110, spacing: 0.07, pressure: {curve: [0.15,0.2], min_max: [1.3,0.95]} }],
+        ["hatch_brush", { weight: 0.2, vibration: 0.4, definition: 0.3, quality: 2,  opacity: 150, spacing: 0.15, pressure: {curve: [0.93,0.7], min_max: [1,1.5]} }],
+        ["spray", { type: "spray", weight: 0.4, vibration: 12, definition: 15, quality: 40,  opacity: 120, spacing: 0.75, pressure: {curve: [0.3,0.15], min_max: [0.35,1.2]} }],
+        ["marker", { type: "marker", weight: 2.5, vibration: 0.08, opacity: 15, spacing: 0.5, pressure: {curve: [0.15,0.2], min_max: [1.4,1]} }],
+        ["marker2", { type: "custom", weight: 3, vibration: 0, opacity: 10, spacing: 0.35, pressure: {type: "custom", curve: function(x) {return 1-x}, min_max: [0.5,1.5]}, tip() {_r.rotate(45),_r.rect(-1.5,-1.5,3,3),_r.rect(1,1,1,1)}, rotate: "natural" }],
+    ];
+    for (let s of standard_brushes) {
+        B.add(s[0],s[1])
+    }
+    function globalScale(_scale) {
+        for (let s of standard_brushes) {
+            let params = B.list.get(s[0]).param
+            params.weight *= _scale, params.vibration *= _scale, params.spacing *= _scale;
+        }
+    }
 
     //////////////////////////////////////////////////
     // EXPORTS
@@ -745,13 +757,14 @@
     exports.flowField = flowField;
     exports.disableField = disableField;
     exports.translate = translate;
+    exports.globalScale = globalScale;
     // Export BRUSH functions
     exports.newBrush = B.add;
-    exports.brushes = brushes;
+    exports.box = brushes;
     exports.set = B.set;
     exports.color = B.setColor;
     exports.strokeWeight = B.setWeight;
-    exports.brush = B.setBrush;
+    exports.pick = B.setBrush;
     exports.clip = B.clip;
     exports.line = B.line;
     exports.flowLine = B.flowLine;
