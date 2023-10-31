@@ -67,9 +67,10 @@
         R.c[i] = Math.cos(radians)
         R.s[i] = Math.sin(radians)
     }
-    let trans = [0,0];
-    function translate(x,y) {
-        trans = [x,y]
+    let matrix = [0,0];
+    const trans = function () {
+        matrix = [_r._renderer.uMVMatrix.mat4[12],_r._renderer.uMVMatrix.mat4[13]]
+        return matrix;
     }
 
     //////////////////////////////////////////////////
@@ -89,7 +90,7 @@
         blend (_c) {
             this.pigment = [float(red(color(_c))),float(green(color(_c))),float(blue(color(_c)))];
             _r.push();
-            _r.translate(-_r.width/2,-_r.height/2)
+            _r.translate(-trans()[0],-trans()[1])
             // Load shader and send data from canvas
             _r.shader(this.shader);
             this.shader.setUniform('addColor', this.pigment);
@@ -98,7 +99,7 @@
             // Give geometry to shader
             _r.fill(0,0,0,0);
             _r.noStroke();
-            _r.rect(0, 0, _r.width, _r.height);
+            _r.rect(-_r.width/2, -_r.height/2, _r.width, _r.height);
             // Clear Mask to prepare for next colour
             this.mask.draw(function () {_r.clear()})
             _r.pop();
@@ -272,12 +273,12 @@
         }
     }
     class Position {
-        constructor (x,y) {this.update(x + trans[0],y + trans[1]), this.plotted = 0;}
+        constructor (x,y) {this.update(x, y), this.plotted = 0;}
         update (x,y) {
             this.x = x , this.y = y;
             if (FF.isActive) {
-                this.x_offset = this.x - FF.left_x;
-                this.y_offset = this.y - FF.top_y;
+                this.x_offset = this.x - FF.left_x + trans()[0];
+                this.y_offset = this.y - FF.top_y + trans()[1];
                 this.column_index = Math.round(this.x_offset / FF.R);
                 this.row_index = Math.round(this.y_offset / FF.R);
             }
@@ -287,7 +288,7 @@
             return (FF.isActive) ? ((this.column_index >= 0 && this.row_index >= 0) && (this.column_index < FF.num_columns && this.row_index < FF.num_rows)) : this.isInCanvas();
         }
         isInCanvas() {
-            return (this.x >= -0.55 * _r.width && this.x <= 0.55 * _r.width) && (this.y >= -0.55 * _r.height && this.y <= 0.55 * _r.height)
+            return (this.x >= -0.55 * _r.width - trans()[0] && this.x <= 0.55 * _r.width - trans()[0]) && (this.y >= -0.55 * _r.height - trans()[1] && this.y <= 0.55 * _r.height - trans()[1])
         }
         angle () {
             if (this.isIn() && FF.isActive) {
@@ -377,13 +378,13 @@
         },
         push() {
             B.p = B.list.get(B.name).param
-            if (B.p.pressure.type !== "custom") {B.a = R.random(-1,1), B.b = R.random(1,1.5), B.cp = R.random(3,4.5);}
+            if (B.p.pressure.type !== "custom") {B.a = R.random(-1,1), B.b = R.random(1,1.5), B.cp = R.random(3,3.5);}
             else {B.cp = R.random(-0.2,0.2)}
             B.min = B.p.pressure.min_max[0], B.max = B.p.pressure.min_max[1];
             if (S.on) B.pickBuffer(), B.buffer.beginShape();
-            if (B.p.blend) Mix.mask.begin();
+            if (B.p.blend) trans(), Mix.mask.begin();
             _r.push(), B.c = _r.color(B.c), _r.noStroke();
-            if (B.p.blend) B.markerTip();
+            if (B.p.blend) _r.translate(matrix[0],matrix[1]), B.markerTip();
         },
         tip() {
             if (S.on) B.buffer.vertex(B.position.x,B.position.y) // SVG
@@ -394,7 +395,7 @@
                 if (B.p.type === "spray") { // SPRAY TYPE BRUSHES
                     let vibration = (B.w * B.p.vibration * pressure) + B.w * randomGaussian() * B.p.vibration / 3;
                     let sw = B.p.weight * R.random(0.9,1.1);
-                    for (let j = 0; j < B.p.quality; j++) {
+                    for (let j = 0; j < B.p.quality / pressure; j++) {
                         let r = R.random(0.9,1.1);
                         let rX = r * vibration * R.random(-1,1);
                         _r.circle(B.position.x + rX, B.position.y + R.random(-1, 1) * Math.sqrt(Math.pow(r * vibration,2) - Math.pow(rX,2)), sw);
@@ -597,14 +598,14 @@
 
     //////////////////////////////////////////////////
     // BASIC GEOMETRIES
-    function rect(x,y,w,h,mode = false) {
+    function rectangulo(x,y,w,h,mode = false) {
         if (mode) x = x - w / 2, y = y - h / 2;
         B.line(x,y,x+w,y)
         B.line(x+w,y,x+w,y+h)
         B.line(x+w,y+h,x,y+h)
         B.line(x,y+h,x,y)
     }
-    function circle(x,y,radius,field = false) {
+    function circulo(x,y,radius,field = false) {
         let f = FF.isActive
         FF.isActive = field;
         let p = new Plot("curve")
@@ -631,19 +632,24 @@
                     let a1 = calcAngle(p1[0],p1[1],p2[0],p2[1]), a2 = calcAngle(p2[0],p2[1],p3[0],p3[1]);
                     let dd = Math.min(curvature * Math.min(d1,d2),0.5 * Math.min(d1,d2)), dmax = Math.max(d1,d2)
                     let s1 = d1 - dd, s2 = d2 - dd;
-                    let point1 = {x: p2[0] - dd * R.cos(-a1), y: p2[1] - dd * R.sin(-a1)}
-                    let point2 = {x: point1.x + dmax * R.cos(-a1+90), y: point1.y + dmax * R.sin(-a1+90)}
-                    let point3 = {x: p2[0] + dd * R.cos(-a2), y: p2[1] + dd * R.sin(-a2)}
-                    let point4 = {x: point3.x + dmax * R.cos(-a2+90), y: point3.y + dmax * R.sin(-a2+90)}
-                    let int = intersectar(point1,point2,point3,point4,true)
-                    let radius = dist(point1.x,point1.y,int.x,int.y)
-                    let disti = dist(point1.x,point1.y,point3.x,point3.y)/2
-                    let a3 = 2*asin(disti/radius)
-                    let s3 = 2 * Math.PI * radius * a3 / 360;
-                    p.addSegment(a1,s1-done, p1[2],true)
-                    p.addSegment(a1,s3, p1[2],true)
-                    p.addSegment(a2,i === array_points.length - 3 ? s2 : 0, p2[2],true)
-                    done = dd;
+                    if (Math.floor(a1) === Math.floor(a2)) {
+                        p.addSegment(a1,s1,p1[2],true)
+                        p.addSegment(a2,d2,p2[2],true)
+                    } else {
+                        let point1 = {x: p2[0] - dd * R.cos(-a1), y: p2[1] - dd * R.sin(-a1)}
+                        let point2 = {x: point1.x + dmax * R.cos(-a1+90), y: point1.y + dmax * R.sin(-a1+90)}
+                        let point3 = {x: p2[0] + dd * R.cos(-a2), y: p2[1] + dd * R.sin(-a2)}
+                        let point4 = {x: point3.x + dmax * R.cos(-a2+90), y: point3.y + dmax * R.sin(-a2+90)}
+                        let int = intersectar(point1,point2,point3,point4,true)
+                        let radius = dist(point1.x,point1.y,int.x,int.y)
+                        let disti = dist(point1.x,point1.y,point3.x,point3.y)/2
+                        let a3 = 2*asin(disti/radius)
+                        let s3 = 2 * Math.PI * radius * a3 / 360;
+                        p.addSegment(a1,s1-done, p1[2],true)
+                        p.addSegment(a1,s3, p1[2],true)
+                        p.addSegment(a2,i === array_points.length - 3 ? s2 : 0, p2[2],true)
+                        done = dd;
+                    }
                     if (i == array_points.length - 3) {
                         p.endPlot(a2,p2[2],true)
                     }
@@ -734,9 +740,12 @@
         ["2H", { weight: 0.2, vibration: 0.4, definition: 0.3, quality: 2,  opacity: 150, spacing: 0.2, pressure: {curve: [0.15,0.2], min_max: [1.2,0.9]} }],
         ["cpencil", { weight: 0.4, vibration: 0.6, definition: 0.8, quality: 7,  opacity: 120, spacing: 0.15, pressure: {curve: [0.15,0.2], min_max: [0.95,1.15]} }],
         ["charcoal", { weight: 0.45, vibration: 2, definition: 0.7, quality: 300,  opacity: 110, spacing: 0.07, pressure: {curve: [0.15,0.2], min_max: [1.3,0.95]} }],
-        ["hatch_brush", { weight: 0.2, vibration: 0.4, definition: 0.3, quality: 2,  opacity: 150, spacing: 0.15, pressure: {curve: [0.93,0.7], min_max: [1,1.5]} }],
-        ["spray", { type: "spray", weight: 0.3, vibration: 12, definition: 15, quality: 30,  opacity: 120, spacing: 0.75, pressure: {curve: [0.3,0.15], min_max: [0.35,1.2]} }],
-        ["marker", { type: "marker", weight: 2.5, vibration: 0.08, opacity: 17, spacing: 0.4, pressure: {curve: [0.15,0.2], min_max: [1.6,1]} }],
+        ["hatch_brush", { weight: 0.2, vibration: 0.4, definition: 0.3, quality: 2,  opacity: 150, spacing: 0.15, pressure: {curve: [0.5,0.7], min_max: [1,1.5]} }],
+        ["spray", { type: "spray", weight: 0.3, vibration: 12, definition: 15, quality: 40,  opacity: 120, spacing: 0.65, pressure: {curve: [0,0.1], min_max: [0.15,1.2]} }],
+        ["marker", { type: "marker", weight: 2.5, vibration: 0.08, opacity: 17, spacing: 0.4, pressure: {curve: [0.35,0.25], min_max: [1.35,1]} }],
+        ["marker2", { type: "custom", weight: 2.5, vibration: 0.08, opacity: 7, spacing: 0.6, pressure: {curve: [0.35,0.25], min_max: [1.35,1]}, 
+            tip: function () { _r.rect(-1.5,-1.5,3,3); _r.rect(1,1,1,1) }, rotate: "natural"
+        }],
     ];
     for (let s of standard_brushes) {
         B.add(s[0],s[1])
@@ -756,7 +765,6 @@
     exports.preload = preload;
     exports.flowField = flowField;
     exports.disableField = disableField;
-    exports.translate = translate;
     exports.globalScale = globalScale;
     // Export BRUSH functions
     exports.newBrush = B.add;
@@ -770,8 +778,8 @@
     exports.flowLine = B.flowLine;
     exports.flowShape = B.flowShape;
     exports.hatch = B.hatch;
-    exports.rect = rect;
-    exports.circle = circle;
+    exports.rect = rectangulo;
+    exports.circle = circulo;
     exports.spline = spline;
     // Classes
     exports.Plot = Plot;

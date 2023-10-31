@@ -44,16 +44,16 @@ brush.config({
 // YOU CAN CREATE YOU OWN BRUSHES
 brush.newBrush("watercolor", {
     type: "image",       // this is the TIP TYPE: choose standard / spray / marker / custom / image
-    weight: 17,          // Base weight of the brush tip
+    weight: 20,          // Base weight of the brush tip
     vibration: 2,        // Vibration of the lines, spread
     definition: 0.5,     // Between 0 and 1
     quality: 8,          // + quality = more continuous line
-    opacity: 10,         // Base opacity of the brush (this will be affected by pressure)
+    opacity: 8,         // Base opacity of the brush (this will be affected by pressure)
     spacing: 1,          // Spacing between the points that compose the brush stroke
     blend: true,         // Activate / Disable realistic color mixing. By default, this is active for marker-custom-image brushes 
     pressure: {
         type: "custom",                       // "standard" or "custom". Use "custom"" for custom pressure curves. Use standard for simple gauss bell curve
-        //curve: [0.15,0.2],                  // If "standard", pick a and b values for the gauss curve.
+        //curve: [0.15,0.2],                  // If "standard", pick a and b values for the gauss curve. a is max horizontal mvt of the bell, b changes the slope
         curve: function (x) {return 1-x},     // If "custom", define the curve function with a curve equation from x = 0 to x = 1, returning values from 0 to 1
         min_max: [0.5,1.2]                    // For both cases, define min and max pressure (reverse for inverted presure)
     },
@@ -66,7 +66,7 @@ brush.newBrush("watercolor", {
         src: "./brush_tips/brush.jpg",
     },
     // For "custom" and "image" types, you can define the tip angle rotation here.
-    rotate: "natural", // "none" disables rotation | "natural" follows the direction of the stroke | "random"
+    rotate: "random", // "none" disables rotation | "natural" follows the direction of the stroke | "random"
 })
 
 
@@ -88,20 +88,23 @@ function setup () {
     // USE BRUSHBOX LIBRARY
     // Load BrushBox: load(BUFFER) -> Leave empty if you want to draw to the main p5 canvas
     brush.load();
-    brush.translate(-width/2,-height/2)
 
+    translate(-width/2,-height/2)
+
+    // STANDARD PALETTE TEST
+    /*
     let i = 0
     for (let b of brush.box()) {
-        brush.set(b,random(palette),1)
-        brush.line(30,30+i*10,200,30+i*10)
+            brush.set(b,random(palette),1)
+            brush.line(30,30+i*10,220,30+i*10)
         i++
     }
+    */
 
     /*
     // Set your brush name, color, and weight. There are 9 standard brushes to select from.
     // Select colors with HEX codes, arrays of [r,g,b] or names
     brush.set("marker","black",1)
-    // Translate(x,y) - here I'm translating, so to draw like a 2D canvas
     
     // Draw a line (x1,y1,x2,y2)
     brush.line(20,20,200,20)
@@ -153,21 +156,24 @@ function setup () {
     brush.circle(100,100,50)
     brush.color("#fcd300")
     brush.circle(102,100,50)
+
+    */
+
     // You can create curves/plots (here I'm creating 4 spirals). This offers full control of the brush pressure, though it's a tad more complicated
-    brush.pick("watercolor")
-    brush.flowField("seabed")
-    for (let j = 0; j < 4; j++) {
+    brush.pick("marker2")
+    brush.flowField("waves")
+    for (let j = 0; j < 5; j++) {
         let plot = new brush.Plot("curve")
         for (let i = 0; i < Math.floor(random(40,90)); i++) {
-            plot.addSegment(0,1+i*4,random(1.2))
-            plot.addSegment(90,2+i*4,random(1.2))
-            plot.addSegment(180,3+i*4,random(1.2))
-            plot.addSegment(270,4+i*4,random(1.2))
+            plot.addSegment(0,1+i*4,random(0.6,1.5))
+            plot.addSegment(90,2+i*4,random(0.6,1.5))
+            plot.addSegment(180,3+i*4,random(0.6,1.5))
+            plot.addSegment(270,4+i*4,random(0.6,1.5))
         }
         plot.endPlot(0,1)
         plot.rotate(Math.floor(random(0,180)))
-        brush.color(random(palette))
-        //brush.flowShape(plot,width*random(0.3,0.7),height*random(0.1,0.9),random(0.5,1))
+        brush.color(palette[j % (palette.length)])
+        brush.flowShape(plot,width*random(0.3,0.7),height*random(0.1,0.9),random(0.5,1))
     }
 
     brush.disableField()
@@ -180,9 +186,7 @@ function setup () {
     // brush.spline(array_points, curvature) curvature is a value 0-1. Use 0 for a truncated line
     // The curve will go from the first point to the last one, using the rest as control points
     //brush.spline(points,1)
-
-    brush.flowField("seabed")
-    */
+    
 }
 
 function draw() {
