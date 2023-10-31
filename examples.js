@@ -40,6 +40,7 @@ brush.config({
     // R: function () { return YOUR_RNG() },
 })
 
+
 // YOU CAN CREATE YOU OWN BRUSHES
 brush.newBrush("watercolor", {
     type: "image",       // this is the TIP TYPE: choose standard / spray / marker / custom / image
@@ -68,6 +69,7 @@ brush.newBrush("watercolor", {
     rotate: "natural", // "none" disables rotation | "natural" follows the direction of the stroke | "random"
 })
 
+
 //////////////////////////////////////////////////
 // P5 FUNCTIONS
 
@@ -86,14 +88,26 @@ function setup () {
     // USE BRUSHBOX LIBRARY
     // Load BrushBox: load(BUFFER) -> Leave empty if you want to draw to the main p5 canvas
     brush.load();
+    brush.translate(-width/2,-height/2)
+
+    let i = 0
+    for (let b of brush.box()) {
+        brush.set(b,random(palette),1)
+        brush.line(30,30+i*10,200,30+i*10)
+        i++
+    }
+
+    /*
     // Set your brush name, color, and weight. There are 9 standard brushes to select from.
     // Select colors with HEX codes, arrays of [r,g,b] or names
     brush.set("marker","black",1)
     // Translate(x,y) - here I'm translating, so to draw like a 2D canvas
-    brush.translate(-width/2,-height/2)
+    
     // Draw a line (x1,y1,x2,y2)
     brush.line(20,20,200,20)
     // Change the color or weight scale. Use hex color codes
+
+    
     brush.color("#002185")
     brush.strokeWeight(1.2)
     // You can also draw flowlines (x1,y1,distance,angle)
@@ -168,11 +182,12 @@ function setup () {
     //brush.spline(points,1)
 
     brush.flowField("seabed")
+    */
 }
 
 function draw() {
-    brush.set(random(brush.box()),random(palette),random(1,1.5))
-    brush.flowLine(width*random(0,1),height*random(0,1),width*random(0.5,0.8),random(0,360))
+    brush.set(random(brush.box()),random(palette),random(0.8,1.1))
+    //brush.flowLine(width*random(0,1),height*random(0,1),width*random(0.5,0.8),random(0,360))
 
     /*
     let polygon = new brush.Polygon([
@@ -181,8 +196,8 @@ function draw() {
         [random(width),random(height)],
         [random(width),random(height)]
     ])
-    brush.hatch(polygon,random(1,5),random(0,180))  
-    */  
+    brush.hatch(polygon,random(2,5),random(0,180))  
+     */
     
 }
 

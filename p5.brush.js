@@ -23,7 +23,7 @@
         _r = (!canvasID) ? window.self : canvasID; // Set buffer
         Mix.load(); // Load Color-Mix system
         if (field) FF.create(field); // Create flow_field if needed
-        globalScale(_r.width/250)
+        globalScale(_r.width / 250)
     }
     function preload () {
         T.load();  // Load custom image TIPS
@@ -169,7 +169,7 @@
         create(a) {
             this.isActive = true;
             if (!this.isCreated) {
-                this.R = _r.width * 0.01, this.left_x = _r.width * -0.5, this.top_y = _r.height * -0.5;
+                this.R = _r.width * 0.01, this.left_x = -1 * _r.width, this.top_y = -1 * _r.height;
                 this.num_columns = Math.round(2 * _r.width / this.R), this.num_rows = Math.round(2 * _r.height / this.R), this.flow_field = [];
             }
             this.isCreated = true;
@@ -272,9 +272,9 @@
         }
     }
     class Position {
-        constructor (x,y) {this.update(x,y), this.plotted = 0;}
+        constructor (x,y) {this.update(x + trans[0],y + trans[1]), this.plotted = 0;}
         update (x,y) {
-            this.x = x, this.y = y;
+            this.x = x , this.y = y;
             if (FF.isActive) {
                 this.x_offset = this.x - FF.left_x;
                 this.y_offset = this.y - FF.top_y;
@@ -287,7 +287,7 @@
             return (FF.isActive) ? ((this.column_index >= 0 && this.row_index >= 0) && (this.column_index < FF.num_columns && this.row_index < FF.num_rows)) : this.isInCanvas();
         }
         isInCanvas() {
-            return (this.x >= -0.05 * _r.width && this.x <= 1.05 * _r.width) && (this.y >= -0.05 * _r.height && this.y <= 1.05 * _r.height)
+            return (this.x >= -0.55 * _r.width && this.x <= 0.55 * _r.width) && (this.y >= -0.55 * _r.height && this.y <= 0.55 * _r.height)
         }
         angle () {
             if (this.isIn() && FF.isActive) {
@@ -382,7 +382,7 @@
             B.min = B.p.pressure.min_max[0], B.max = B.p.pressure.min_max[1];
             if (S.on) B.pickBuffer(), B.buffer.beginShape();
             if (B.p.blend) Mix.mask.begin();
-            _r.push(), _r.translate(trans[0],trans[1]), B.c = _r.color(B.c), _r.noStroke();
+            _r.push(), B.c = _r.color(B.c), _r.noStroke();
             if (B.p.blend) B.markerTip();
         },
         tip() {
@@ -406,24 +406,24 @@
                     _r.push();
                     let vibration = B.w * B.p.vibration;
                     _r.translate(B.position.x + vibration * R.random(-1,1), B.position.y + vibration * R.random(-1,1)), 
-                    B.adjust_tip(B.w * pressure, alpha, B.p.rotate)
+                    B.adjust_tip(B.w * pressure, alpha)
                     B.p.tip();
                     _r.pop();
                 } else { // REST OF BRUSHES
-                    let vibration = B.w * B.p.vibration * (B.p.definition + (1-B.p.definition) * randomGaussian() * B.gauss(0.5,0.9,5,0.2,1) / pressure);
+                    let vibration = B.w * B.p.vibration * (B.p.definition + (1-B.p.definition) * randomGaussian() * B.gauss(0.5,0.9,5,0.2,1.2) / pressure);
                     if (R.random(0,B.p.quality) > 0.4) {
                         _r.circle(B.position.x + 0.7 * vibration * R.random(-1,1),B.position.y + vibration * R.random(-1,1), pressure * B.p.weight * B.w * R.random(0.85,1.15));
                     }
                 }
             }
         },
-        adjust_tip(pressure, alpha, mode) {
+        adjust_tip(pressure, alpha) {
             _r.scale(pressure);
             if (B.p.type === "image") {
                 (B.p.blend) ? _r.tint(255,0,1,alpha) : _r.tint(_r.red(B.c),_r.green(B.c),_r.blue(B.c),alpha);
             }
-            if (mode === "random") _r.rotate(R.randInt(0,360));
-            if (mode === "natural") {
+            if (B.p.rotate === "random") _r.rotate(R.randInt(0,360));
+            if (B.p.rotate === "natural") {
                 _r.rotate(((B.plot) ? - B.plot.angle(B.position.plotted) : - B.dir) + (B.flow ? B.position.angle() : 0));
             }
         },
@@ -437,14 +437,14 @@
             if (B.crop()) {
                 let pressure = B.plot ? B.simPressure() * B.plot.pressure(B.position.plotted) : B.simPressure();
                 let alpha = Math.floor(B.p.opacity * Math.pow(pressure,B.p.type === "marker" ? 1 : 1.5)); 
-                _r.fill(255,0,1,alpha);
+                _r.fill(255,0,1,1.5 * alpha);
                 for (let s = 0; s < 5; s++) {
                     if (B.p.type === "marker") {
                         _r.circle(B.position.x,B.position.y, s/5 * B.w * B.p.weight * pressure)
                     } else if (B.p.type === "custom" || B.p.type === "image") {
                         _r.push(); 
                         _r.translate(B.position.x, B.position.y), 
-                        B.adjust_tip(B.w * s/5 * pressure,alpha,B.p.rotate)
+                        B.adjust_tip(B.w * s/5 * pressure,alpha)
                         B.p.tip(); 
                         _r.pop();
                     }
@@ -604,8 +604,9 @@
         B.line(x+w,y+h,x,y+h)
         B.line(x,y+h,x,y)
     }
-    function circle(x,y,radius) {
-        FF.isActive = false
+    function circle(x,y,radius,field = false) {
+        let f = FF.isActive
+        FF.isActive = field;
         let p = new Plot("curve")
         let l = Math.PI * radius / 2;
         p.addSegment(0, l, 1, true)
@@ -614,7 +615,7 @@
         p.addSegment(270, l, 1, true) 
         p.endPlot(0,1, true)
         p.draw(x,y+radius,1)
-        FF.isActive = true
+        FF.isActive = f
     }
     //////////////////////////////////////////////////
     // PLOT SYSTEM
@@ -726,17 +727,16 @@
     //////////////////////////////////////////////////
     // STANDARD BRUSHES
     const standard_brushes = [
-        ["pen", { weight: 0.4, vibration: 0.12, definition: 0.5, quality: 8, opacity: 200, spacing: 0.3, pressure: {curve: [0.15,0.2], min_max: [1.3,1]} }],
-        ["rotring", { weight: 0.2, vibration: 0.1, definition: 0.9, quality: 20, opacity: 250, spacing: 0.2, pressure: {curve: [0.05,0.2], min_max: [1.2,0.95]} }],
-        ["2B", { weight: 0.4, vibration: 0.45, definition: 0.2, quality: 10, opacity: 150, spacing: 0.25, pressure: {curve: [0.15,0.2], min_max: [1.2,1]} }],
-        ["HB", { weight: 0.3, vibration: 0.6, definition: 0.4, quality: 4,  opacity: 180, spacing: 0.25, pressure: {curve: [0.15,0.2], min_max: [1.2,0.9]} }],
+        ["pen", { weight: 0.35, vibration: 0.12, definition: 0.5, quality: 8, opacity: 200, spacing: 0.3, pressure: {curve: [0.15,0.2], min_max: [1.3,1]} }],
+        ["rotring", { weight: 0.2, vibration: 0.05, definition: 1, quality: 300, opacity: 250, spacing: 0.15, pressure: {curve: [0.05,0.2], min_max: [1.2,0.95]} }],
+        ["2B", { weight: 0.4, vibration: 0.45, definition: 0.1, quality: 9, opacity: 160, spacing: 0.2, pressure: {curve: [0.15,0.2], min_max: [1.2,1]} }],
+        ["HB", { weight: 0.3, vibration: 0.5, definition: 0.4, quality: 4,  opacity: 180, spacing: 0.25, pressure: {curve: [0.15,0.2], min_max: [1.2,0.9]} }],
         ["2H", { weight: 0.2, vibration: 0.4, definition: 0.3, quality: 2,  opacity: 150, spacing: 0.2, pressure: {curve: [0.15,0.2], min_max: [1.2,0.9]} }],
         ["cpencil", { weight: 0.4, vibration: 0.6, definition: 0.8, quality: 7,  opacity: 120, spacing: 0.15, pressure: {curve: [0.15,0.2], min_max: [0.95,1.15]} }],
-        ["charcoal", { weight: 0.5, vibration: 2, definition: 0.7, quality: 300,  opacity: 110, spacing: 0.07, pressure: {curve: [0.15,0.2], min_max: [1.3,0.95]} }],
+        ["charcoal", { weight: 0.45, vibration: 2, definition: 0.7, quality: 300,  opacity: 110, spacing: 0.07, pressure: {curve: [0.15,0.2], min_max: [1.3,0.95]} }],
         ["hatch_brush", { weight: 0.2, vibration: 0.4, definition: 0.3, quality: 2,  opacity: 150, spacing: 0.15, pressure: {curve: [0.93,0.7], min_max: [1,1.5]} }],
-        ["spray", { type: "spray", weight: 0.4, vibration: 12, definition: 15, quality: 40,  opacity: 120, spacing: 0.75, pressure: {curve: [0.3,0.15], min_max: [0.35,1.2]} }],
-        ["marker", { type: "marker", weight: 2.5, vibration: 0.08, opacity: 15, spacing: 0.5, pressure: {curve: [0.15,0.2], min_max: [1.4,1]} }],
-        ["marker2", { type: "custom", weight: 3, vibration: 0, opacity: 10, spacing: 0.35, pressure: {type: "custom", curve: function(x) {return 1-x}, min_max: [0.5,1.5]}, tip() {_r.rotate(45),_r.rect(-1.5,-1.5,3,3),_r.rect(1,1,1,1)}, rotate: "natural" }],
+        ["spray", { type: "spray", weight: 0.3, vibration: 12, definition: 15, quality: 30,  opacity: 120, spacing: 0.75, pressure: {curve: [0.3,0.15], min_max: [0.35,1.2]} }],
+        ["marker", { type: "marker", weight: 2.5, vibration: 0.08, opacity: 17, spacing: 0.4, pressure: {curve: [0.15,0.2], min_max: [1.6,1]} }],
     ];
     for (let s of standard_brushes) {
         B.add(s[0],s[1])
