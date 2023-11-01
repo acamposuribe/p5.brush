@@ -48,7 +48,7 @@ brush.newBrush("watercolor", {
     vibration: 2,        // Vibration of the lines, spread
     definition: 0.5,     // Between 0 and 1
     quality: 8,          // + quality = more continuous line
-    opacity: 8,         // Base opacity of the brush (this will be affected by pressure)
+    opacity: 28,         // Base opacity of the brush (this will be affected by pressure)
     spacing: 1,          // Spacing between the points that compose the brush stroke
     blend: true,         // Activate / Disable realistic color mixing. By default, this is active for marker-custom-image brushes 
     pressure: {
@@ -203,9 +203,10 @@ function setup () {
         [100,120],
         [30,140],
     ]);
-    brush.set("rotring","#9c2128",1)
-    // You can also atch these polygons .hath(distance_between_lines, angle_of_lines, 0-1.0 for % precission)
-    polygon.hatch(3,45,{rand: false, continuous: false, gradient: 10})
+    brush.set("marker","#9c2128",1)
+    // You can also atch these polygons .hath(distance_between_lines, angle_of_lines, options)
+    polygon.hatch(1,45,{rand: 0.2, continuous: true, gradient: 0.5})
+    polygon.draw()
     
 }
 

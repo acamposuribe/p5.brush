@@ -123,7 +123,7 @@
                 vec4 canvasColor = texture2D(source, vVertTexCoord);
                 vec3 mixedColor = spectral_mix(vec3(canvasColor.r,canvasColor.g,canvasColor.b), rgb(addColor.r,addColor.g,addColor.b), maskColor.a * 0.7);
                 if (maskColor.a > 0.7)  {mixedColor = spectral_mix(mixedColor,vec3(0.0,0.0,0.0),(maskColor.a - 0.7) * 0.7);}
-                gl_FragColor = vec4(mixedColor.r + 0.02 * r1 ,mixedColor.g + 0.02 * r2,mixedColor.b + 0.02 * r3,1.0);
+                gl_FragColor = vec4(mixedColor.r + 0.01 * r1 ,mixedColor.g + 0.01 * r2,mixedColor.b + 0.01 * r3,1.0);
             }
             else {
                 gl_FragColor = vec4(0.0,0.0,0.0,0.0);
@@ -479,22 +479,26 @@
         hatch(polygons, dist, angle, options = {rand: false, continuous: false, gradient: false}) {
             if (angleMode() === "radians") angle = angle * 180 / Math.PI
             angle = angle % 180;
-            let dots = [], startY = (angle <= 90 && angle >= 0) ? - _r.height / 2 : _r.height / 2;
-            let ventana = new Polygon([
-                [-_r.width/2-trans()[0],-_r.height/2-trans()[1]],
-                [_r.width/2-trans()[0],-_r.height/2-trans()[1]],
-                [_r.width/2-trans()[0],_r.height/2-trans()[1]],
-                [-_r.width/2-trans()[0],_r.height/2-trans()[1]]])
+            let dots = [];
+            let minX = 999999, maxX = -999999, minY = 999999, maxY = -999999;
+            if (!Array.isArray(polygons)) {polygons = [polygons]}
+            for (let p of polygons) {
+                for (let a of p.a) {
+                    minX = Math.min(a[0],minX), maxX = Math.max(a[0],maxX), minY = Math.min(a[1],minY), maxY = Math.max(a[1],maxY)
+                }
+            }
+            minX -= 1, minY -= 1, maxX += 1, maxY += 1;
+            let ventana = new Polygon([[minX,minY],[maxX,minY],[maxX,maxY],[minX,maxY]])
+            let startY = (angle <= 90 && angle >= 0) ? minY : maxY;
             let i = 0;
             let linea = {
-                point1 : {x: -_r.width/2 - trans()[0],               y:startY - trans()[1]},
-                point2 : {x: -_r.width/2+R.cos(-angle) - trans()[0], y:startY+R.sin(-angle) - trans()[1]}
+                point1: { x: minX,                  y: startY },
+                point2: { x: minX + R.cos(-angle),  y: startY + R.sin(-angle) }
             }
             let dist1 = dist;
             while (ventana.intersect(linea).length > 0) {
                 let tempArray = [];
-                if (Array.isArray(polygons)) {for (let p of polygons) {tempArray.push(p.intersect(linea))}} 
-                else {tempArray.push(polygons.intersect(linea))}
+                for (let p of polygons) {tempArray.push(p.intersect(linea))};
                 tempArray = tempArray.flat();
                 tempArray.sort(function(a,b) {
                     if(a.x == b.x) return a.y-b.y;
@@ -502,15 +506,14 @@
                 });
                 dots[i] = []
                 dots[i] = dots[i].concat(tempArray)
+                if (options.gradient) dist1 *= map(options.gradient,0,1,1,1.1,true)
                 i++
                 linea = {
-                    point1 : {x: -_r.width/2+dist1*i*R.cos(-angle+90) - trans()[0],                 y: startY+dist1*i*R.sin(-angle+90) - trans()[1]},
-                    point2 : {x: -_r.width/2+dist1*i*R.cos(-angle+90)+R.cos(-angle) - trans()[0],   y: startY+dist1*i*R.sin(-angle+90)+R.sin(-angle) - trans()[1]}
+                    point1 : {x: minX + dist1*i*R.cos(-angle+90),                 y: startY + dist1*i*R.sin(-angle+90)},
+                    point2 : {x: minX + dist1*i*R.cos(-angle+90)+R.cos(-angle),   y: startY + dist1*i*R.sin(-angle+90)+R.sin(-angle)}
                 }
             }
-            
             let gdots = []
-            console.log(gdots)
             for (let dd of dots) {if (typeof dd[0] !== "undefined") { gdots.push(dd)}}
             for (let j = 0; j < gdots.length; j++) {
                 let dd = gdots[j]
@@ -585,7 +588,7 @@
         }
         draw () {
             for (let s of this.sides) {
-                B.line(s[0].x - trans()[0],s[0].y - trans()[1],s[1].x - trans()[0],s[1].y - trans()[1])
+                B.line(s[0].x,s[0].y,s[1].x,s[1].y)
             }
         }
         hatch (dist, angle, options) {
@@ -783,8 +786,8 @@
         ["charcoal", { weight: 0.45, vibration: 2, definition: 0.7, quality: 300,  opacity: 110, spacing: 0.07, pressure: {curve: [0.15,0.2], min_max: [1.3,0.95]} }],
         ["hatch_brush", { weight: 0.2, vibration: 0.4, definition: 0.3, quality: 2,  opacity: 150, spacing: 0.15, pressure: {curve: [0.5,0.7], min_max: [1,1.5]} }],
         ["spray", { type: "spray", weight: 0.3, vibration: 12, definition: 15, quality: 40,  opacity: 120, spacing: 0.65, pressure: {curve: [0,0.1], min_max: [0.15,1.2]} }],
-        ["marker", { type: "marker", weight: 2.5, vibration: 0.08, opacity: 24, spacing: 0.4, pressure: {curve: [0.35,0.25], min_max: [1.35,1]}}],
-        ["marker2", { type: "custom", weight: 2.5, vibration: 0.08, opacity: 17, spacing: 0.6, pressure: {curve: [0.35,0.25], min_max: [1.35,1]}, 
+        ["marker", { type: "marker", weight: 2.5, vibration: 0.08, opacity: 30, spacing: 0.4, pressure: {curve: [0.35,0.25], min_max: [1.35,1]}}],
+        ["marker2", { type: "custom", weight: 2.5, vibration: 0.08, opacity: 23, spacing: 0.6, pressure: {curve: [0.35,0.25], min_max: [1.35,1]}, 
             tip: function () { _r.rect(-1.5,-1.5,3,3); _r.rect(1,1,1,1) }, rotate: "natural"
         }],
     ];
