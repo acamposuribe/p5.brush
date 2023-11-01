@@ -37,7 +37,7 @@ let palette = ["#7b4800", "#002185", "#003c32", "#fcd300", "#ff2702", "#6b9404"]
 
 // YOU CAN SEED THE BRUSHBOX RANDOM NUMBER GENERATOR for determinism
 brush.config({
-    // R: function () { return YOUR_RNG() },
+    R: function () { return random() },
 })
 
 
@@ -115,7 +115,7 @@ function setup () {
     brush.strokeWeight(1.2)
     // You can also draw flowlines (x1,y1,distance,angle)
     // If you want to draw flowLines, you need to select one of the provided flow_fields.
-    brush.flowField("seabed");
+    brush.field("seabed");
     brush.flowLine(20,40,180,0)
     // You can also clip all following lines with a rectangle (x1,y1,x2,y2)
     brush.clip([30,10,100,100]);
@@ -152,16 +152,14 @@ function setup () {
     brush.set("charcoal","#6b9404",1)
     //brush.rect(100,100,100,100,"center")
     // You can draw ricles (x,y,radius)
-    brush.color("#002185")
-    brush.circle(100,100,50)
-    brush.color("#fcd300")
-    brush.circle(102,100,50)
 
-    */
+        */
+
+
 
     // You can create curves/plots (here I'm creating 4 spirals). This offers full control of the brush pressure, though it's a tad more complicated
-    brush.pick("marker2")
-    brush.flowField("waves")
+    brush.pick("watercolor")
+    brush.field("seabed")
     for (let j = 0; j < 5; j++) {
         let plot = new brush.Plot("curve")
         for (let i = 0; i < Math.floor(random(40,90)); i++) {
@@ -173,24 +171,46 @@ function setup () {
         plot.endPlot(0,1)
         plot.rotate(Math.floor(random(0,180)))
         brush.color(palette[j % (palette.length)])
-        brush.flowShape(plot,width*random(0.3,0.7),height*random(0.1,0.9),random(0.5,1))
+        //brush.flowShape(plot,width*random(0.3,0.7),height*random(0.1,0.9),random(0.5,1))
     }
 
-    brush.disableField()
+    brush.noField()
     brush.pick("HB")
     // A different way of creating curves, by an array of points [x, y, brush pressure at that point]
     let points = []
     for (let i = 0; i < 55; i++) {
         points.push([random(width),random(height),random(0.7,1.2)])
     }
-    // brush.spline(array_points, curvature) curvature is a value 0-1. Use 0 for a truncated line
+    // brush.spline(array_points, curvature) curvature is a value 0-1. 0 divides the spline i straight segments    
     // The curve will go from the first point to the last one, using the rest as control points
     //brush.spline(points,1)
+
+    brush.noField()
+    brush.beginShape(0.7)
+    brush.vertex(20,20,1)
+    brush.vertex(200,25,0.8)
+    brush.vertex(30,100,1.2)
+    brush.vertex(200,200,1)
+    brush.endShape()
+
+    brush.color("#002185")
+    brush.pick("marker")
+    brush.field("waves");
+    
+    let polygon = new brush.Polygon([
+        [20,80],
+        [100,80],
+        [100,120],
+        [30,140],
+    ]);
+    brush.set("rotring","#9c2128",1)
+    // You can also atch these polygons .hath(distance_between_lines, angle_of_lines, 0-1.0 for % precission)
+    polygon.hatch(3,45,{rand: false, continuous: false, gradient: 10})
     
 }
 
 function draw() {
-    brush.set(random(brush.box()),random(palette),random(0.8,1.1))
+    //brush.set(random(brush.box()),random(palette),random(0.8,1.1))
     //brush.flowLine(width*random(0,1),height*random(0,1),width*random(0.5,0.8),random(0,360))
 
     /*
@@ -201,8 +221,29 @@ function draw() {
         [random(width),random(height)]
     ])
     brush.hatch(polygon,random(2,5),random(0,180))  
-     */
     
+    brush.field("curved");
+
+    
+    brush.refreshField(frameCount/10)
+    brush.pick("marker")
+    brush.color("#002185")
+    brush.circle(100,100,50)
+    brush.color("#fcd300")
+    brush.circle(100,100,50)
+    
+
+    background("#fffceb")
+    translate(-width/2,-height/2)
+    randomSeed(56)
+    brush.refreshField(frameCount/10)
+    brush.beginStroke("curve",20,50)
+    brush.move(30,190,1)
+    brush.move(-90,50,0.8)
+    brush.move(34,30,1.2)
+    brush.move(240,70,1)
+    brush.endStroke(0,1)
+     */
 }
 
 function mouseClicked() {

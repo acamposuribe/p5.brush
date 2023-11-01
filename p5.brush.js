@@ -14,25 +14,24 @@
     //////////////////////////////////////////////////
     // CONFIG AND LOAD FUNCTIONS
     let _r;
-    function config (objct = {}) {
+    function _config (objct = {}) {
         if (objct.R) R.source = objct.R // Seed RNG
         if (objct.SVG) S.activate(); // Doesn't work at the moment
     }
-    p5.prototype.registerMethod('beforePreload', config);
-    function load (canvasID = false,field = false) {
+    function _load (canvasID = false) {
         _r = (!canvasID) ? window.self : canvasID; // Set buffer
         Mix.load(); // Load Color-Mix system
-        if (field) FF.create(field); // Create flow_field if needed
-        globalScale(_r.width / 250)
+        FF.create(); // Create flow_field if needed
+        globalScale(_r.width / 250) // Adjust standard brushes to match canvas
     }
-    function preload () {
+    function _preload () {
         T.load();  // Load custom image TIPS
     }
 
     //////////////////////////////////////////////////
     // AUXILIARY FUNCTIONS AND RNG
     const R = {
-        source: function () {return Math.random()},
+        source: function () {return random()},
         random(e = 0, r = 1) {
             if (arguments.length === 1) {return this.map(this.source(), 0, 1, 0, e); }
             else {return this.map(this.source(), 0, 1, e, r)}
@@ -48,11 +47,8 @@
         map(value, a, b, c, d, bool = false) {
             let r = c + (value - a) / (b - a) * (d - c);
             if (!bool) return r;
-            if (c < d) {
-                return this.constrain(r, c, d)
-            } else {
-                return this.constrain(r, d, c)
-            }
+            if (c < d) {return this.constrain(r, c, d)} 
+            else {return this.constrain(r, d, c)}
         },
         constrain (n, low, high) {
             return Math.max(Math.min(n, high), low);
@@ -61,12 +57,13 @@
         cos(a) {return this.c[Math.floor(4 * ((a % 360 + 360) % 360))]},
         sin(a) {return this.s[Math.floor(4 * ((a % 360 + 360) % 360))]},
     }
-    // Calculate sin and cos for 1440 angles (to have enough precission)
+    // Calculate sin and cos for 1440 angles
     for (let i = 0; i < 1440; i++) {
-        const radians = 0.25 * i * (Math.PI / 180)
+        const radians = i * Math.PI / 720;
         R.c[i] = Math.cos(radians)
         R.s[i] = Math.sin(radians)
     }
+    // Keep track of transformation matrix
     let matrix = [0,0];
     const trans = function () {
         matrix = [_r._renderer.uMVMatrix.mat4[12],_r._renderer.uMVMatrix.mat4[13]]
@@ -122,10 +119,11 @@
                 float r1 = map(rand(vVertTexCoord,12.9898,78.233,43358.5453),0.0,1.0,-1.0,1.0);
                 float r2 = map(rand(vVertTexCoord,7.9898,58.233,43213.5453),0.0,1.0,-1.0,1.0);
                 float r3 = map(rand(vVertTexCoord,17.9898,3.233,33358.5453),0.0,1.0,-1.0,1.0);
-                float d; if (maskColor.r == 1.0)  {d = maskColor.b * 0.2;} else {d = 0.0;}
+                float d; 
                 vec4 canvasColor = texture2D(source, vVertTexCoord);
-                vec3 mixedColor = spectral_mix(vec3(canvasColor.r,canvasColor.g,canvasColor.b), rgb(addColor.r,addColor.g,addColor.b), maskColor.a * 0.9);
-                gl_FragColor = vec4(mixedColor.r + 0.03 * r1 - d,mixedColor.g + 0.03 * r2 - d,mixedColor.b + 0.03 * r3 - d,1.0);
+                vec3 mixedColor = spectral_mix(vec3(canvasColor.r,canvasColor.g,canvasColor.b), rgb(addColor.r,addColor.g,addColor.b), maskColor.a * 0.7);
+                if (maskColor.a > 0.7)  {mixedColor = spectral_mix(mixedColor,vec3(0.0,0.0,0.0),(maskColor.a - 0.7) * 0.7);}
+                gl_FragColor = vec4(mixedColor.r + 0.02 * r1 ,mixedColor.g + 0.02 * r2,mixedColor.b + 0.02 * r3,1.0);
             }
             else {
                 gl_FragColor = vec4(0.0,0.0,0.0,0.0);
@@ -158,118 +156,119 @@
     //////////////////////////////////////////////////
     // FLOWFIELD
     function flowField (a) {
-        FF.create(a)
+        FF.isActive = true
+        if (FF.current !== a) FF.current = a;
     }
-    function disableField () {
-        FF.isActive = false;
+    function disableField () {FF.isActive = false}
+    function newField(name,funct) {
+        FF.list.set(name,{gen: funct}); 
+        FF.current = name;
+        FF.refresh()
     }
+    function refreshField(t) {FF.refresh(t)}
     const FF = {
         isActive: false,
-        isCreated: false,
+        list: new Map(),
         step_length() {return Math.min(_r.width,_r.height) / 1000},
-        create(a) {
-            this.isActive = true;
-            if (!this.isCreated) {
-                this.R = _r.width * 0.01, this.left_x = -1 * _r.width, this.top_y = -1 * _r.height;
-                this.num_columns = Math.round(2 * _r.width / this.R), this.num_rows = Math.round(2 * _r.height / this.R), this.flow_field = [];
-            }
-            this.isCreated = true;
-            this.update(a);
+        create() {
+            this.R = _r.width * 0.01, this.left_x = -1 * _r.width, this.top_y = -1 * _r.height;
+            this.num_columns = Math.round(2 * _r.width / this.R), this.num_rows = Math.round(2 * _r.height / this.R);
+            this.addStandard();
         },
-        update(a) {
-            switch (a) {
-                case "curved":
+        flow_field() {return this.list.get(this.current).field},
+        refresh(t = 0) {this.list.get(this.current).field = this.list.get(this.current).gen(t)},
+        addStandard() {
+            newField("curved", function(t) {
+                    let field = []
                     var angleRange = R.randInt(-25,-15);
                     if (R.randInt(0,100)%2 == 0) {angleRange = angleRange * -1}
-                    for (var column=0;column<this.num_columns;column++){
-                        this.flow_field.push([0]);
-                        for (var row=0;row<this.num_rows;row++) {               
-                            var noise_val = noise(column * 0.02, row * 0.02)
+                    for (var column=0;column<FF.num_columns;column++){
+                        field.push([0]);
+                        for (var row=0;row<FF.num_rows;row++) {               
+                            var noise_val = noise(column * 0.02 + t * 0.03, row * 0.02 + t * 0.03)
                             var angle = R.map(noise_val, 0.0, 1.0, -angleRange, angleRange)
-                            this.flow_field[column][row] = 3 * angle;
+                            field[column][row] = 3 * angle;
                         }
                     }
-                break;
-                case "truncated":
-                    var angleRange = R.randInt(-25,-15);
-                    if (R.randInt(0,100)%2 == 0) {angleRange=angleRange*-1}
-                    var truncate = R.randInt(5,10);
-                    for (var column=0;column<this.num_columns;column++){
-                        this.flow_field.push([0]);
-                        for (var row=0;row<this.num_rows;row++) {               
-                            var noise_val = noise(column * 0.02, row * 0.02)  /// P5 dependency
-                            var angle = Math.round(R.map(noise_val, 0.0, 1.0, -angleRange, angleRange)/truncate)*truncate;
-                            this.flow_field[column][row] = 4*angle;
-                        }
+                    return field;
+                })
+            newField("truncated", function(t) {
+                let field = []
+                var angleRange = R.randInt(-25,-15) + 5 * R.sin(t);
+                if (R.randInt(0,100)%2 == 0) {angleRange=angleRange*-1}
+                var truncate = R.randInt(5,10);
+                for (var column=0;column<FF.num_columns;column++){
+                    field.push([0]);
+                    for (var row=0;row<FF.num_rows;row++) {               
+                        var noise_val = noise(column * 0.02, row * 0.02)
+                        var angle = Math.round(R.map(noise_val, 0.0, 1.0, -angleRange, angleRange)/truncate)*truncate;
+                        field[column][row] = 4 * angle;
                     }
-                break;
-                case "tilted":
-                    var angleRange = R.randInt(-45,-25);
-                    if (R.randInt(0,100)%2 == 0) {angleRange=angleRange*-1}
-                    var dif = angleRange;
-                    for (var column=0;column<this.num_columns;column++){
-                        this.flow_field.push([0]);
-                        var angle = 0;
-                        for (var row=0;row<this.num_rows;row++) {               
-                            this.flow_field[column][row] = angle;
-                            angle = angle + dif;
-                            dif = -1*dif;
-                        }
-                    }
-                break;
-                case "zigzag":
-                    var angleRange = R.randInt(-30,-15);
-                    if (R.randInt(0,100)%2 == 0) {angleRange=angleRange*-1}
-                    var dif = angleRange;
+                }
+                return field;
+            })
+            newField("tilted", function(t) {
+                let field = []
+                var angleRange = R.randInt(-45,-25) + 15 * R.sin(t);
+                if (R.randInt(0,100)%2 == 0) {angleRange=angleRange*-1}
+                var dif = angleRange;
+                for (var column=0;column<FF.num_columns;column++){
+                    field.push([0]);
                     var angle = 0;
-                    for (column=0;column<this.num_columns;column++){
-                        this.flow_field.push([0]);
-                        for (row=0;row<this.num_rows;row++) {               
-                            this.flow_field[column][row] = angle;
-                            angle = angle + dif;
-                            dif = -1*dif;
-                        }
+                    for (var row=0;row<FF.num_rows;row++) {               
+                        field[column][row] = angle;
                         angle = angle + dif;
                         dif = -1*dif;
                     }
-                break;
-                case "waves":
-                    var sinrange = R.randInt(10,15);
-                    var cosrange = R.randInt(3,6);
-                    var baseAngle = R.randInt(20,35);
-                    for (var column=0;column<this.num_columns;column++){
-                        this.flow_field.push([0]);
-                        for (var row=0;row<this.num_rows;row++) {               
-                            var angle = R.sin(sinrange*column)*(baseAngle * R.cos(row*cosrange)) + R.randInt(-3,3);
-                            this.flow_field[column][row] = angle;
-                        }
+                }
+                return field;
+            })
+            newField("zigzag", function(t) {   
+                let field = []     
+                var angleRange = R.randInt(-30,-15) + Math.abs(44 * R.sin(t));
+                if (R.randInt(0,100)%2 == 0) {angleRange=angleRange*-1}
+                var dif = angleRange;
+                var angle = 0;
+                for (var column=0;column<FF.num_columns;column++){
+                    field.push([0]);
+                    for (var row=0;row<FF.num_rows;row++) {               
+                        field[column][row] = angle;
+                        angle = angle + dif;
+                        dif = -1*dif;
                     }
-                break;
-                case "scales":
-                    var baseSize = R.random(0.3,0.8)
-                    var baseAngle = R.randInt(20,45);
-                    for (var column=0;column<this.num_columns;column++){
-                        this.flow_field.push([0]);
-                        for (var row=0;row<this.num_rows;row++) {       
-                            var addition = R.randInt(row/65,row/35)        
-                            var angle = baseAngle*R.cos(baseSize*column*row)+addition;
-                            this.flow_field[column][row] = angle;
-                        }
+                    angle = angle + dif;
+                    dif = -1*dif;
+                }
+                return field;
+            })
+            newField("waves", function(t) {
+                let field = []
+                var sinrange = R.randInt(10,15) + 5 * R.sin(t);
+                var cosrange = R.randInt(3,6) + 3 * R.cos(t);
+                var baseAngle = R.randInt(20,35);
+                for (var column=0;column<FF.num_columns;column++){
+                    field.push([0]);
+                    for (var row=0;row<FF.num_rows;row++) {               
+                        var angle = R.sin(sinrange*column)*(baseAngle * R.cos(row*cosrange)) + R.randInt(-3,3);
+                        field[column][row] = angle;
                     }
-                break;
-                case "seabed":
-                    var baseSize = R.random(0.3,0.8)
-                    var baseAngle = R.randInt(18,26);
-                    for (var column=0;column<this.num_columns;column++){
-                        this.flow_field.push([0]);
-                        for (var row=0;row<this.num_rows;row++) {       
-                            var addition = R.randInt(15,20)        
-                            var angle = baseAngle*R.sin(baseSize*row*column+addition);
-                            this.flow_field[column][row] = 1.1*angle;
-                        }
+                }
+                return field;
+            })
+            newField("seabed", function(t) {
+                let field = []
+                var baseSize = R.random(0.4,0.8)
+                var baseAngle = R.randInt(18,26) ;
+                for (var column=0;column<FF.num_columns;column++){
+                    field.push([0]);
+                    for (var row=0;row<FF.num_rows;row++) {       
+                        var addition = R.randInt(15,20)        
+                        var angle = baseAngle*R.sin(baseSize*row*column+addition);
+                        field[column][row] = 1.1*angle * R.cos(t);
                     }
-                break;
-            }
+                }
+                return field;
+            })           
         }
     }
     class Position {
@@ -292,7 +291,7 @@
         }
         angle () {
             if (this.isIn() && FF.isActive) {
-                return FF.flow_field[this.column_index][this.row_index];
+                return FF.flow_field()[this.column_index][this.row_index];
             } else { 
                 return 0;
             }
@@ -390,7 +389,7 @@
             if (S.on) B.buffer.vertex(B.position.x,B.position.y) // SVG
             let pressure = B.plot ? B.simPressure() * B.plot.pressure(B.position.plotted) : B.simPressure(); // Pressure
             let alpha = Math.floor(B.p.opacity * Math.pow(pressure,B.p.type === "marker" ? 1 : 1.5)); // Alpha
-            if (B.p.blend) {_r.fill(255,0,1,alpha)} else {B.c.setAlpha(alpha), _r.fill(B.c)}; // Color
+            if (B.p.blend) {_r.fill(255,0,0,alpha/2)} else {B.c.setAlpha(alpha), _r.fill(B.c)}; // Color
             if (B.crop()) {
                 if (B.p.type === "spray") { // SPRAY TYPE BRUSHES
                     let vibration = (B.w * B.p.vibration * pressure) + B.w * randomGaussian() * B.p.vibration / 3;
@@ -421,7 +420,7 @@
         adjust_tip(pressure, alpha) {
             _r.scale(pressure);
             if (B.p.type === "image") {
-                (B.p.blend) ? _r.tint(255,0,1,alpha) : _r.tint(_r.red(B.c),_r.green(B.c),_r.blue(B.c),alpha);
+                (B.p.blend) ? _r.tint(255, 0, 0, alpha/2) : _r.tint(_r.red(B.c),_r.green(B.c),_r.blue(B.c),alpha);
             }
             if (B.p.rotate === "random") _r.rotate(R.randInt(0,360));
             if (B.p.rotate === "natural") {
@@ -438,7 +437,7 @@
             if (B.crop()) {
                 let pressure = B.plot ? B.simPressure() * B.plot.pressure(B.position.plotted) : B.simPressure();
                 let alpha = Math.floor(B.p.opacity * Math.pow(pressure,B.p.type === "marker" ? 1 : 1.5)); 
-                _r.fill(255,0,1,1.5 * alpha);
+                _r.fill(255, 0, 0, alpha / 1.5);
                 for (let s = 0; s < 5; s++) {
                     if (B.p.type === "marker") {
                         _r.circle(B.position.x,B.position.y, s/5 * B.w * B.p.weight * pressure)
@@ -477,16 +476,21 @@
             if (B.p.pressure.type === "custom") return R.map(B.p.pressure.curve(B.position.plotted / B.l)+B.cp,0,1,B.min,B.max,true);
             else return this.gauss()
         },
-        hatch(polygons, dist, angle, rand = false) {
+        hatch(polygons, dist, angle, options = {rand: false, continuous: false, gradient: false}) {
             if (angleMode() === "radians") angle = angle * 180 / Math.PI
             angle = angle % 180;
-            let dots = [], startY = (angle <= 90 && angle >= 0) ? 0 : _r.height;
-            let ventana = new Polygon([[0,0],[_r.width,0],[_r.width,_r.height],[0,_r.height]])
+            let dots = [], startY = (angle <= 90 && angle >= 0) ? - _r.height / 2 : _r.height / 2;
+            let ventana = new Polygon([
+                [-_r.width/2-trans()[0],-_r.height/2-trans()[1]],
+                [_r.width/2-trans()[0],-_r.height/2-trans()[1]],
+                [_r.width/2-trans()[0],_r.height/2-trans()[1]],
+                [-_r.width/2-trans()[0],_r.height/2-trans()[1]]])
             let i = 0;
             let linea = {
-                point1 : {x: 0,               y:startY},
-                point2 : {x: 0+R.cos(-angle), y:startY+R.sin(-angle)}
+                point1 : {x: -_r.width/2 - trans()[0],               y:startY - trans()[1]},
+                point2 : {x: -_r.width/2+R.cos(-angle) - trans()[0], y:startY+R.sin(-angle) - trans()[1]}
             }
+            let dist1 = dist;
             while (ventana.intersect(linea).length > 0) {
                 let tempArray = [];
                 if (Array.isArray(polygons)) {for (let p of polygons) {tempArray.push(p.intersect(linea))}} 
@@ -500,15 +504,23 @@
                 dots[i] = dots[i].concat(tempArray)
                 i++
                 linea = {
-                    point1 : {x: 0+dist*i*R.cos(-angle+90),                 y: startY+dist*i*R.sin(-angle+90)},
-                    point2 : {x: 0+dist*i*R.cos(-angle+90)+R.cos(-angle),   y: startY+dist*i*R.sin(-angle+90)+R.sin(-angle)}
+                    point1 : {x: -_r.width/2+dist1*i*R.cos(-angle+90) - trans()[0],                 y: startY+dist1*i*R.sin(-angle+90) - trans()[1]},
+                    point2 : {x: -_r.width/2+dist1*i*R.cos(-angle+90)+R.cos(-angle) - trans()[0],   y: startY+dist1*i*R.sin(-angle+90)+R.sin(-angle) - trans()[1]}
                 }
             }
-            for (let dd of dots) {
-                let r = rand ? rand : 0;
+            
+            let gdots = []
+            console.log(gdots)
+            for (let dd of dots) {if (typeof dd[0] !== "undefined") { gdots.push(dd)}}
+            for (let j = 0; j < gdots.length; j++) {
+                let dd = gdots[j]
+                let r = options.rand ? options.rand : 0;
                 for (let i = 0; i < dd.length-1; i++) {
                     if (i % 2 == 0) {
-                        B.line(dd[i].x + r * dist * R.random(-1,1),dd[i].y + r * dist * R.random(-1,1),dd[i+1].x + r * dist * R.random(-1,1),dd[i+1].y + r * dist * R.random(-1,1))
+                        dd[i].x += r * dist * R.random(-1,1), dd[i].y += r * dist * R.random(-1,1);
+                        dd[i+1].x += r * dist * R.random(-1,1), dd[i+1].y += r * dist * R.random(-1,1);
+                        B.line(dd[i].x,dd[i].y,dd[i+1].x,dd[i+1].y);
+                        if (j > 0 && options.continuous) B.line(gdots[j-1][1].x,gdots[j-1][1].y,dd[i].x,dd[i].y);
                     }
                 }
             }
@@ -573,10 +585,12 @@
         }
         draw () {
             for (let s of this.sides) {
-                B.line(s[0].x,s[0].y,s[1].x,s[1].y)
+                B.line(s[0].x - trans()[0],s[0].y - trans()[1],s[1].x - trans()[0],s[1].y - trans()[1])
             }
         }
-        hatch (dist, angle, rand = false) {B.hatch(this,dist,angle,rand)}
+        hatch (dist, angle, options) {
+            B.hatch(this,dist,angle,options)
+        }
     }
     // line intercept math by Paul Bourke http://paulbourke.net/geometry/pointlineplane/
     function intersectar(point1,point2,point3,point4,bool = false) {
@@ -598,74 +612,29 @@
 
     //////////////////////////////////////////////////
     // BASIC GEOMETRIES
-    function rectangulo(x,y,w,h,mode = false) {
+    function _rect(x,y,w,h,mode = false) {
         if (mode) x = x - w / 2, y = y - h / 2;
         B.line(x,y,x+w,y)
         B.line(x+w,y,x+w,y+h)
         B.line(x+w,y+h,x,y+h)
         B.line(x,y+h,x,y)
     }
-    function circulo(x,y,radius,field = false) {
-        let f = FF.isActive
-        FF.isActive = field;
+    function _circle(x,y,radius,r = false) {
         let p = new Plot("curve")
         let l = Math.PI * radius / 2;
-        p.addSegment(0, l, 1, true)
-        p.addSegment(90, l, 1, true)
-        p.addSegment(180, l, 1, true)
-        p.addSegment(270, l, 1, true) 
-        p.endPlot(0,1, true)
-        p.draw(x,y+radius,1)
-        FF.isActive = f
+        let angle = R.randInt(0,360)
+        let rr = function() {return (r ? R.random(-1,1) : 0)}
+        p.addSegment(0 + angle + rr(), l + rr(), 1, true)
+        p.addSegment(90 + angle + rr(), l + rr(), 1, true)
+        p.addSegment(180 + angle + rr(), l + rr(), 1, true)
+        p.addSegment(270 + angle + rr(), l + rr(), 1, true)
+        let angle2 = r ? R.randInt(-5,5) : 0;
+        if (r) p.addSegment(0 + angle, angle2 * (Math.PI/180) * radius, true)
+        p.endPlot(angle2 + angle,1, true)
+        p.draw(x + radius * R.sin(angle),y + radius * R.cos(-angle),1)
     }
     //////////////////////////////////////////////////
-    // PLOT SYSTEM
-    function spline(array_points, curvature = 0.5) {
-        let p = new Plot((curvature === 0)? "segments" : "curve")
-        if (array_points) {
-            p.origin = [array_points[0][0],array_points[0][1]]
-            let done = 0;
-            for (let i = 0; i < array_points.length - 1; i++) {
-                if (curvature > 0 && i < array_points.length - 2) {
-                    let p1 = array_points[i], p2 = array_points[i+1], p3 = array_points[i+2];
-                    let d1 = dist(p1[0],p1[1],p2[0],p2[1]), d2 = dist(p2[0],p2[1],p3[0],p3[1]);
-                    let a1 = calcAngle(p1[0],p1[1],p2[0],p2[1]), a2 = calcAngle(p2[0],p2[1],p3[0],p3[1]);
-                    let dd = Math.min(curvature * Math.min(d1,d2),0.5 * Math.min(d1,d2)), dmax = Math.max(d1,d2)
-                    let s1 = d1 - dd, s2 = d2 - dd;
-                    if (Math.floor(a1) === Math.floor(a2)) {
-                        p.addSegment(a1,s1,p1[2],true)
-                        p.addSegment(a2,d2,p2[2],true)
-                    } else {
-                        let point1 = {x: p2[0] - dd * R.cos(-a1), y: p2[1] - dd * R.sin(-a1)}
-                        let point2 = {x: point1.x + dmax * R.cos(-a1+90), y: point1.y + dmax * R.sin(-a1+90)}
-                        let point3 = {x: p2[0] + dd * R.cos(-a2), y: p2[1] + dd * R.sin(-a2)}
-                        let point4 = {x: point3.x + dmax * R.cos(-a2+90), y: point3.y + dmax * R.sin(-a2+90)}
-                        let int = intersectar(point1,point2,point3,point4,true)
-                        let radius = dist(point1.x,point1.y,int.x,int.y)
-                        let disti = dist(point1.x,point1.y,point3.x,point3.y)/2
-                        let a3 = 2*asin(disti/radius)
-                        let s3 = 2 * Math.PI * radius * a3 / 360;
-                        p.addSegment(a1,s1-done, p1[2],true)
-                        p.addSegment(a1,s3, p1[2],true)
-                        p.addSegment(a2,i === array_points.length - 3 ? s2 : 0, p2[2],true)
-                        done = dd;
-                    }
-                    if (i == array_points.length - 3) {
-                        p.endPlot(a2,p2[2],true)
-                    }
-                } else if (curvature === 0) {
-                    let p1 = array_points[i], p2 = array_points[i+1]
-                    let d = dist(p1[0],p1[1],p2[0],p2[1]);
-                    let a = calcAngle(p1[0],p1[1],p2[0],p2[1]);
-                    p.addSegment(a,d,1,true)
-                    if (i == array_points.length - 2) {
-                        p.endPlot(a,1,true)
-                    }
-                }
-            }
-        }
-        p.draw()
-    }
+    // PLOT SYSTEM (beginShape + beginStroke)
     class Plot {
         constructor (_type) {
             this.segments = [], this.angles = [], this.pres = [];
@@ -729,6 +698,78 @@
             B.flowShape(this,x,y,scale)
         }
     }
+    let strokeArray = false, strokeOption;
+    function _beginShape(curvature) {
+        strokeOption = curvature;
+        strokeArray = [];
+    }
+    function _vertex(x, y, pressure) {
+        strokeArray.push([x,y,pressure])
+    }
+    function _endShape(a) {
+        if (a === CLOSE) strokeArray.push(strokeArray[0])
+        _spline(strokeArray, strokeOption)
+        strokeArray = false;
+    }
+    function _beginStroke(type,x,y) {
+        strokeOption = [x,y];
+        strokeArray = new Plot(type)
+    }
+    function _move(angle, length, pressure) {
+        strokeArray.addSegment(angle, length, pressure)
+    }
+    function _endStroke(angle,pressure) {
+        strokeArray.endPlot(angle,pressure)
+        strokeArray.draw(strokeOption[0],strokeOption[1],1)
+        strokeArray = false;
+    }
+
+    function _spline(array_points, curvature = 0.5) {
+        let p = new Plot((curvature === 0)? "segments" : "curve")
+        if (array_points) {
+            p.origin = [array_points[0][0],array_points[0][1]]
+            let done = 0;
+            for (let i = 0; i < array_points.length - 1; i++) {
+                if (curvature > 0 && i < array_points.length - 2) {
+                    let p1 = array_points[i], p2 = array_points[i+1], p3 = array_points[i+2];
+                    let d1 = dist(p1[0],p1[1],p2[0],p2[1]), d2 = dist(p2[0],p2[1],p3[0],p3[1]);
+                    let a1 = calcAngle(p1[0],p1[1],p2[0],p2[1]), a2 = calcAngle(p2[0],p2[1],p3[0],p3[1]);
+                    let dd = curvature * Math.min(Math.min(d1,d2),0.5 * Math.min(d1,d2)), dmax = Math.max(d1,d2)
+                    let s1 = d1 - dd, s2 = d2 - dd;
+                    if (Math.floor(a1) === Math.floor(a2)) {
+                        p.addSegment(a1,s1,p1[2],true)
+                        p.addSegment(a2,d2,p2[2],true)
+                    } else {
+                        let point1 = {x: p2[0] - dd * R.cos(-a1), y: p2[1] - dd * R.sin(-a1)}
+                        let point2 = {x: point1.x + dmax * R.cos(-a1+90), y: point1.y + dmax * R.sin(-a1+90)}
+                        let point3 = {x: p2[0] + dd * R.cos(-a2), y: p2[1] + dd * R.sin(-a2)}
+                        let point4 = {x: point3.x + dmax * R.cos(-a2+90), y: point3.y + dmax * R.sin(-a2+90)}
+                        let int = intersectar(point1,point2,point3,point4,true)
+                        let radius = dist(point1.x,point1.y,int.x,int.y)
+                        let disti = dist(point1.x,point1.y,point3.x,point3.y)/2
+                        let a3 = 2*asin(disti/radius)
+                        let s3 = 2 * Math.PI * radius * a3 / 360;
+                        p.addSegment(a1,s1-done, p1[2],true)
+                        p.addSegment(a1,s3, p1[2],true)
+                        p.addSegment(a2,i === array_points.length - 3 ? s2 : 0, p2[2],true)
+                        done = dd;
+                    }
+                    if (i == array_points.length - 3) {
+                        p.endPlot(a2,p2[2],true)
+                    }
+                } else if (curvature === 0) {
+                    let p1 = array_points[i], p2 = array_points[i+1]
+                    let d = dist(p1[0],p1[1],p2[0],p2[1]);
+                    let a = calcAngle(p1[0],p1[1],p2[0],p2[1]);
+                    p.addSegment(a,d,1,true)
+                    if (i == array_points.length - 2) {
+                        p.endPlot(a,1,true)
+                    }
+                }
+            }
+        }
+        p.draw()
+    }
 
     //////////////////////////////////////////////////
     // STANDARD BRUSHES
@@ -742,8 +783,8 @@
         ["charcoal", { weight: 0.45, vibration: 2, definition: 0.7, quality: 300,  opacity: 110, spacing: 0.07, pressure: {curve: [0.15,0.2], min_max: [1.3,0.95]} }],
         ["hatch_brush", { weight: 0.2, vibration: 0.4, definition: 0.3, quality: 2,  opacity: 150, spacing: 0.15, pressure: {curve: [0.5,0.7], min_max: [1,1.5]} }],
         ["spray", { type: "spray", weight: 0.3, vibration: 12, definition: 15, quality: 40,  opacity: 120, spacing: 0.65, pressure: {curve: [0,0.1], min_max: [0.15,1.2]} }],
-        ["marker", { type: "marker", weight: 2.5, vibration: 0.08, opacity: 17, spacing: 0.4, pressure: {curve: [0.35,0.25], min_max: [1.35,1]} }],
-        ["marker2", { type: "custom", weight: 2.5, vibration: 0.08, opacity: 7, spacing: 0.6, pressure: {curve: [0.35,0.25], min_max: [1.35,1]}, 
+        ["marker", { type: "marker", weight: 2.5, vibration: 0.08, opacity: 24, spacing: 0.4, pressure: {curve: [0.35,0.25], min_max: [1.35,1]}}],
+        ["marker2", { type: "custom", weight: 2.5, vibration: 0.08, opacity: 17, spacing: 0.6, pressure: {curve: [0.35,0.25], min_max: [1.35,1]}, 
             tip: function () { _r.rect(-1.5,-1.5,3,3); _r.rect(1,1,1,1) }, rotate: "natural"
         }],
     ];
@@ -760,29 +801,47 @@
     //////////////////////////////////////////////////
     // EXPORTS
     // Basic functions
-    exports.config = config;
-    exports.load = load;
-    exports.preload = preload;
-    exports.flowField = flowField;
-    exports.disableField = disableField;
-    exports.globalScale = globalScale;
-    // Export BRUSH functions
-    exports.newBrush = B.add;
-    exports.box = brushes;
-    exports.set = B.set;
-    exports.color = B.setColor;
-    exports.strokeWeight = B.setWeight;
-    exports.pick = B.setBrush;
-    exports.clip = B.clip;
-    exports.line = B.line;
-    exports.flowLine = B.flowLine;
-    exports.flowShape = B.flowShape;
+    exports.config = _config;                // seed RNG generator
+    exports.load = _load;                    // load library on selected buffer
+    exports.preload = _preload;              // preload function for custom tips
+
+    // Field functions
+    exports.newField = newField;            // add new field
+    exports.field = flowField;              // activate / select field
+    exports.noField = disableField;         // disable field
+    exports.refreshField = refreshField;    // refresh field for animations
+
+    // BRUSH functions
+    exports.stScale = globalScale;          // rescales standard brushes
+    exports.newBrush = B.add;               // add new brush
+    exports.box = brushes;                  // get array with existing brushes
+    exports.set = B.set;                    // set brush values
+    exports.pick = B.setBrush;              // select brush
+    exports.color = B.setColor;             // brush color
+    exports.strokeWeight = B.setWeight;     // brush weight
+    exports.clip = B.clip;                  // clip brushes with rectangle
+
+    // GEOMETRY
+    exports.line = B.line;                  // lines
+    exports.flowLine = B.flowLine;          // line in flowfield
+    exports.rect = _rect;                   // rectangle
+    exports.circle = _circle;               // circle
+    exports.spline = _spline;               // spline
+    // Equivalent to beginShape
+    exports.beginShape =  _beginShape
+    exports.vertex = _vertex
+    exports.endShape =  _endShape
+    // HandStroke
+    exports.beginStroke = _beginStroke
+    exports.move = _move
+    exports.endStroke = _endStroke
+
+    // Hatches
+    exports.Polygon = Polygon;
     exports.hatch = B.hatch;
-    exports.rect = rectangulo;
-    exports.circle = circulo;
-    exports.spline = spline;
+
     // Classes
     exports.Plot = Plot;
     exports.Pos = Position;
-    exports.Polygon = Polygon;
+    
 })));
