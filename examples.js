@@ -111,7 +111,7 @@ function setup () {
     // Change the color or weight scale. Use hex color codes
 
     
-    brush.color("#002185")
+    brush.stroke("#002185")
     brush.strokeWeight(1.2)
     // You can also draw flowlines (x1,y1,distance,angle)
     // If you want to draw flowLines, you need to select one of the provided flow_fields.
@@ -137,7 +137,7 @@ function setup () {
     // You can also atch these polygons .hath(distance_between_lines, angle_of_lines, 0-1.0 for % precission)
     //polygon.hatch(2,45,0.05)
     // You can also hatch arrays of polygons brush.hatch(ARRAY WITH POLS, distance_between_lines, angle_of_lines, 0-1.0 for % precission)
-    brush.color("#080f15")
+    brush.stroke("#080f15")
     let pol_array = []
     for (let i = 0; i < 5; i++) {
         pol_array.push(new brush.Polygon([
@@ -170,7 +170,7 @@ function setup () {
         }
         plot.endPlot(0,1)
         plot.rotate(Math.floor(random(0,180)))
-        brush.color(palette[j % (palette.length)])
+        brush.stroke(palette[j % (palette.length)])
         //brush.flowShape(plot,width*random(0.3,0.7),height*random(0.1,0.9),random(0.5,1))
     }
 
@@ -191,9 +191,9 @@ function setup () {
     brush.vertex(200,25,0.8)
     brush.vertex(30,100,1.2)
     brush.vertex(200,200,1)
-    brush.endShape()
+    brush.endShape(CLOSE)
 
-    brush.color("#002185")
+    brush.stroke("#002185")
     brush.pick("marker")
     brush.field("waves");
     
@@ -205,9 +205,16 @@ function setup () {
     ]);
     brush.set("marker","#9c2128",1)
     // You can also atch these polygons .hath(distance_between_lines, angle_of_lines, options)
-    polygon.hatch(1,45,{rand: 0.2, continuous: true, gradient: 0.5})
-    polygon.draw()
-    
+    //polygon.hatch(1,45,{rand: 0.2, continuous: true, gradient: 0.5})
+    //polygon.draw()
+    brush.noField()
+    brush.noStroke()
+
+    brush.fill("#fcd300",60)
+    brush.bleed(0.1)
+    brush.circle(100,100,50)
+    brush.fill("#002185",60)
+    brush.circle(150,100,50)
 }
 
 function draw() {
@@ -228,9 +235,9 @@ function draw() {
     
     brush.refreshField(frameCount/10)
     brush.pick("marker")
-    brush.color("#002185")
+    brush.stroke("#002185")
     brush.circle(100,100,50)
-    brush.color("#fcd300")
+    brush.stroke("#fcd300")
     brush.circle(100,100,50)
     
 
@@ -245,6 +252,7 @@ function draw() {
     brush.move(240,70,1)
     brush.endStroke(0,1)
      */
+
 }
 
 function mouseClicked() {

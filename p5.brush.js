@@ -325,7 +325,9 @@
 
     //////////////////////////////////////////////////
     // BRUSHES + HATCH SYSTEM
+    function _noStroke() {B.isActive = false}
     const B = {
+        isActive: true,
         list: new Map(),
         add(a,b) {
             if (b.type === "image") { // Image tip types
@@ -339,8 +341,9 @@
         c: "#000000", w: 1, cr: null, name: "HB",
         set(a,c,w) {B.name = a, B.c = c, B.w = w},
         setBrush(a) {B.name = a},
-        setColor(r,g,b) {B.c = (arguments.length < 2) ? r : [r,g,b]},
+        setColor(r,g,b) {B.c = (arguments.length < 2) ? r : [r,g,b]; B.isActive = true},
         setWeight(w) {B.w = w},
+        spacing() {B.p = B.list.get(B.name).param; return B.p.spacing * B.w},
         clip(a) {B.cr = a},
         line(x1,y1,x2,y2) {
             B.l = dist(x1,y1,x2,y2), B.position = new Position(x1,y1), B.flow = false, B.plot = false;
@@ -587,10 +590,11 @@
             return points;
         }
         draw () {
-            for (let s of this.sides) {
-                B.line(s[0].x,s[0].y,s[1].x,s[1].y)
+            if (B.isActive) {
+                for (let s of this.sides) {B.line(s[0].x,s[0].y,s[1].x,s[1].y)}
             }
         }
+        fill () {F.fill(this)}
         hatch (dist, angle, options) {
             B.hatch(this,dist,angle,options)
         }
@@ -617,24 +621,27 @@
     // BASIC GEOMETRIES
     function _rect(x,y,w,h,mode = false) {
         if (mode) x = x - w / 2, y = y - h / 2;
-        B.line(x,y,x+w,y)
-        B.line(x+w,y,x+w,y+h)
-        B.line(x+w,y+h,x,y+h)
-        B.line(x,y+h,x,y)
+        let p = new Polygon([[x,y],[x+w,y],[x+w,y+h],[x,y+h]])
+        p.draw();
+        p.fill();
     }
     function _circle(x,y,radius,r = false) {
         let p = new Plot("curve")
         let l = Math.PI * radius / 2;
-        let angle = R.randInt(0,360)
+        let angle = 0
         let rr = function() {return (r ? R.random(-1,1) : 0)}
         p.addSegment(0 + angle + rr(), l + rr(), 1, true)
-        p.addSegment(90 + angle + rr(), l + rr(), 1, true)
-        p.addSegment(180 + angle + rr(), l + rr(), 1, true)
-        p.addSegment(270 + angle + rr(), l + rr(), 1, true)
+        p.addSegment(-90 + angle + rr(), l + rr(), 1, true)
+        p.addSegment(-180 + angle + rr(), l + rr(), 1, true)
+        p.addSegment(-270 + angle + rr(), l + rr(), 1, true)
         let angle2 = r ? R.randInt(-5,5) : 0;
         if (r) p.addSegment(0 + angle, angle2 * (Math.PI/180) * radius, true)
         p.endPlot(angle2 + angle,1, true)
-        p.draw(x + radius * R.sin(angle),y + radius * R.cos(-angle),1)
+        if (F.isActive) {
+            let pol = p.genPol(x - radius * R.sin(angle),y - radius * R.cos(-angle))
+            pol.fill()
+        }
+        if (B.isActive) p.draw(x - radius * R.sin(angle),y - radius * R.cos(-angle),1)
     }
     //////////////////////////////////////////////////
     // PLOT SYSTEM (beginShape + beginStroke)
@@ -686,14 +693,17 @@
             let d = 0;
             while (d <= _d) {this.suma = d; d += this.segments[this.index+1]; this.index++;}
         }
-        genPol (_x,_y,_scale,_step=5) {
+        genPol (_x,_y) {
+            let _step = B.spacing()  // get last spacing
             let vertices = []
+            let side = this.length * 0.5 * F.b;
             let linepoint = new Position(_x,_y);
-            let numsteps = Math.round(this.length/_step)*_scale;
+            let numsteps = Math.round(this.length/_step);
             for (let steps = 0; steps < numsteps; steps++) {
-                vertices.push([linepoint.x,linepoint.y])
-                linepoint.plotTo(this,_step,_step,_scale)
+                vertices[Math.floor(linepoint.plotted / side)] = [linepoint.x,linepoint.y]
+                linepoint.plotTo(this,_step,_step,1)
             }
+            this.calcIndex(0);
             return new Polygon(vertices);
         }
         draw (x,y,scale) {
@@ -711,7 +721,11 @@
     }
     function _endShape(a) {
         if (a === CLOSE) strokeArray.push(strokeArray[0])
-        _spline(strokeArray, strokeOption)
+        let sp = new Spline(strokeArray, strokeOption)
+        if (F.isActive) {
+            let pol = sp.p.genPol(p.origin[0],p.origin[1])
+        }
+        if (B.isActive) sp.draw()
         strokeArray = false;
     }
     function _beginStroke(type,x,y) {
@@ -727,52 +741,205 @@
         strokeArray = false;
     }
 
-    function _spline(array_points, curvature = 0.5) {
-        let p = new Plot((curvature === 0)? "segments" : "curve")
-        if (array_points) {
-            p.origin = [array_points[0][0],array_points[0][1]]
-            let done = 0;
-            for (let i = 0; i < array_points.length - 1; i++) {
-                if (curvature > 0 && i < array_points.length - 2) {
-                    let p1 = array_points[i], p2 = array_points[i+1], p3 = array_points[i+2];
-                    let d1 = dist(p1[0],p1[1],p2[0],p2[1]), d2 = dist(p2[0],p2[1],p3[0],p3[1]);
-                    let a1 = calcAngle(p1[0],p1[1],p2[0],p2[1]), a2 = calcAngle(p2[0],p2[1],p3[0],p3[1]);
-                    let dd = curvature * Math.min(Math.min(d1,d2),0.5 * Math.min(d1,d2)), dmax = Math.max(d1,d2)
-                    let s1 = d1 - dd, s2 = d2 - dd;
-                    if (Math.floor(a1) === Math.floor(a2)) {
-                        p.addSegment(a1,s1,p1[2],true)
-                        p.addSegment(a2,d2,p2[2],true)
-                    } else {
-                        let point1 = {x: p2[0] - dd * R.cos(-a1), y: p2[1] - dd * R.sin(-a1)}
-                        let point2 = {x: point1.x + dmax * R.cos(-a1+90), y: point1.y + dmax * R.sin(-a1+90)}
-                        let point3 = {x: p2[0] + dd * R.cos(-a2), y: p2[1] + dd * R.sin(-a2)}
-                        let point4 = {x: point3.x + dmax * R.cos(-a2+90), y: point3.y + dmax * R.sin(-a2+90)}
-                        let int = intersectar(point1,point2,point3,point4,true)
-                        let radius = dist(point1.x,point1.y,int.x,int.y)
-                        let disti = dist(point1.x,point1.y,point3.x,point3.y)/2
-                        let a3 = 2*asin(disti/radius)
-                        let s3 = 2 * Math.PI * radius * a3 / 360;
-                        p.addSegment(a1,s1-done, p1[2],true)
-                        p.addSegment(a1,s3, p1[2],true)
-                        p.addSegment(a2,i === array_points.length - 3 ? s2 : 0, p2[2],true)
-                        done = dd;
-                    }
-                    if (i == array_points.length - 3) {
-                        p.endPlot(a2,p2[2],true)
-                    }
-                } else if (curvature === 0) {
-                    let p1 = array_points[i], p2 = array_points[i+1]
-                    let d = dist(p1[0],p1[1],p2[0],p2[1]);
-                    let a = calcAngle(p1[0],p1[1],p2[0],p2[1]);
-                    p.addSegment(a,d,1,true)
-                    if (i == array_points.length - 2) {
-                        p.endPlot(a,1,true)
+    class Spline {
+        constructor (array_points, curvature = 0.5) {
+            let p = new Plot((curvature === 0)? "segments" : "curve")
+            if (array_points) {
+                this.origin = [array_points[0][0],array_points[0][1]]
+                p.origin = this.origin
+                let done = 0;
+                for (let i = 0; i < array_points.length - 1; i++) {
+                    if (curvature > 0 && i < array_points.length - 2) {
+                        let p1 = array_points[i], p2 = array_points[i+1], p3 = array_points[i+2];
+                        let d1 = dist(p1[0],p1[1],p2[0],p2[1]), d2 = dist(p2[0],p2[1],p3[0],p3[1]);
+                        let a1 = calcAngle(p1[0],p1[1],p2[0],p2[1]), a2 = calcAngle(p2[0],p2[1],p3[0],p3[1]);
+                        let dd = curvature * Math.min(Math.min(d1,d2),0.5 * Math.min(d1,d2)), dmax = Math.max(d1,d2)
+                        let s1 = d1 - dd, s2 = d2 - dd;
+                        if (Math.floor(a1) === Math.floor(a2)) {
+                            p.addSegment(a1,s1,p1[2],true)
+                            p.addSegment(a2,d2,p2[2],true)
+                        } else {
+                            let point1 = {x: p2[0] - dd * R.cos(-a1), y: p2[1] - dd * R.sin(-a1)}
+                            let point2 = {x: point1.x + dmax * R.cos(-a1+90), y: point1.y + dmax * R.sin(-a1+90)}
+                            let point3 = {x: p2[0] + dd * R.cos(-a2), y: p2[1] + dd * R.sin(-a2)}
+                            let point4 = {x: point3.x + dmax * R.cos(-a2+90), y: point3.y + dmax * R.sin(-a2+90)}
+                            let int = intersectar(point1,point2,point3,point4,true)
+                            let radius = dist(point1.x,point1.y,int.x,int.y)
+                            let disti = dist(point1.x,point1.y,point3.x,point3.y)/2
+                            let a3 = 2*asin(disti/radius)
+                            let s3 = 2 * Math.PI * radius * a3 / 360;
+                            p.addSegment(a1,s1-done, p1[2],true)
+                            p.addSegment(a1,s3, p1[2],true)
+                            p.addSegment(a2,i === array_points.length - 3 ? s2 : 0, p2[2],true)
+                            done = dd;
+                        }
+                        if (i == array_points.length - 3) {
+                            p.endPlot(a2,p2[2],true)
+                        }
+                    } else if (curvature === 0) {
+                        let p1 = array_points[i], p2 = array_points[i+1]
+                        let d = dist(p1[0],p1[1],p2[0],p2[1]);
+                        let a = calcAngle(p1[0],p1[1],p2[0],p2[1]);
+                        p.addSegment(a,d,1,true)
+                        if (i == array_points.length - 2) {
+                            p.endPlot(a,1,true)
+                        }
                     }
                 }
             }
+            this.p = p
         }
+        draw () {this.p.draw()}
+    }
+    
+    function _spline(array_points, curvature = 0.5) {
+        let p = new Spline(array_points, curvature = 0.5)
         p.draw()
     }
+
+    //////////////////////////////////////////////////
+    // FILL SYSTEM
+    function _fill(a,b,c,d) {
+        F.o = (arguments.length < 4) ? ((arguments.length < 3) ? b : 1) : d;
+        F.c = (arguments.length < 3) ? color(a) : color(a,b,c);
+        F.isActive = true;
+    }
+    function _bleed(_i) {F.b = _i > 0.5 ? 0.5 : _i}
+    function _noFill() {F.isActive = false}
+    const F = {
+        isActive: false,
+        b: 0.07,
+        fill (polygon) {
+            if (this.isActive) {
+                F.v = []
+                for (let vert of polygon.a) {F.v.push(createVector(vert[0],vert[1]))}
+                F.m = [];
+                let fluid = F.v.length * R.random(0.4)
+                // Shift elements randomly without changing order
+                let shift = R.randInt(0,F.v.length);
+                F.v = F.v.slice(shift,F.v.length).concat(F.v.slice(0,shift));
+                for (let i = 0; i < F.v.length; i++) {
+                    if (i < fluid) {
+                    F.m.push((constrain(R.random(0.8,1.2) * F.b * 2,0,0.9)))
+                    } else {
+                    F.m.push((R.random(0.8,1.2) * F.b))
+                    }
+                }
+                // Generate polygon for watercolor effect
+                let fill = new fillPol (F.v, F.m, F.calcCenter())
+                fill.fill(F.c, int(map(F.o,0,255,0,30,true)))
+            }
+        },
+        calcCenter () {
+            let midx = 0, midy = 0;
+            for(let i = 0; i < this.v.length; ++i) {
+              midx += this.v[i].x;
+              midy += this.v[i].y;
+            }
+            midx /= this.v.length, midy /= this.v.length; 
+            return createVector(midx,midy)
+        }
+    }
+    class fillPol {
+        constructor (_v,_m,_center) {
+            this.v = _v;
+            this.m = _m;
+            this.midP = _center;
+            this.size = p5.Vector.sub(this.midP,this.v[0]).mag();
+        }
+        grow (_a,degrow = false) {
+            const newVerts = [];
+            const newMods = [];
+            var vertixlength = this.v.length;
+            if (_a >= 0.2) {vertixlength = int(_a * this.v.length);}
+            for (let i = 0; i < vertixlength; i ++) {
+              const j = (i + 1) % vertixlength;
+              const v1 = this.v[i];
+              const v2 = this.v[j];
+              let mod = (_a == 0.1) ? 0.75 : this.m[i];
+              if (degrow) mod = -0.5;
+              const chmod = m => {return m + (randomGaussian(0.5,0.1) - 0.5) * 0.1;}
+              newVerts.push(v1);
+              newMods.push(chmod(mod));
+              const segment = p5.Vector.sub(v2, v1);
+              const len = segment.mag();
+              segment.mult(constrain(randomGaussian(0.5,0.2),0.1,0.9));
+              const v = p5.Vector.add(segment, v1);
+              segment.rotate(-90 + (randomGaussian(0,0.4)) * 45);
+              segment.setMag(randomGaussian(0.5,0.2) * R.random(0.6,1.4) * len * mod);
+              v.add(segment);
+              newVerts.push(v);
+              newMods.push(chmod(mod));
+            }
+            return new fillPol (newVerts, newMods, this.midP);
+        }
+        fill (color, intensity) {
+            let pol = this.grow()
+            let pol4 = this.grow()
+            let pol2 = pol.grow().grow(0.5);
+            let pol3 = pol2.grow(0.4);
+            let numLayers = 30
+            trans();
+            Mix.mask.begin();
+            push();
+            translate(matrix[0],matrix[1])
+            for (let i = 0; i < numLayers; i ++) {
+                if (i == int(numLayers/4) || i == int(2*numLayers/4) || i == int(3*numLayers/4)) {
+                    pol = pol.grow();
+                    pol4 = pol4.grow()
+                    pol2 = pol2.grow(0.1);
+                    pol3 = pol3.grow(0.1);
+                }
+                pol.grow().layer(i, intensity / 2);
+                pol4.grow(0.1,true).layer(i, 2);
+                pol2.grow(0.1).layer(i,int(map(i,0,numLayers/2,intensity / 1.5,0)));
+                pol3.grow(0.1).layer(i,int(map(i,0,2*numLayers/3,intensity / 1.5,0)));
+                pol.grow().grow().grow().erase(intensity);   // Texture light
+            }
+            pop();
+            Mix.mask.end();
+            Mix.blend(color)
+        }
+        layer (_nr,_alpha) {
+            fill(255, 0, 0, _alpha)
+            stroke(255, 0, 0, int(0.3*_alpha))
+            strokeWeight(map(_nr, 0, 25, 1, 3))
+            noStroke()
+            beginShape();
+            for(let v of this.v) {vertex(v.x, v.y);}
+            endShape(CLOSE);
+        }
+        erase (_i) {
+            erase(2)
+            for(let i = 0; i < R.random(80,150); i++) {
+              circle(this.midP.x + randomGaussian(0,this.size / 2), this.midP.y + randomGaussian(0,this.size / 2), R.random(0.030,0.20) * this.size);
+            }
+            noErase()
+        }
+    }
+    // p5 BUG FIX - erase() + noErase() in WEBGL
+    p5.RendererGL.prototype.erase = function(opacityFill, opacityStroke) {
+        if (!this._isErasing) {
+            this._cachedBlendMode = this.curBlendMode;
+            this._isErasing = true;
+            this.blendMode('destination-out');
+            this._cachedFillStyle = this.curFillColor.slice();
+            this.curFillColor = [1, 1, 1, opacityFill / 255];
+            this._cachedStrokeStyle = this.curStrokeColor.slice();
+            this.curStrokeColor = [1, 1, 1, opacityStroke / 255];
+        }
+      }
+      p5.RendererGL.prototype.noErase = function() {
+        if (this._isErasing) {
+            this.curFillColor = this._cachedFillStyle.slice();
+            this.curStrokeColor = this._cachedStrokeStyle.slice();
+            let temp = this.curBlendMode;
+            this.blendMode(this._cachedBlendMode);
+            this._cachedBlendMode = temp;
+            this._isErasing = false;
+            this._applyBlendMode();
+        }
+      }
 
     //////////////////////////////////////////////////
     // STANDARD BRUSHES
@@ -808,21 +975,29 @@
     exports.load = _load;                    // load library on selected buffer
     exports.preload = _preload;              // preload function for custom tips
 
-    // Field functions
+    // FLOWFIELD
     exports.newField = newField;            // add new field
     exports.field = flowField;              // activate / select field
     exports.noField = disableField;         // disable field
     exports.refreshField = refreshField;    // refresh field for animations
 
-    // BRUSH functions
+    // BRUSHES
     exports.stScale = globalScale;          // rescales standard brushes
     exports.newBrush = B.add;               // add new brush
     exports.box = brushes;                  // get array with existing brushes
-    exports.set = B.set;                    // set brush values
+    exports.set = B.set;                    // set all brush values
     exports.pick = B.setBrush;              // select brush
-    exports.color = B.setColor;             // brush color
-    exports.strokeWeight = B.setWeight;     // brush weight
     exports.clip = B.clip;                  // clip brushes with rectangle
+
+    // STROKE
+    exports.stroke = B.setColor;
+    exports.strokeWeight = B.setWeight;
+    exports.noStroke = _noStroke;
+
+    // FILL (works with rect, circle, and beginShape)
+    exports.fill = _fill
+    exports.bleed = _bleed
+    exports.noFill = _noFill
 
     // GEOMETRY
     exports.line = B.line;                  // lines
@@ -838,6 +1013,8 @@
     exports.beginStroke = _beginStroke
     exports.move = _move
     exports.endStroke = _endStroke
+
+
 
     // Hatches
     exports.Polygon = Polygon;
