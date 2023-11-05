@@ -87,7 +87,7 @@ function setup () {
 
     // USE BRUSHBOX LIBRARY
     // Load BrushBox: load(BUFFER) -> Leave empty if you want to draw to the main p5 canvas
-    brush.load();
+    //brush.load();
 
     translate(-width/2,-height/2)
 
@@ -188,10 +188,13 @@ function setup () {
     brush.noField()
     brush.beginShape(0.7)
     brush.vertex(20,20,1)
+    brush.vertex(40,40,0.8)
     brush.vertex(200,25,0.8)
-    brush.vertex(30,100,1.2)
-    brush.vertex(200,200,1)
-    brush.endShape(CLOSE)
+    brush.vertex(100,90,0.8)
+    brush.vertex(230,100,1.2)
+    brush.vertex(30,200,1)
+    brush.vertex(70,100,1)
+    brush.endShape()
 
     brush.stroke("#002185")
     brush.pick("marker")
@@ -209,12 +212,13 @@ function setup () {
     //polygon.draw()
     brush.noField()
     brush.noStroke()
-
-    brush.fill("#fcd300",60)
-    brush.bleed(0.1)
+    
+    brush.fill("#fcd300",100)
+    brush.bleed(0.3)
     brush.circle(100,100,50)
-    brush.fill("#002185",60)
+    brush.fill("#002185",80)
     brush.circle(150,100,50)
+    
 }
 
 function draw() {
