@@ -31,7 +31,6 @@ function windowResized () {
 let palette = ["#7b4800", "#002185", "#003c32", "#fcd300", "#ff2702", "#6b9404"]
 
 
-
 //////////////////////////////////////////////////
 // p5.brush
 
@@ -42,7 +41,7 @@ brush.config({
 
 
 // YOU CAN CREATE YOU OWN BRUSHES
-brush.newBrush("watercolor", {
+brush.addBrush("watercolor", {
     type: "image",       // this is the TIP TYPE: choose standard / spray / marker / custom / image
     weight: 20,          // Base weight of the brush tip
     vibration: 2,        // Vibration of the lines, spread
@@ -138,6 +137,7 @@ function setup () {
     //polygon.hatch(2,45,0.05)
     // You can also hatch arrays of polygons brush.hatch(ARRAY WITH POLS, distance_between_lines, angle_of_lines, 0-1.0 for % precission)
     brush.stroke("#080f15")
+         */
     let pol_array = []
     for (let i = 0; i < 5; i++) {
         pol_array.push(new brush.Polygon([
@@ -152,10 +152,6 @@ function setup () {
     brush.set("charcoal","#6b9404",1)
     //brush.rect(100,100,100,100,"center")
     // You can draw ricles (x,y,radius)
-
-        */
-
-
 
     // You can create curves/plots (here I'm creating 4 spirals). This offers full control of the brush pressure, though it's a tad more complicated
     brush.pick("watercolor")
@@ -210,14 +206,23 @@ function setup () {
     // You can also atch these polygons .hath(distance_between_lines, angle_of_lines, options)
     //polygon.hatch(1,45,{rand: 0.2, continuous: true, gradient: 0.5})
     //polygon.draw()
+
     brush.noField()
     brush.noStroke()
     
     brush.fill("#fcd300",100)
-    brush.bleed(0.3)
+    brush.bleed(0.25)
     brush.circle(100,100,50)
-    brush.fill("#002185",80)
+    brush.fill("#002185",120)
     brush.circle(150,100,50)
+
+    brush.bleed(0.05)
+    brush.polygon([
+        [20,80],
+        [100,80],
+        [100,120],
+        [30,140],
+    ])
     
 }
 

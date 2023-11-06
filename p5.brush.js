@@ -35,9 +35,7 @@
     //////////////////////////////////////////////////
     // CONFIG AND LOAD FUNCTIONS
     let _r, isReady = false;
-    function _config (objct = {}) {
-        if (objct.R) R.source = objct.R // Seed RNG
-    }
+    function _config (objct = {}) {if (objct.R) R.source = objct.R}
     function _load (canvasID = false) {
         isReady = true;
         _r = (!canvasID) ? window.self : canvasID; // Set buffer
@@ -45,14 +43,12 @@
         FF.create();
         globalScale(_r.width / 250) // Adjust standard brushes to match canvas
     }
-    function _preload () {
-        T.load();  // Load custom image TIPS
-    }
+    function _preload () {T.load()}
 
     //////////////////////////////////////////////////
     // AUXILIARY FUNCTIONS AND RNG
     const R = {
-        source: function () {return random()},
+        source: () => random(),
         random(e = 0, r = 1) {
             if (arguments.length === 1) {return this.map(this.source(), 0, 1, 0, e); }
             else {return this.map(this.source(), 0, 1, e, r)}
@@ -96,12 +92,9 @@
     const Mix = {
         loaded: false,
         load() {
-            // Create buffer for mask
             this.mask = _r.createFramebuffer({width: _r.width, height: _r.height, density: _r.pixelDensity()});    
             this.mask.begin(), _r.clear(), this.mask.end();                                                        
-            if (!Mix.loaded) {
-                this.frag = this.frag.replace('#include "spectral.glsl"', glsl());
-            }
+            if (!Mix.loaded) {this.frag = this.frag.replace('#include "spectral.glsl"', glsl());}
             this.shader = _r.createShader(this.vert, this.frag);
             Mix.loaded = true;
         },
@@ -109,16 +102,13 @@
             this.pigment = [float(red(color(_c))),float(green(color(_c))),float(blue(color(_c)))];
             _r.push();
             _r.translate(-trans()[0],-trans()[1])
-            // Load shader and send data from canvas
             _r.shader(this.shader);
             this.shader.setUniform('addColor', this.pigment);
             this.shader.setUniform('source', _r._renderer);
             this.shader.setUniform('mask', this.mask);
-            // Give geometry to shader
             _r.fill(0,0,0,0);
             _r.noStroke();
             _r.rect(-_r.width/2, -_r.height/2, _r.width, _r.height);
-            // Clear Mask to prepare for next colour
             this.mask.draw(function () {_r.clear()})
             _r.pop();
         },
@@ -144,7 +134,7 @@
                 vec4 canvasColor = texture2D(source, vVertTexCoord);
                 vec3 mixedColor = spectral_mix(vec3(canvasColor.r,canvasColor.g,canvasColor.b), rgb(addColor.r,addColor.g,addColor.b), maskColor.a * 0.7);
                 if (maskColor.a > 0.7)  {mixedColor = spectral_mix(mixedColor,vec3(0.0,0.0,0.0),(maskColor.a - 0.7) * 0.7);}
-                gl_FragColor = vec4(mixedColor.r + 0.01 * r1 ,mixedColor.g + 0.01 * r2,mixedColor.b + 0.01 * r3,1.0);
+                gl_FragColor = vec4(mixedColor.r + 0.02 * r1 ,mixedColor.g + 0.02 * r2,mixedColor.b + 0.02 * r3,1.0);
             }
             else {
                 gl_FragColor = vec4(0.0,0.0,0.0,0.0);
@@ -161,13 +151,14 @@
         if (FF.current !== a) FF.current = a;
     }
     function disableField () {FF.isActive = false}
-    function newField(name,funct) {
+    function addField(name,funct) {
         if (!isReady) _load();
         FF.list.set(name,{gen: funct}); 
         FF.current = name;
         FF.refresh()
     }
     function refreshField(t) {FF.refresh(t)}
+    function listFields() {return FF.list.keys()}
     const FF = {
         isActive: false,
         list: new Map(),
@@ -180,7 +171,7 @@
         flow_field() {return this.list.get(this.current).field},
         refresh(t = 0) {this.list.get(this.current).field = this.list.get(this.current).gen(t)},
         addStandard() {
-            newField("curved", function(t) {
+            addField("curved", function(t) {
                     let field = []
                     var angleRange = R.randInt(-25,-15);
                     if (R.randInt(0,100)%2 == 0) {angleRange = angleRange * -1}
@@ -194,7 +185,7 @@
                     }
                     return field;
                 })
-            newField("truncated", function(t) {
+            addField("truncated", function(t) {
                 let field = []
                 var angleRange = R.randInt(-25,-15) + 5 * R.sin(t);
                 if (R.randInt(0,100)%2 == 0) {angleRange=angleRange*-1}
@@ -209,23 +200,7 @@
                 }
                 return field;
             })
-            newField("tilted", function(t) {
-                let field = []
-                var angleRange = R.randInt(-45,-25) + 15 * R.sin(t);
-                if (R.randInt(0,100)%2 == 0) {angleRange=angleRange*-1}
-                var dif = angleRange;
-                for (var column=0;column<FF.num_columns;column++){
-                    field.push([0]);
-                    var angle = 0;
-                    for (var row=0;row<FF.num_rows;row++) {               
-                        field[column][row] = angle;
-                        angle = angle + dif;
-                        dif = -1*dif;
-                    }
-                }
-                return field;
-            })
-            newField("zigzag", function(t) {   
+            addField("zigzag", function(t) {   
                 let field = []     
                 var angleRange = R.randInt(-30,-15) + Math.abs(44 * R.sin(t));
                 if (R.randInt(0,100)%2 == 0) {angleRange=angleRange*-1}
@@ -243,7 +218,7 @@
                 }
                 return field;
             })
-            newField("waves", function(t) {
+            addField("waves", function(t) {
                 let field = []
                 var sinrange = R.randInt(10,15) + 5 * R.sin(t);
                 var cosrange = R.randInt(3,6) + 3 * R.cos(t);
@@ -257,7 +232,7 @@
                 }
                 return field;
             })
-            newField("seabed", function(t) {
+            addField("seabed", function(t) {
                 let field = []
                 var baseSize = R.random(0.4,0.8)
                 var baseAngle = R.randInt(18,26) ;
@@ -286,17 +261,13 @@
         }
         reset() {this.plotted = 0}
         isIn() {
-            return (FF.isActive) ? ((this.column_index >= 0 && this.row_index >= 0) && (this.column_index < FF.num_columns && this.row_index < FF.num_rows)) : this.isInCanvas();
+            return (FF.isActive) ? ((this.column_index >= 0 && this.row_index >= 0) && (this.column_index < FF.num_columns && this.row_index < FF.num_rows)) : this.isInCanvas()
         }
         isInCanvas() {
             return (this.x >= -0.55 * _r.width - trans()[0] && this.x <= 0.55 * _r.width - trans()[0]) && (this.y >= -0.55 * _r.height - trans()[1] && this.y <= 0.55 * _r.height - trans()[1])
         }
         angle () {
-            if (this.isIn() && FF.isActive) {
-                return FF.flow_field()[this.column_index][this.row_index];
-            } else { 
-                return 0;
-            }
+            return (this.isIn() && FF.isActive) ? FF.flow_field()[this.column_index][this.row_index] : 0
         }
         moveTo (_length, _dir, _step_length = FF.step_length(), straight = false) {
             if (this.isIn()) {
@@ -320,7 +291,7 @@
                     this.update(this.x + x_step, this.y + y_step);  
                 }
             } else {
-                this.plotted += _step_length;
+                this.plotted += _step_length / scale;
             }
         }
     }
@@ -361,19 +332,17 @@
             if (!isReady) _load();
             B.l = p.length, B.position = new Position(x,y), B.plot = p, p.calcIndex(0);
             B.push();
-            let st = B.p.spacing * B.w
+            let st = B.p.spacing * B.w;
             for (let steps = 0; steps < Math.round(B.l * scale / st); steps++) {
                 B.tip(), B.position.plotTo(p,st,st,scale)
             }
             B.pop();
         },
         draw(dir,bool) {
-            B.dir = dir;
+            B.dir = dir
             B.push()
             let st = B.p.spacing * B.w
-            for (let steps = 0; steps < Math.round(B.l / st); steps++) {
-                B.tip(), B.position.moveTo(st,dir,st,bool)
-            }
+            for (let steps = 0; steps < Math.round(B.l / st); steps++) {B.tip(), B.position.moveTo(st,dir,st,bool)}
             B.pop()
         },
         push() {
@@ -390,7 +359,7 @@
             let alpha = Math.floor(B.p.opacity * Math.pow(pressure,B.p.type === "marker" ? 1 : 1.5)); // Alpha
             if (B.p.blend) {_r.fill(255,0,0,alpha/2)} else {B.c.setAlpha(alpha), _r.fill(B.c)}; // Color
             if (B.crop()) {
-                if (B.p.type === "spray") { // SPRAY TYPE BRUSHES
+                if (B.p.type === "spray") {
                     let vibration = (B.w * B.p.vibration * pressure) + B.w * randomGaussian() * B.p.vibration / 3;
                     let sw = B.p.weight * R.random(0.9,1.1);
                     for (let j = 0; j < B.p.quality / pressure; j++) {
@@ -398,17 +367,17 @@
                         let rX = r * vibration * R.random(-1,1);
                         _r.circle(B.position.x + rX, B.position.y + R.random(-1, 1) * Math.sqrt(Math.pow(r * vibration,2) - Math.pow(rX,2)), sw);
                     }
-                } else if (B.p.type === "marker") { // MARKER TYPE BRUSHES
+                } else if (B.p.type === "marker") {
                     let vibration = B.w * B.p.vibration;
                     _r.circle(B.position.x + vibration * R.random(-1,1), B.position.y + vibration * R.random(-1,1), B.w * B.p.weight * pressure)
-                } else if (B.p.type === "custom" || B.p.type === "image") { // CUSTOM TIP BRUSHES
+                } else if (B.p.type === "custom" || B.p.type === "image") {
                     _r.push();
                     let vibration = B.w * B.p.vibration;
                     _r.translate(B.position.x + vibration * R.random(-1,1), B.position.y + vibration * R.random(-1,1)), 
                     B.adjust_tip(B.w * pressure, alpha)
                     B.p.tip();
                     _r.pop();
-                } else { // REST OF BRUSHES
+                } else {
                     let vibration = B.w * B.p.vibration * (B.p.definition + (1-B.p.definition) * randomGaussian() * B.gauss(0.5,0.9,5,0.2,1.2) / pressure);
                     if (R.random(0,B.p.quality) > 0.4) {
                         _r.circle(B.position.x + 0.7 * vibration * R.random(-1,1),B.position.y + vibration * R.random(-1,1), pressure * B.p.weight * B.w * R.random(0.85,1.15));
@@ -418,13 +387,9 @@
         },
         adjust_tip(pressure, alpha) {
             _r.scale(pressure);
-            if (B.p.type === "image") {
-                (B.p.blend) ? _r.tint(255, 0, 0, alpha/2) : _r.tint(_r.red(B.c),_r.green(B.c),_r.blue(B.c),alpha);
-            }
+            if (B.p.type === "image") (B.p.blend) ? _r.tint(255, 0, 0, alpha/2) : _r.tint(_r.red(B.c),_r.green(B.c),_r.blue(B.c),alpha);
             if (B.p.rotate === "random") _r.rotate(R.randInt(0,360));
-            if (B.p.rotate === "natural") {
-                _r.rotate(((B.plot) ? - B.plot.angle(B.position.plotted) : - B.dir) + (B.flow ? B.position.angle() : 0));
-            }
+            if (B.p.rotate === "natural") _r.rotate(((B.plot) ? - B.plot.angle(B.position.plotted) : - B.dir) + (B.flow ? B.position.angle() : 0))
         },
         pop() {
             if (B.p.blend) B.markerTip();
@@ -468,9 +433,7 @@
             let minX = 999999, maxX = -999999, minY = 999999, maxY = -999999;
             if (!Array.isArray(polygons)) {polygons = [polygons]}
             for (let p of polygons) {
-                for (let a of p.a) {
-                    minX = Math.min(a[0],minX), maxX = Math.max(a[0],maxX), minY = Math.min(a[1],minY), maxY = Math.max(a[1],maxY)
-                }
+                for (let a of p.a) {minX = Math.min(a[0],minX), maxX = Math.max(a[0],maxX), minY = Math.min(a[1],minY), maxY = Math.max(a[1],maxY)}
             }
             minX -= 1, minY -= 1, maxX += 1, maxY += 1;
             let ventana = new Polygon([[minX,minY],[maxX,minY],[maxX,maxY],[minX,maxY]])
@@ -541,7 +504,7 @@
                 imageData.data[i + 3] = 255 - a;
             }
             context.putImageData(imageData,0,0);
-            return canvas.toDataURL();;
+            return canvas.toDataURL();
         },
         load() {
             if (this.tips.size === 0) return console.log("ojo");
@@ -582,6 +545,11 @@
             if (!isReady) _load();
             B.hatch(this,dist,angle,options)
         }
+    }
+    function _polygon (array) {
+        let p = new Polygon(array)
+        if (B.isActive) p.draw()
+        if (F.isActive) p.fill()
     }
     // line intercept math by Paul Bourke http://paulbourke.net/geometry/pointlineplane/
     function intersectar(point1,point2,point3,point4,bool = false) {
@@ -705,6 +673,7 @@
             B.flowShape(this,x,y,scale)
         }
     }
+    // beginShape and beginStroke
     let strokeArray = false, strokeOption;
     function _beginShape(curvature) {
         if (!isReady) _load();
@@ -734,7 +703,7 @@
         strokeArray.draw(strokeOption[0],strokeOption[1],1)
         strokeArray = false;
     }
-
+    // Spline class
     class Spline {
         constructor (array_points, curvature = 0.5) {
             let p = new Plot((curvature === 0)? "segments" : "curve")
@@ -785,10 +754,9 @@
         }
         draw () {this.p.draw()}
     }
-    
     function _spline(array_points, curvature = 0.5) {
         if (!isReady) _load();
-        let p = new Spline(array_points, curvature = 0.5)
+        let p = new Spline(array_points, curvature)
         p.draw()
     }
 
@@ -873,42 +841,42 @@
             let pol4 = this.grow(0.6)
             let pol2 = pol.grow().grow(0.5);
             let pol3 = pol2.grow(0.4);
-            let numLayers = 24
+            let numLayers = 18
             trans();
             Mix.mask.begin();
             push();
+            noStroke();
+            strokeWeight(0.5);
             translate(matrix[0],matrix[1])
             for (let i = 0; i < numLayers; i ++) {
-                if (i == int(numLayers/4) || i == int(2*numLayers/4) || i == int(3*numLayers/4)) {
+                if (i == int(numLayers/3) || i == int(2*numLayers/3)) {
                     pol = pol.grow();
                     pol4 = pol4.grow(0.1)
                     pol2 = pol2.grow(0.1);
                     pol3 = pol3.grow(0.1);
                 }
                 pol.grow().layer(i, intensity / 2);
-                pol4.grow(0.1,true).grow().layer(i, 2);
-                pol2.grow(0.1).layer(i, int( map(i, 0, numLayers / 2, intensity, 0) ));
-                pol3.grow(0.1).layer(i, int( map(i, 0, 2 * numLayers / 3, intensity, 0) ));
-                pol.grow().grow().grow().erase(intensity);
+                pol4.grow(0.1,true).grow().layer(i, intensity / 4,false);
+                pol2.grow(0.1).layer(i, intensity / 4, false);
+                pol3.grow(0.1).layer(i, intensity / 3, false);
+                pol.erase();
             }
             pop();
             Mix.mask.end();
             Mix.blend(color)
         }
-        layer (_nr,_alpha) {
+        layer (_nr,_alpha,bool = true) {
+            push()
             fill(255, 0, 0, _alpha)
-            stroke(255, 0, 0, 1)
-            strokeWeight(map(_nr, 0, 24, 3, 0))
+            if (bool) {stroke(255,0,0,10)}
             beginShape();
             for(let v of this.v) {vertex(v.x, v.y);}
             endShape(CLOSE);
-            noStroke()
+            pop()
         }
-        erase (_i) {
-            erase(3)
-            for(let i = 0; i < R.random(80,120); i++) {
-              circle(this.midP.x + randomGaussian(0,this.size / 2), this.midP.y + randomGaussian(0,this.size / 2), R.random(0.030,0.20) * this.size);
-            }
+        erase () {
+            erase(4)
+            for(let i = 0; i < R.random(70,100); i++) {circle(this.midP.x + randomGaussian(0,this.size / 2), this.midP.y + randomGaussian(0,this.size / 2), R.random(0.030,0.20) * this.size);}
             noErase()
         }
     }
@@ -971,14 +939,15 @@
     exports.preload = _preload;              // preload function for custom tips
 
     // FLOWFIELD
-    exports.newField = newField;            // add new field
+    exports.addField = addField;            // add new field
     exports.field = flowField;              // activate / select field
     exports.noField = disableField;         // disable field
     exports.refreshField = refreshField;    // refresh field for animations
+    exports.listFields = listFields;        // refresh field for animations
 
     // BRUSHES
-    exports.stScale = globalScale;          // rescales standard brushes
-    exports.newBrush = B.add;               // add new brush
+    exports.scale = globalScale;          // rescales standard brushes
+    exports.addBrush = B.add;               // add new brush
     exports.box = brushes;                  // get array with existing brushes
     exports.set = B.set;                    // set all brush values
     exports.pick = B.setBrush;              // select brush
@@ -990,24 +959,25 @@
     exports.noStroke = _noStroke;
 
     // FILL (works with rect, circle, and beginShape)
-    exports.fill = _fill
-    exports.bleed = _bleed
-    exports.noFill = _noFill
+    exports.fill = _fill;
+    exports.bleed = _bleed;
+    exports.noFill = _noFill;
 
     // GEOMETRY
-    exports.line = B.line;                  // lines
-    exports.flowLine = B.flowLine;          // line in flowfield
-    exports.rect = _rect;                   // rectangle
-    exports.circle = _circle;               // circle
-    exports.spline = _spline;               // spline
+    exports.line = B.line;
+    exports.flowLine = B.flowLine;
+    exports.rect = _rect;
+    exports.circle = _circle;
+    exports.polygon = _polygon;
+    exports.spline = _spline;
     // Equivalent to beginShape
-    exports.beginShape =  _beginShape
-    exports.vertex = _vertex
-    exports.endShape =  _endShape
+    exports.beginShape =  _beginShape;
+    exports.vertex = _vertex;
+    exports.endShape =  _endShape;
     // HandStroke
-    exports.beginStroke = _beginStroke
-    exports.move = _move
-    exports.endStroke = _endStroke
+    exports.beginStroke = _beginStroke;
+    exports.move = _move;
+    exports.endStroke = _endStroke;
 
     // Hatches
     exports.Polygon = Polygon;
@@ -1226,5 +1196,5 @@ vec4 spectral_mix(vec4 color1, vec4 color2, float t) {
 #endif
     `;
 }
-    
+
 })));
