@@ -43,12 +43,12 @@ brush.config({
 // YOU CAN CREATE YOU OWN BRUSHES
 brush.addBrush("watercolor", {
     type: "image",       // this is the TIP TYPE: choose standard / spray / marker / custom / image
-    weight: 20,          // Base weight of the brush tip
+    weight: 15,          // Base weight of the brush tip
     vibration: 2,        // Vibration of the lines, spread
     definition: 0.5,     // Between 0 and 1
     quality: 8,          // + quality = more continuous line
-    opacity: 28,         // Base opacity of the brush (this will be affected by pressure)
-    spacing: 1,          // Spacing between the points that compose the brush stroke
+    opacity: 30,         // Base opacity of the brush (this will be affected by pressure)
+    spacing: 1.5,          // Spacing between the points that compose the brush stroke
     blend: true,         // Activate / Disable realistic color mixing. By default, this is active for marker-custom-image brushes 
     pressure: {
         type: "custom",                       // "standard" or "custom". Use "custom"" for custom pressure curves. Use standard for simple gauss bell curve
@@ -204,7 +204,7 @@ function setup () {
     ]);
     brush.set("marker","#9c2128",1)
     // You can also atch these polygons .hath(distance_between_lines, angle_of_lines, options)
-    //polygon.hatch(1,45,{rand: 0.2, continuous: true, gradient: 0.5})
+    polygon.hatch(1, 45, {rand: 0.2, continuous: true, gradient: 0.5})
     //polygon.draw()
 
     brush.noField()
@@ -215,14 +215,7 @@ function setup () {
     brush.circle(100,100,50)
     brush.fill("#002185",120)
     brush.circle(150,100,50)
-
-    brush.bleed(0.05)
-    brush.polygon([
-        [20,80],
-        [100,80],
-        [100,120],
-        [30,140],
-    ])
+    
     
 }
 
