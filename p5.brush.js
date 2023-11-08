@@ -84,13 +84,14 @@
      * Flag to indicate if the system is ready for rendering.
      * @type {boolean}
      */
-    let isReady = false;
+    let _isReady = false;
 
     /**
      * Configures the drawing system with custom options.
      * @param {Object} [objct={}] - Optional configuration object.
+     * EXPORTED
      */
-    function _config(objct = {}) {
+    function configureSystem(objct = {}) {
         if (objct.R) R.source = objct.R; // Overrides the default random source if provided
     }
 
@@ -98,9 +99,10 @@
      * Initializes the drawing system and sets up the environment.
      * @param {string|boolean} [canvasID=false] - Optional ID of the canvas element to use.
      *                                            If false, it uses the current window as the rendering context.
+     * EXPORTED
      */
-    function _load (canvasID = false) {
-        isReady = true;
+    function loadSystem (canvasID = false) {
+        _isReady = true;
         // Set the renderer to the specified canvas or to the window if no ID is given
         _r = (!canvasID) ? window.self : canvasID;
         // Load realistic color blending
@@ -108,14 +110,15 @@
         // Load flowfield system
         FF.create();
         // Adjust standard brushes to match canvas size
-        _globalScale(_r.width / 250) // Adjust standard brushes to match canvas
+        globalScale(_r.width / 250) // Adjust standard brushes to match canvas
     }
 
     /**
      * Preloads necessary assets or configurations.
      * This function should be called before setup to ensure all assets are loaded.
+     * EXPORTED
      */
-    function _preload () {
+    function preloadBrushAssets () {
         // Load custom image tips
         T.load();
     }
@@ -125,7 +128,7 @@
      * Loads the system if it hasn't been loaded already.
      */
     function _ensureReady () {
-        if (!isReady) _load();
+        if (!_isReady) loadSystem();
     }
 
 // =============================================================================
@@ -271,12 +274,12 @@
      * 
      * @returns {number[]} An array containing the x (horizontal) and y (vertical) translation values.
      */
-    let matrix = [0,0];
+    let _matrix = [0,0];
     const _trans = function () {
         // Access the renderer's current model-view matrix and extract the translation components
-        matrix = [_r._renderer.uMVMatrix.mat4[12],_r._renderer.uMVMatrix.mat4[13]]
+        _matrix = [_r._renderer.uMVMatrix.mat4[12],_r._renderer.uMVMatrix.mat4[13]]
         // Return the translation components as a two-element array
-        return matrix;
+        return _matrix;
     }
 
     /**
@@ -289,7 +292,7 @@
      * @param {boolean} [includeSegmentExtension=false] - Whether to include points of intersection not lying on the segments.
      * @returns {Object|boolean} The intersection point as an object with 'x' and 'y' properties, or 'false' if there is no intersection.
      */
-    function intersectar(seg1Start, seg1End, seg2Start, seg2End, includeSegmentExtension = false) {
+    function _intersectLines(seg1Start, seg1End, seg2Start, seg2End, includeSegmentExtension = false) {
         // Extract coordinates from points
         let x1 = seg1Start.x, y1 = seg1Start.y;
         let x2 = seg1End.x, y2 = seg1End.y;
@@ -328,7 +331,7 @@
      * @param {number} y2 - The y-coordinate of the second point.
      * @returns {number} The angle in degrees between the two points.
      */
-    function calcAngle(x1,y1,x2,y2) {
+    function _calculateAngle(x1,y1,x2,y2) {
         // Calculate the angle based on the quadrant in which the second point lies
         let angleRadians = Math.atan2(-(y2 - y1), (x2 - x1));
         
@@ -454,8 +457,9 @@
     /**
      * Activates a specific vector field by name, ensuring it's ready for use.
      * @param {string} a - The name of the vector field to activate.
+     * EXPORTED
      */
-    function _field (a) {
+    function selectField (a) {
         _ensureReady();
         FF.isActive = true; // Mark the field framework as active
         if (FF.current !== a) FF.current = a; // Update the current field if a different one is selected
@@ -463,15 +467,17 @@
 
     /**
      * Deactivates the current vector field.
+     * EXPORTED
      */
-    function _disableField () {FF.isActive = false}
+    function disableField () {FF.isActive = false}
 
     /**
      * Adds a new vector field to the field list with a unique name and a generator function.
      * @param {string} name - The unique name for the new vector field.
      * @param {Function} funct - The function that generates the field values.
+     * EXPORTED
      */
-    function _addField(name,funct) {
+    function addField(name,funct) {
         _ensureReady(); 
         FF.list.set(name,{gen: funct}); // Map the field name to its generator function
         FF.current = name; // Set the newly added field as the current one to be used
@@ -481,16 +487,18 @@
     /**
      * Refreshes the current vector field based on the generator function, which can be time-dependent.
      * @param {number} [t=0] - An optional time parameter that can affect field generation.
+     * EXPORTED
      */
-    function _refreshField(t) {
+    function refreshField(t) {
         FF.refresh(t)
     }
 
     /**
      * Retrieves a list of all available vector field names.
      * @returns {Iterator<string>} An iterator that provides the names of all the fields.
+     * EXPORTED
      */
-    function _listFields() {return FF.list.keys()}
+    function listFields() {return FF.list.keys()}
 
     /**
      * Represents a framework for managing vector fields used in dynamic simulations or visualizations.
@@ -547,7 +555,7 @@
          * Adds standard predefined vector fields to the list with unique behaviors.
          */
         addStandard() {
-            _addField("curved", function(t) {
+            addField("curved", function(t) {
                 let angleRange = R.randInt(-25,-15);
                 if (R.randInt(0,100)%2 == 0) {angleRange = angleRange * -1}
                 for (let column=0;column<FF.num_columns;column++){
@@ -559,7 +567,7 @@
                 }
                 return FF.field;
             })
-            _addField("truncated", function(t) {
+            addField("truncated", function(t) {
                 let angleRange = R.randInt(-25,-15) + 5 * R.sin(t);
                 if (R.randInt(0,100)%2 == 0) {angleRange=angleRange*-1}
                 let truncate = R.randInt(5,10);
@@ -572,7 +580,7 @@
                 }
                 return FF.field;
             })
-            _addField("zigzag", function(t) {   
+            addField("zigzag", function(t) {   
                 let angleRange = R.randInt(-30,-15) + Math.abs(44 * R.sin(t));
                 if (R.randInt(0,100)%2 == 0) {angleRange=angleRange*-1}
                 let dif = angleRange;
@@ -588,7 +596,7 @@
                 }
                 return FF.field;
             })
-            _addField("waves", function(t) {
+            addField("waves", function(t) {
                 let sinrange = R.randInt(10,15) + 5 * R.sin(t);
                 let cosrange = R.randInt(3,6) + 3 * R.cos(t);
                 let baseAngle = R.randInt(20,35);
@@ -600,7 +608,7 @@
                 }
                 return FF.field;
             })
-            _addField("seabed", function(t) {
+            addField("seabed", function(t) {
                 let baseSize = R.random(0.4,0.8)
                 let baseAngle = R.randInt(18,26) ;
                 for (let column=0;column<FF.num_columns;column++){
@@ -619,6 +627,7 @@
      * The Position class represents a point within a two-dimensional space, which can interact with a vector field.
      * It provides methods to update the position based on the field's flow and to check whether the position is
      * within certain bounds (e.g., within the field or canvas).
+     * EXPORTED
      */
     class Position {
 
@@ -762,9 +771,19 @@
      * Disables the stroke for subsequent drawing operations.
      * This function sets the brush's `isActive` property to false, indicating that no stroke
      * should be applied to the shapes drawn after this method is called.
+     * EXPORTED
      */
-    function _noStroke() {
+    function disableBrush() {
         B.isActive = false;
+    }
+
+    /**
+     * Retrieves a list of all available brush names from the brush manager.
+     * @returns {Array<string>} An array containing the names of all brushes.
+     * EXPORTED
+     */
+    function listOfBrushes() {
+        return Array.from(B.list.keys())
     }
 
     /**
@@ -784,6 +803,7 @@
          * Adds a new brush with the specified parameters to the brush list.
          * @param {string} name - The unique name for the new brush.
          * @param {BrushParameters} params - The parameters defining the brush behavior and appearance.
+         * EXPORTED
          */
         add: (a, b) => {
             const isBlendableType = b.type === "marker" || b.type === "custom" || b.type === "image";
@@ -800,6 +820,7 @@
          * @param {string} brushName - The name of the brush to set as current.
          * @param {string|p5.Color} color - The color to set for the brush.
          * @param {number} weight - The weight (size) to set for the brush.
+         * EXPORTED
          */  
         set(brushName, color, weight) {
             B.name = brushName; 
@@ -810,6 +831,7 @@
         /**
          * Sets only the current brush type based on the given name.
          * @param {string} brushName - The name of the brush to set as current.
+         * EXPORTED
          */
         setBrush(brushName) {
             B.name = brushName;
@@ -820,6 +842,7 @@
          * @param {number|string|p5.Color} r - The red component of the color, a CSS color string, or a p5.Color object.
          * @param {number} [g] - The green component of the color.
          * @param {number} [b] - The blue component of the color.
+         * EXPORTED
          */        
         setColor(r,g,b) {
             B.c = (arguments.length < 2) ? r : [r,g,b]; 
@@ -829,6 +852,7 @@
         /**
          * Sets the weight (size) of the current brush.
          * @param {number} weight - The weight to set for the brush.
+         * EXPORTED
          */        
         setWeight(weight) {
             B.w = weight;
@@ -837,6 +861,7 @@
         /**
          * Defines a clipping region for the brush strokes.
          * @param {number[]} clippingRegion - An array defining the clipping region as [x1, y1, x2, y2].
+         * EXPORTED
          */
         clip(clippingRegion) {
             B.cr = clippingRegion;
@@ -848,11 +873,12 @@
          * @param {number} y1 - The y-coordinate of the start point.
          * @param {number} x2 - The x-coordinate of the end point.
          * @param {number} y2 - The y-coordinate of the end point.
+         * EXPORTED
          */        
         line(x1,y1,x2,y2) {
             _ensureReady();
             B.initializeDrawingState(x1, y1, dist(x1,y1,x2,y2), false, false);
-            let angle = calcAngle(x1,y1,x2,y2);
+            let angle = _calculateAngle(x1,y1,x2,y2);
             B.draw(angle, false);
         },
 
@@ -862,6 +888,7 @@
          * @param {number} y - The y-coordinate of the starting point.
          * @param {number} length - The length of the line to draw.
          * @param {number} dir - The direction in which to draw the line. Angles measured anticlockwise from the x-axis
+         * EXPORTED
          */
         flowLine(x,y,length,dir) {
             _ensureReady();
@@ -876,6 +903,7 @@
          * @param {number} x - The x-coordinate of the starting position to draw the shape.
          * @param {number} y - The y-coordinate of the starting position to draw the shape.
          * @param {number} scale - The scale at which to draw the shape.
+         * EXPORTED
          */
         flowShape(p,x,y,scale) {
             _ensureReady();
@@ -945,7 +973,7 @@
                 if (this.p.blend) _trans(), Mix.mask.begin();
                 _r.push(); 
                 _r.noStroke();
-                if (this.p.blend) _r.translate(matrix[0],matrix[1]), this.markerTip();
+                if (this.p.blend) _r.translate(_matrix[0],_matrix[1]), this.markerTip();
         },
 
         /**
@@ -1139,14 +1167,6 @@
         },
     }
 
-    /**
-     * Retrieves a list of all available brush names from the brush manager.
-     * @returns {Array<string>} An array containing the names of all brushes.
-     */
-    function brushes() {
-        return Array.from(B.list.keys())
-    }
-
 // =============================================================================
 // Section: Hatching
 // =============================================================================
@@ -1166,6 +1186,7 @@
      *                           - continuous: Connects the end of a line with the start of the next.
      *                           - gradient: Changes the distance between lines to create a gradient effect.
      *                           Defaults to {rand: false, continuous: false, gradient: false}.
+     * EXPORTED
      */
     B.hatch = function (polygons, dist, angle, options = {rand: false, continuous: false, gradient: false}) {
         _ensureReady();
@@ -1320,6 +1341,7 @@
 
     /**
      * Represents a polygon with a set of vertices.
+     * EXPORTED
      */
     class Polygon {
 
@@ -1347,7 +1369,7 @@
             }
             let points = []
             for (let s of this.sides) {
-                let intersection = intersectar(line.point1,line.point2,s[0],s[1])
+                let intersection = _intersectLines(line.point1,line.point2,s[0],s[1])
                 if (intersection !== false) {points.push(intersection)}
             }
             // Cache the result
@@ -1393,10 +1415,11 @@
      * operations based on active states.
      * 
      * @param {Array} pointsArray - An array of points where each point is an array of two numbers [x, y].
+     * EXPORTED
      */
-    function _polygon(pointsArray) {
+    function drawPolygon(pointsArray) {
         if (!Array.isArray(pointsArray) || pointsArray.length < 3) {
-            console.error('Invalid input for _polygon: An array with at least 3 points is required.');
+            console.error('Invalid input for polygon: An array with at least 3 points is required.');
             return;
         }
         // Create a new Polygon instance
@@ -1420,7 +1443,7 @@
      * @param {number} h - The height of the rectangle.
      * @param {boolean} [mode=false] - If true, the rectangle is drawn centered at (x, y).
      */
-    function _rect(x,y,w,h,mode = false) {
+    function drawRectangle(x,y,w,h,mode = false) {
         _ensureReady();
         if (mode) x = x - w / 2, y = y - h / 2;
         let p = new Polygon([[x,y],[x+w,y],[x+w,y+h],[x,y+h]])
@@ -1445,6 +1468,7 @@
      * of shapes and paths. It manages a collection of segments, each defined by an angle, length, and pressure,
      * allowing for intricate designs such as curves and custom strokes. Plot instances can be transformed by rotation,
      * and their visual representation can be controlled through pressure and angle calculations along their length.
+     * EXPORTED
      */
     class Plot {
 
@@ -1610,7 +1634,7 @@
      * @param {number} radius - The radius of the circle.
      * @param {boolean} [r=false] - If true, applies a random factor to the radius for each segment.
      */
-        function _circle(x,y,radius,r = false) {
+        function drawCircle(x,y,radius,r = false) {
             _ensureReady();
             // Create a new Plot instance for a curve shape
             let p = new Plot("curve")
@@ -1640,18 +1664,19 @@
         }
     
     // Holds the array of vertices for the custom shape being defined. Each vertex includes position and optional pressure.
-    let strokeArray = false;
+    let _strokeArray = false;
     // Holds options for the stroke, such as curvature, that can influence the shape's rendering.
-    let strokeOption;
+    let _strokeOption;
 
     /**
      * Starts recording vertices for a custom shape. Optionally, a curvature can be defined.
      * @param {number} [curvature] - Defines the curvature for the vertices being recorded (optional).
+     * EXPORTED
      */
     function _beginShape(curvature) {
         _ensureReady(); // Ensure that the drawing context is ready
-        strokeOption = curvature; // Set the curvature option for the shape
-        strokeArray = []; // Initialize the array to store vertices
+        _strokeOption = curvature; // Set the curvature option for the shape
+        _strokeArray = []; // Initialize the array to store vertices
     }
 
     /**
@@ -1661,7 +1686,7 @@
      * @param {number} [pressure] - The pressure at the vertex (optional).
      */
     function _vertex(x, y, pressure) {
-        strokeArray.push([x, y, pressure]); // Add the vertex to the array
+        _strokeArray.push([x, y, pressure]); // Add the vertex to the array
     }
 
     /**
@@ -1671,16 +1696,16 @@
      */
     function _endShape(a) {
         if (a === CLOSE) {
-            strokeArray.push(strokeArray[0]); // Close the shape by connecting the last vertex to the first
+            _strokeArray.push(_strokeArray[0]); // Close the shape by connecting the last vertex to the first
         }
-        let sp = new Spline(strokeArray, strokeOption); // Create a new Spline with the recorded vertices and curvature option
+        let sp = new Spline(_strokeArray, _strokeOption); // Create a new Spline with the recorded vertices and curvature option
         if (F.isActive) {
             sp.p.genPol(sp.origin[0], sp.origin[1]).fill(); // Fill the shape if the fill state is active
         }
         if (B.isActive) {
             sp.draw(); // Draw the shape if the brush state is active
         }
-        strokeArray = false; // Clear the array after the shape has been drawn
+        _strokeArray = false; // Clear the array after the shape has been drawn
     }
     
     /**
@@ -1692,8 +1717,8 @@
      */
     function _beginStroke(type, x, y) {
         _ensureReady(); // Ensure that the drawing environment is prepared
-        strokeOption = [x, y]; // Store the starting position for later use
-        strokeArray = new Plot(type); // Initialize a new Plot with the specified type
+        _strokeOption = [x, y]; // Store the starting position for later use
+        _strokeArray = new Plot(type); // Initialize a new Plot with the specified type
     }
 
     /**
@@ -1704,7 +1729,7 @@
      * @param {number} pressure - The pressure at the start of the segment, affecting properties like width.
      */
     function _move(angle, length, pressure) {
-        strokeArray.addSegment(angle, length, pressure); // Add the new segment to the Plot
+        _strokeArray.addSegment(angle, length, pressure); // Add the new segment to the Plot
     }
 
     /**
@@ -1713,13 +1738,14 @@
      * @param {number} pressure - The pressure at the end of the stroke.
      */
     function _endStroke(angle, pressure) {
-        strokeArray.endPlot(angle, pressure); // Finalize the Plot with the end angle and pressure
-        strokeArray.draw(strokeOption[0], strokeOption[1], 1); // Draw the stroke using the stored starting position
-        strokeArray = false; // Clear the strokeArray to indicate the end of this stroke
+        _strokeArray.endPlot(angle, pressure); // Finalize the Plot with the end angle and pressure
+        _strokeArray.draw(_strokeOption[0], _strokeOption[1], 1); // Draw the stroke using the stored starting position
+        _strokeArray = false; // Clear the _strokeArray to indicate the end of this stroke
     }
     
     /**
      * Represents a spline curve, which is a type of smooth curve defined by a series of points.
+     * EXPORTED
      */
     class Spline {
 
@@ -1746,7 +1772,7 @@
                         let p1 = array_points[i], p2 = array_points[i+1], p3 = array_points[i+2];
                         // Calculate distances and angles between points
                         let d1 = dist(p1[0],p1[1],p2[0],p2[1]), d2 = dist(p2[0],p2[1],p3[0],p3[1]);
-                        let a1 = calcAngle(p1[0],p1[1],p2[0],p2[1]), a2 = calcAngle(p2[0],p2[1],p3[0],p3[1]);
+                        let a1 = _calculateAngle(p1[0],p1[1],p2[0],p2[1]), a2 = _calculateAngle(p2[0],p2[1],p3[0],p3[1]);
                         // Calculate curvature based on the minimum distance
                         let dd = curvature * Math.min(Math.min(d1,d2),0.5 * Math.min(d1,d2)), dmax = Math.max(d1,d2)
                         let s1 = d1 - dd, s2 = d2 - dd;
@@ -1760,7 +1786,7 @@
                             let point2 = {x: point1.x + dmax * R.cos(-a1+90), y: point1.y + dmax * R.sin(-a1+90)}
                             let point3 = {x: p2[0] + dd * R.cos(-a2), y: p2[1] + dd * R.sin(-a2)}
                             let point4 = {x: point3.x + dmax * R.cos(-a2+90), y: point3.y + dmax * R.sin(-a2+90)}
-                            let int = intersectar(point1,point2,point3,point4,true)
+                            let int = _intersectLines(point1,point2,point3,point4,true)
                             let radius = dist(point1.x,point1.y,int.x,int.y)
                             let disti = dist(point1.x,point1.y,point3.x,point3.y)/2
                             let a3 = 2*asin(disti/radius)
@@ -1777,7 +1803,7 @@
                         // If curvature is 0, simply create segments
                         let p1 = array_points[i], p2 = array_points[i+1]
                         let d = dist(p1[0],p1[1],p2[0],p2[1]);
-                        let a = calcAngle(p1[0],p1[1],p2[0],p2[1]);
+                        let a = _calculateAngle(p1[0],p1[1],p2[0],p2[1]);
                         this.p.addSegment(a,d,1,true)
                         if (i == array_points.length - 2) {
                             this.p.endPlot(a,1,true)
@@ -1798,8 +1824,9 @@
      * Creates and draws a spline curve with the given points and curvature.
      * @param {Array<Array<number>>} array_points - An array of points defining the spline curve.
      * @param {number} [curvature=0.5] - The curvature of the spline curve, between 0 and 1. A curvature of 0 will create a series of straight segments.
+     * EXPORTED
      */
-    function _spline(array_points, curvature = 0.5) {
+    function drawSpline(array_points, curvature = 0.5) {
         _ensureReady(); // Ensure that the drawing environment is prepared
         let p = new Spline(array_points, curvature); // Create a new Spline instance
         p.draw(); // Draw the spline
@@ -1825,8 +1852,9 @@
      * @param {number} [b] - The green component of the color or grayscale opacity.
      * @param {number} [c] - The blue component of the color.
      * @param {number} [d] - The opacity of the color.
+     * EXPORTED
      */
-    function _fill(a,b,c,d) {
+    function setFill(a,b,c,d) {
         F.o = (arguments.length < 4) ? ((arguments.length < 3) ? b : 1) : d;
         F.c = (arguments.length < 3) ? color(a) : color(a,b,c);
         F.isActive = true;
@@ -1835,15 +1863,17 @@
     /**
      * Sets the bleed level for the fill operation, simulating a watercolor effect.
      * @param {number} _i - The intensity of the bleed effect, capped at 0.5.
+     * EXPORTED
      */
-    function _bleed(_i) {
+    function setBleed(_i) {
         F.b = _i > 0.5 ? 0.5 : _i;
     }
 
     /**
      * Disables the fill for subsequent drawing operations.
+     * EXPORTED
      */
-    function _noFill() {
+    function disableFill() {
         F.isActive = false;
     }
 
@@ -1878,7 +1908,7 @@
                 let shift = R.randInt(0, this.v.length);
                 this.v = [...this.v.slice(shift), ...this.v.slice(0, shift)];
                 // Create and fill the polygon with the calculated bleed effect
-                let pol = new fillPol (this.v, this.m, this.calcCenter())
+                let pol = new FillPolygon (this.v, this.m, this.calcCenter())
                 pol.fill(this.c, int(map(this.o,0,255,0,30,true)))
             }
         },
@@ -1898,13 +1928,13 @@
     }
 
     /**
-     * The fillPol class is used to create and manage the properties of the polygons that produces
+     * The FillPolygon class is used to create and manage the properties of the polygons that produces
      * the watercolor effect. It includes methods to grow (expand) the polygon and apply layers
      * of color with varying intensity and erase parts to simulate a natural watercolor bleed.
      * The implementation follows Tyler Hobbs' guide to simulating watercolor: 
      * https://tylerxhobbs.com/essays/2017/a-generative-approach-to-simulating-watercolor-paints
      */
-    class fillPol {
+    class FillPolygon {
 
         /**
          * The constructor initializes the polygon with a set of vertices, multipliers for the bleed effect, and a center point.
@@ -1924,7 +1954,7 @@
          * Optionally, can also shrink (degrow) the polygon's vertices inward.
          * @param {number} _a - The growth factor.
          * @param {boolean} [degrow=false] - If true, vertices will move inwards.
-         * @returns {fillPol} A new `fillPol` object with adjusted vertices.
+         * @returns {FillPolygon} A new `FillPolygon` object with adjusted vertices.
          */
         grow (growthFactor, degrow = false) {
             const newVerts = [];
@@ -1960,7 +1990,7 @@
                 newVerts.push(newVertex);
                 newMods.push(changeModifier(mod));
             }
-            return new fillPol (newVerts, newMods, this.midP);
+            return new FillPolygon (newVerts, newMods, this.midP);
         }
 
         /**
@@ -1981,7 +2011,7 @@
             Mix.mask.begin();
             push();
             noStroke();
-            translate(matrix[0], matrix[1]);
+            translate(_matrix[0], _matrix[1]);
 
             let pol = this.grow()
             let pol2 = pol.grow().grow(0.5);
@@ -2088,7 +2118,7 @@
      * with properties such as weight, vibration, definition, quality, opacity, spacing, and
      * pressure sensitivity. Some brushes have additional properties like type, tip, and rotate.
      */
-    const standard_brushes = [
+    const _standard_brushes = [
         // Define each brush with a name and a set of parameters
         // For example, the "pen" brush has a weight of 0.35, a vibration of 0.12, etc.
         // The "marker2" brush has a custom tip defined by a function that draws rectangles.
@@ -2110,7 +2140,7 @@
      * Iterates through the list of standard brushes and adds each one to the brush manager.
      * The brush manager is assumed to be a global object `B` that has an `add` method.
      */
-    for (let s of standard_brushes) {
+    for (let s of _standard_brushes) {
         B.add(s[0],s[1])
     }
     /**
@@ -2118,9 +2148,10 @@
      * This affects the weight, vibration, and spacing of each standard brush.
      * 
      * @param {number} _scale - The scaling factor to apply to the brush parameters.
+     * EXPORTED
      */
-    function _globalScale(_scale) {
-        for (let s of standard_brushes) {
+    function globalScale(_scale) {
+        for (let s of _standard_brushes) {
             let params = B.list.get(s[0]).param
             params.weight *= _scale, params.vibration *= _scale, params.spacing *= _scale;
         }
@@ -2136,21 +2167,21 @@
  */
 
 // Basic Functions
-exports.config = _config;                // Configures and seeds the RNG (Random Number Generator).
-exports.load = _load;                    // Loads the library into the selected buffer.
-exports.preload = _preload;              // Preloads custom tips for the library.
+exports.config = configureSystem;                // Configures and seeds the RNG (Random Number Generator).
+exports.load = loadSystem;                    // Loads the library into the selected buffer.
+exports.preload = preloadBrushAssets;              // Preloads custom tips for the library.
 
 // FLOWFIELD Management
-exports.addField = _addField;            // Adds a new vector field.
-exports.field = _field;                  // Activates or selects a specific vector field.
-exports.noField = _disableField;         // Disables the current vector field.
-exports.refreshField = _refreshField;    // Refreshes the vector field, useful for animations.
-exports.listFields = _listFields;        // Lists all the available fields.
+exports.addField = addField;            // Adds a new vector field.
+exports.field = selectField;                  // Activates or selects a specific vector field.
+exports.noField = disableField;         // Disables the current vector field.
+exports.refreshField = refreshField;    // Refreshes the vector field, useful for animations.
+exports.listFields = listFields;        // Lists all the available fields.
 
 // BRUSH Management
-exports.scale = _globalScale;            // Rescales all standard brushes.
+exports.scale = globalScale;            // Rescales all standard brushes.
 exports.add = B.add;                     // Adds a new brush definition.
-exports.box = brushes;                   // Retrieves an array with existing brushes.
+exports.box = listOfBrushes;                   // Retrieves an array with existing brushes.
 exports.set = B.set;                     // Sets values for all properties of a brush.
 exports.pick = B.setBrush;               // Selects a brush to use.
 exports.clip = B.clip;                   // Clips brushes with a rectangle.
@@ -2158,21 +2189,21 @@ exports.clip = B.clip;                   // Clips brushes with a rectangle.
 // STROKE Properties
 exports.stroke = B.setColor;             // Sets the stroke color.
 exports.strokeWeight = B.setWeight;      // Sets the weight (thickness) of the stroke.
-exports.noStroke = _noStroke;            // Disables the stroke.
+exports.noStroke = disableBrush;            // Disables the stroke.
 
 // FILL Operations (affects rect, circle, and beginShape)
-exports.fill = _fill;                    // Sets the fill color.
-exports.bleed = _bleed;                  // Sets the bleed property for fills.
-exports.noFill = _noFill;                // Disables the fill.
+exports.fill = setFill;                    // Sets the fill color.
+exports.bleed = setBleed;                  // Sets the bleed property for fills.
+exports.noFill = disableFill;                // Disables the fill.
 
 // GEOMETRY Drawing Functions
 exports.line = B.line;                   // Draws a line.
 exports.flowLine = B.flowLine;           // Draws a line that follows the vector field.
 exports.flowShape = B.flowShape;         // Draws a shape that follows the vector field.
-exports.rect = _rect;                    // Draws a rectangle.
-exports.circle = _circle;                // Draws a circle.
-exports.polygon = _polygon;              // Draws a polygon.
-exports.spline = _spline;                // Draws a spline curve.
+exports.rect = drawRectangle;                    // Draws a rectangle.
+exports.circle = drawCircle;                // Draws a circle.
+exports.polygon = drawPolygon;              // Draws a polygon.
+exports.spline = drawSpline;                // Draws a spline curve.
 // Equivalent to beginShape in p5.js
 exports.beginShape = _beginShape;        // Begins recording vertices for a custom shape.
 exports.vertex = _vertex;                // Records a vertex for a custom shape.
