@@ -416,33 +416,9 @@
         vert: `precision highp float;attribute vec3 aPosition;attribute vec2 aTexCoord;uniform mat4 uModelViewMatrix,uProjectionMatrix;varying vec2 vVertTexCoord;void main(){gl_Position=uProjectionMatrix*uModelViewMatrix*vec4(aPosition,1);vVertTexCoord=aTexCoord;}`,
         
         // Fragment shader source code with blending operations
-        frag: `
-        precision highp float;varying vec2 vVertTexCoord;
-        uniform sampler2D source;
-        uniform sampler2D mask;
-        uniform vec4 addColor;
+        frag: `precision highp float;varying vec2 vVertTexCoord;uniform sampler2D source,mask;uniform vec4 addColor;
         #include "spectral.glsl"
-        float rand(vec2 co, float a, float b, float c){return fract(sin(dot(co, vec2(a, b))) * c);}
-        void main() {
-            vec4 maskColor = texture2D(mask, vVertTexCoord);
-            if (maskColor.r > 0.0) {
-                vec2 randParams1 = vec2(12.9898, 78.233);
-                vec2 randParams2 = vec2(7.9898, 58.233);
-                vec2 randParams3 = vec2(17.9898, 3.233);
-                float r1 = rand(vVertTexCoord, randParams1.x, randParams1.y, 43358.5453) * 2.0 - 1.0;
-                float r2 = rand(vVertTexCoord, randParams2.x, randParams2.y, 43213.5453) * 2.0 - 1.0;
-                float r3 = rand(vVertTexCoord, randParams3.x, randParams3.y, 33358.5453) * 2.0 - 1.0;
-                vec4 canvasColor = texture2D(source, vVertTexCoord);
-                vec3 mixedColor = spectral_mix(canvasColor.rgb, addColor.rgb, maskColor.a * 0.8);
-                if (maskColor.a > 0.8) {
-                    mixedColor = spectral_mix(mixedColor, vec3(0.0), (maskColor.a - 0.8) / 0.6);
-                }
-                gl_FragColor = vec4(mixedColor + 0.02 * vec3(r1, r2, r3), 1.0);
-            } else {
-                gl_FragColor = vec4(0.0);
-            }
-        }
-        `
+        float v(vec2 v,float d,float f,float s){return fract(sin(dot(v,vec2(d,f)))*s);}void main(){vec4 f=texture2D(mask,vVertTexCoord);if(f.x>0.){vec2 r=vec2(12.9898,78.233),a=vec2(7.9898,58.233),l=vec2(17.9898,3.233);float d=v(vVertTexCoord,r.x,r.y,43358.5453)*2.-1.,x=v(vVertTexCoord,a.x,a.y,43213.5453)*2.-1.,s=v(vVertTexCoord,l.x,l.y,33358.5453)*2.-1.;vec3 y=spectral_mix(texture2D(source,vVertTexCoord).xyz,addColor.xyz,f.w*.8);if(f.w>.8)y=spectral_mix(y,vec3(0),(f.w-.8)/.6);gl_FragColor=vec4(y+.02*vec3(d,x,s),1);}else gl_FragColor=vec4(0);}`
     }
 
 // =============================================================================
@@ -916,6 +892,7 @@
          * @returns {number} The calculated spacing value.
          */
         spacing() {
+            this.p = this.list.get(this.name).param
             return this.p.spacing * this.w;
         },
 
@@ -957,39 +934,58 @@
         },
 
         /**
+         * Executes the drawing operation for a single tip.
+         * @param {number} pressure - The desired pressure value.
+         */
+        drawTip(pressure) {
+            this.pushState(true);
+            this.tip(pressure)
+            this.popState(true);
+        },
+
+        /**
          * Sets up the environment for a brush stroke.
          */
-        pushState() {
+        pushState(isTip = false) {
             this.p = this.list.get(this.name).param
             // Pressure values for the stroke
+            if (!isTip) {
                 this.a = this.p.pressure.type !== "custom" ? R.random(-1, 1) : 0;
                 this.b = this.p.pressure.type !== "custom" ? R.random(1, 1.5) : 0;
                 this.cp = this.p.pressure.type !== "custom" ? R.random(3, 3.5) : R.random(-0.2, 0.2);
                 const [min, max] = this.p.pressure.min_max;
                 this.min = min;
                 this.max = max;
+            }
             // Blend Mode
                 this.c = _r.color(this.c);
                 if (this.p.blend) _trans(), Mix.mask.begin();
                 _r.push(); 
                 _r.noStroke();
-                if (this.p.blend) _r.translate(_matrix[0],_matrix[1]), this.markerTip();
+                if (this.p.blend) {
+                    _r.translate(_matrix[0],_matrix[1]); 
+                    if (!isTip) this.markerTip()
+                };
         },
 
         /**
          * Restores the drawing state after a brush stroke is completed.
          */
-        popState() {
-            if (this.p.blend) this.markerTip();
+        popState(isTip = false) {
+            if (this.p.blend && !isTip) this.markerTip();
             _r.pop();
-            if (this.p.blend) Mix.mask.end(), Mix.blend(this.c);
+            if (this.p.blend) { 
+                Mix.mask.end(); 
+                Mix.blend(this.c);
+            }
         },
         
         /**
          * Draws the tip of the brush based on the current pressure and position.
+         * @param {number} pressure - The desired pressure value.
          */
-        tip() {
-            let pressure = this.calculatePressure(); // Calculate Pressure
+        tip(custom_pressure = false) {
+            let pressure = custom_pressure ? custom_pressure : this.calculatePressure(); // Calculate Pressure
             let alpha = this.calculateAlpha(pressure); // Calcula Alpha
             this.applyColor(alpha); // Apply Color
             if (this.isInsideClippingArea()) { // Check if it's inside clipping area
@@ -1165,6 +1161,19 @@
                 }
             }
         },
+    }
+
+    /**
+     * Draws the tip of the selected brush
+     * @param {number} x - x coordinate for the tip.
+     * @param {number} y - y coordinate for the tip.
+     * @param {number} pressure - The desired pressure value.
+     * EXPORTED
+     */
+    function drawTip(x, y, pressure) {
+        _ensureReady();
+        B.position = new Position(x, y)
+        B.drawTip(pressure)
     }
 
 // =============================================================================
@@ -1700,7 +1709,7 @@
         }
         let sp = new Spline(_strokeArray, _strokeOption); // Create a new Spline with the recorded vertices and curvature option
         if (F.isActive) {
-            sp.p.genPol(sp.origin[0], sp.origin[1]).fill(); // Fill the shape if the fill state is active
+            sp.p.genPol(_strokeArray[0][0], _strokeArray[0][1]).fill(); // Fill the shape if the fill state is active
         }
         if (B.isActive) {
             sp.draw(); // Draw the shape if the brush state is active
@@ -1818,7 +1827,9 @@
         /**
          * Draws the spline curve on the canvas.
          */
-        draw () {this.p.draw()}
+        draw () {
+            if (B.isActive) this.p.draw();
+        }
     }
     /**
      * Creates and draws a spline curve with the given points and curvature.
@@ -2185,6 +2196,7 @@ exports.box = listOfBrushes;                   // Retrieves an array with existi
 exports.set = B.set;                     // Sets values for all properties of a brush.
 exports.pick = B.setBrush;               // Selects a brush to use.
 exports.clip = B.clip;                   // Clips brushes with a rectangle.
+exports.tip = drawTip;                   // Clips brushes with a rectangle.
 
 // STROKE Properties
 exports.stroke = B.setColor;             // Sets the stroke color.

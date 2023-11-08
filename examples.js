@@ -41,7 +41,7 @@ brush.config({
 
 
 // YOU CAN CREATE YOU OWN BRUSHES
-brush.addBrush("watercolor", {
+brush.add("watercolor", {
     type: "image",       // this is the TIP TYPE: choose standard / spray / marker / custom / image
     weight: 15,          // Base weight of the brush tip
     vibration: 2,        // Vibration of the lines, spread
@@ -81,12 +81,7 @@ function setup () {
 
     C.createCanvas()
     background("#e2e7dc")
-
-    angleMode(DEGREES) // Because I'm an architect
-
-    // USE BRUSHBOX LIBRARY
-    // Load BrushBox: load(BUFFER) -> Leave empty if you want to draw to the main p5 canvas
-    //brush.load();
+    angleMode(DEGREES)
 
     translate(-width/2,-height/2)
 
@@ -137,7 +132,7 @@ function setup () {
     //polygon.hatch(2,45,0.05)
     // You can also hatch arrays of polygons brush.hatch(ARRAY WITH POLS, distance_between_lines, angle_of_lines, 0-1.0 for % precission)
     brush.stroke("#080f15")
-         */
+         
     let pol_array = []
     for (let i = 0; i < 5; i++) {
         pol_array.push(new brush.Polygon([
@@ -215,7 +210,32 @@ function setup () {
     brush.circle(100,100,50)
     brush.fill("#002185",120)
     brush.circle(150,100,50)
+
+    brush.set("2B","#9c2128",1)
+
+    */
     
+    let num_cols = 20
+    let num_rows = 10
+    let col_size = (width - 40) / num_cols
+    let row_size = (height - 40) / num_rows
+    brush.noStroke()
+    brush.field("seabed")
+    for (let i = 0; i < num_rows; i++) {
+        for (let j = 0; j < num_cols; j++) {
+            brush.fill(random(palette),random(75,130))
+            brush.bleed(random(0.05,0.4))
+
+            brush.beginShape(0)
+            brush.vertex(20 + col_size * j, 20 + row_size * i)
+            brush.vertex(20 + col_size * j + col_size, 20 + row_size * i)
+            brush.vertex(20 + col_size * j + col_size, 20 + row_size * i + row_size)
+            brush.vertex(20 + col_size * j, 20 + row_size * i + row_size)
+            brush.endShape()
+
+            //brush.rect(20 + col_size * j, 20 + row_size * i, col_size, row_size)
+        }
+    }
     
 }
 
