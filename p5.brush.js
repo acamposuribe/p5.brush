@@ -704,17 +704,55 @@
 // =============================================================================
 // Section: Brushes
 // =============================================================================
+/**
+ * The Brushes section provides tools for drawing with various brush types. Each brush
+ * can simulate different materials and techniques, such as spray, marker, or custom
+ * image stamps. The 'B' object is central to this section, storing brush properties
+ * and methods for applying brush strokes to the canvas.
+ *
+ * The 'B' object contains methods to control the brush, including setting the brush
+ * type, color, weight, and blending mode. It also handles the application of the brush
+ * to draw lines, flow lines, and shapes with specific behaviors defined by the brush type.
+ * Additionally, it provides a mechanism to clip the drawing area, ensuring brush strokes
+ * only appear within the defined region.
+ *
+ * Brush tips can vary from basic circles to complex patterns, with support for custom
+ * pressure curves, opacity control, and dynamic size adjustments to simulate natural
+ * drawing tools. The brush engine can create effects like variable line weight, texture,
+ * and color blending, emulating real-world drawing experiences.
+ *
+ * The brush system is highly customizable, allowing users to define their own brushes
+ * with specific behaviors and appearances. By extending the brush types and parameters,
+ * one can achieve a wide range of artistic styles and techniques.
+ */
 
-    function _noStroke() {B.isActive = false}
+    /**
+     * Disables the stroke for subsequent drawing operations.
+     * This function sets the brush's `isActive` property to false, indicating that no stroke
+     * should be applied to the shapes drawn after this method is called.
+     */
+    function _noStroke() {
+        B.isActive = false;
+    }
+
+    /**
+     * The B object, representing a brush, contains properties and methods to manipulate
+     * the brush's appearance and behavior when drawing on the canvas.
+     * @type {Object}
+     */
     const B = {
-        isActive: true,
-        list: new Map(),
-        // Default Values
-        c: "#000000", 
-        w: 1, 
-        cr: null, 
-        name: "HB",
-        // Add and set functions (Exported)
+        isActive: true, // Indicates if the brush is active.
+        list: new Map(), // Stores brush definitions by name.
+        c: "#000000", // Current color of the brush.
+        w: 1, // Current weight (size) of the brush.
+        cr: null, // Clipping region for brush strokes.
+        name: "HB", // Name of the current brush.
+        
+        /**
+         * Adds a new brush with the specified parameters to the brush list.
+         * @param {string} name - The unique name for the new brush.
+         * @param {BrushParameters} params - The parameters defining the brush behavior and appearance.
+         */
         add: (a, b) => {
             const isBlendableType = b.type === "marker" || b.type === "custom" || b.type === "image";
             if (b.type === "image") {
@@ -724,48 +762,111 @@
             b.blend = isBlendableType && b.blend !== false;
             B.list.set(a, { param: b, colors: [], buffers: [] });
         },
+
+        /**
+         * Sets the current brush with the specified name, color, and weight.
+         * @param {string} brushName - The name of the brush to set as current.
+         * @param {string|p5.Color} color - The color to set for the brush.
+         * @param {number} weight - The weight (size) to set for the brush.
+         */  
         set(brushName, color, weight) {
             B.name = brushName; 
             B.c = color;
             B.w = weight;
         },
+
+        /**
+         * Sets only the current brush type based on the given name.
+         * @param {string} brushName - The name of the brush to set as current.
+         */
         setBrush(brushName) {
             B.name = brushName;
         },
+
+        /**
+         * Sets the color of the current brush.
+         * @param {number|string|p5.Color} r - The red component of the color, a CSS color string, or a p5.Color object.
+         * @param {number} [g] - The green component of the color.
+         * @param {number} [b] - The blue component of the color.
+         */        
         setColor(r,g,b) {
             B.c = (arguments.length < 2) ? r : [r,g,b]; 
             B.isActive = true;
         },
+
+        /**
+         * Sets the weight (size) of the current brush.
+         * @param {number} weight - The weight to set for the brush.
+         */        
         setWeight(weight) {
             B.w = weight;
         },
-        // Define clipping region (Exported)
+
+        /**
+         * Defines a clipping region for the brush strokes.
+         * @param {number[]} clippingRegion - An array defining the clipping region as [x1, y1, x2, y2].
+         */
         clip(clippingRegion) {
             B.cr = clippingRegion;
         },
-        // Line and Plot functions (Exported)
+
+        /**
+         * Draws a line using the current brush from (x1, y1) to (x2, y2).
+         * @param {number} x1 - The x-coordinate of the start point.
+         * @param {number} y1 - The y-coordinate of the start point.
+         * @param {number} x2 - The x-coordinate of the end point.
+         * @param {number} y2 - The y-coordinate of the end point.
+         */        
         line(x1,y1,x2,y2) {
             _ensureReady();
             B.initializeDrawingState(x1, y1, dist(x1,y1,x2,y2), false, false);
             let angle = calcAngle(x1,y1,x2,y2);
             B.draw(angle, false);
         },
+
+        /**
+         * Draws a flow line with the current brush from a starting point in a specified direction.
+         * @param {number} x - The x-coordinate of the starting point.
+         * @param {number} y - The y-coordinate of the starting point.
+         * @param {number} length - The length of the line to draw.
+         * @param {number} dir - The direction in which to draw the line. Angles measured anticlockwise from the x-axis
+         */
         flowLine(x,y,length,dir) {
             _ensureReady();
             if (angleMode() === "radians") dir = dir * 180 / Math.PI;
             B.initializeDrawingState(x, y, length, true, false);
             B.draw(dir, false);
         },
+
+        /**
+         * Draws a shape with a flowing brush stroke.
+         * @param {Object} p - An object representing the shape to draw.
+         * @param {number} x - The x-coordinate of the starting position to draw the shape.
+         * @param {number} y - The y-coordinate of the starting position to draw the shape.
+         * @param {number} scale - The scale at which to draw the shape.
+         */
         flowShape(p,x,y,scale) {
             _ensureReady();
             B.initializeDrawingState(x, y, p.length, true, p);
             B.draw(scale, true);
         },
-        // Internal Functions
+
+        /**
+         * Calculates the tip spacing based on the current brush parameters.
+         * @returns {number} The calculated spacing value.
+         */
         spacing() {
             return this.p.spacing * this.w;
         },
 
+        /**
+         * Initializes the drawing state with the given parameters.
+         * @param {number} x - The x-coordinate of the starting point.
+         * @param {number} y - The y-coordinate of the starting point.
+         * @param {number} length - The length of the line to draw.
+         * @param {boolean} flow - Flag indicating if the line should follow the vector-field.
+         * @param {Object|boolean} plot - The shape object to be used for plotting, or false if not plotting a shape.
+         */
         initializeDrawingState(x, y, length, flow, plot) {
             this.position = new Position(x, y);
             this.length = length;
@@ -774,6 +875,11 @@
             if (plot) plot.calcIndex(0);
         },
 
+        /**
+         * Executes the drawing operation for lines or shapes.
+         * @param {number} angle_scale - The angle or scale to apply during drawing.
+         * @param {boolean} isPlot - Flag indicating if the operation is plotting a shape.
+         */
         draw(angle_scale, isPlot) {
             if (!isPlot) this.dir = angle_scale;
             this.pushState();
@@ -790,6 +896,9 @@
             this.popState();
         },
 
+        /**
+         * Sets up the environment for a brush stroke.
+         */
         pushState() {
             this.p = this.list.get(this.name).param
             // Pressure values for the stroke
@@ -807,12 +916,18 @@
                 if (this.p.blend) _r.translate(matrix[0],matrix[1]), this.markerTip();
         },
 
+        /**
+         * Restores the drawing state after a brush stroke is completed.
+         */
         popState() {
             if (this.p.blend) this.markerTip();
             _r.pop();
             if (this.p.blend) Mix.mask.end(), Mix.blend(this.c);
         },
         
+        /**
+         * Draws the tip of the brush based on the current pressure and position.
+         */
         tip() {
             let pressure = this.calculatePressure(); // Calculate Pressure
             let alpha = this.calculateAlpha(pressure); // Calcula Alpha
@@ -835,25 +950,54 @@
                 }
             }
         },
-        // Pressure Functions
+
+        /**
+         * Calculates the pressure for the current position in the stroke.
+         * @returns {number} The calculated pressure value.
+         */
         calculatePressure() {
             return this.plot
             ? this.simPressure() * this.plot.pressure(this.position.plotted)
             : this.simPressure();
         },
+
+        /**
+         * Simulates brush pressure based on the current position and brush parameters.
+         * @returns {number} The simulated pressure value.
+         */
         simPressure () {
             if (this.p.pressure.type === "custom") {
                 return R.map(this.p.pressure.curve(this.position.plotted / this.length) + this.cp, 0, 1, this.min, this.max, true);
             }
             return this.gauss()
         },
+
+        /**
+         * Generates a Gaussian distribution value for the pressure calculation.
+         * @param {number} a - Center of the Gaussian bell curve.
+         * @param {number} b - Width of the Gaussian bell curve.
+         * @param {number} c - Shape of the Gaussian bell curve.
+         * @param {number} min - Minimum pressure value.
+         * @param {number} max - Maximum pressure value.
+         * @returns {number} The calculated Gaussian value.
+         */
         gauss(a = 0.5 + B.p.pressure.curve[0] * B.a, b = 1 - B.p.pressure.curve[1] * B.b, c = B.cp, min = B.min, max = B.max) {
             return R.map((1 / ( 1 + Math.pow(Math.abs( ( this.position.plotted - a * this.length ) / ( b * this.length / 2 ) ), 2 * c))), 0, 1, min, max);
         },
-        // Color functions
+
+        /**
+         * Calculates the alpha (opacity) level for the brush stroke based on pressure.
+         * @param {number} pressure - The current pressure value.
+         * @returns {number} The calculated alpha value.
+         */
         calculateAlpha(pressure) {
             return Math.floor(this.p.opacity * Math.pow(pressure, this.p.type === "marker" ? 1 : 1.5));
         },
+
+        /**
+         * Applies the current color and alpha to the renderer.
+         * @param {number} alpha - The alpha (opacity) level to apply.
+         */
         applyColor(alpha) {
             if (this.p.blend) {
                 _r.fill(255, 0, 0, alpha / 2);
@@ -862,12 +1006,20 @@
                 _r.fill(this.c);
             }
         },
-        // Clipping function
+
+        /**
+         * Checks if the current brush position is inside the defined clipping area.
+         * @returns {boolean} True if the position is inside the clipping area, false otherwise.
+         */
         isInsideClippingArea() {
             if (B.cr) return this.position.x >= B.cr[0] && this.position.x <= B.cr[2] && this.position.y >= B.cr[1] && this.position.y <= B.cr[3];
             else return true;
         },
-        // Spray Tip
+
+        /**
+         * Draws the spray tip of the brush.
+         * @param {number} pressure - The current pressure value.
+         */
         drawSpray(pressure) {
             let vibration = (this.w * this.p.vibration * pressure) + this.w * randomGaussian() * this.p.vibration / 3;
             let sw = this.p.weight * R.random(0.9,1.1);
@@ -881,14 +1033,25 @@
                 _r.circle(this.position.x + rX, this.position.y + yRandomFactor * sqrtPart, sw);
             }
         },
-        // Marker Tip
+
+        /**
+         * Draws the marker tip of the brush.
+         * @param {number} pressure - The current pressure value.
+         * @param {boolean} [vibrate=true] - Whether to apply vibration effect.
+         */
         drawMarker(pressure, vibrate = true) {
             let vibration = vibrate ? this.w * this.p.vibration : 0;
             let rx = vibrate ? vibration * R.random(-1,1) : 0;
             let ry = vibrate ? vibration * R.random(-1,1) : 0;
             _r.circle(this.position.x + rx, this.position.y + ry, this.w * this.p.weight * pressure)
         },
-        // Custom Tip of Image Tip
+
+        /**
+         * Draws the custom or image tip of the brush.
+         * @param {number} pressure - The current pressure value.
+         * @param {number} alpha - The alpha (opacity) level to apply.
+         * @param {boolean} [vibrate=true] - Whether to apply vibration effect.
+         */
         drawCustomOrImage(pressure, alpha, vibrate = true) {
             _r.push();
             let vibration = vibrate ? this.w * this.p.vibration : 0;
@@ -899,7 +1062,11 @@
             this.p.tip();
             _r.pop();
         },
-        // Default Tip
+
+        /**
+         * Draws the default tip of the brush.
+         * @param {number} pressure - The current pressure value.
+         */
         drawDefault(pressure) {
             let vibration = this.w * this.p.vibration * (this.p.definition + (1-this.p.definition) * randomGaussian() * this.gauss(0.5,0.9,5,0.2,1.2) / pressure);
             if (R.random(0, this.p.quality) > 0.4) {
@@ -907,6 +1074,11 @@
             }
         },
 
+        /**
+         * Adjusts the size and rotation of the brush tip before drawing.
+         * @param {number} pressure - The current pressure value.
+         * @param {number} alpha - The alpha (opacity) level to apply.
+         */
         adjustSizeAndRotation(pressure, alpha) {
             _r.scale(pressure);
             if (this.p.type === "image") (this.p.blend) ? _r.tint(255, 0, 0, alpha / 2) : _r.tint(_r.red(this.c), _r.green(this.c), _r.blue(this.c), alpha);
@@ -914,6 +1086,9 @@
             if (this.p.rotate === "natural") _r.rotate(((this.plot) ? - this.plot.angle(this.position.plotted) : - this.dir) + (this.flow ? this.position.angle() : 0))
         },
 
+        /**
+         * Draws the marker tip with a blend effect.
+         */
         markerTip() {
             if (this.isInsideClippingArea()) {
                 let pressure = this.calculatePressure();
