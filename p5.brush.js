@@ -1215,42 +1215,105 @@
 // Section: Shape, Stroke, and Spline. Plot System
 // =============================================================================
 
+
     class Plot {
+
+        /**
+         * Creates a new Plot.
+         * @param {string} _type - The type of plot, "curve" or "segments"
+         */
         constructor (_type) {
             this.segments = [], this.angles = [], this.pres = [];
             this.type = _type;
             this.dir = 0;
             this.calcIndex(0);
         }
+
+        /**
+         * Adds a segment to the plot with specified angle, length, and pressure.
+         * @param {number} _a - The angle of the segment.
+         * @param {number} _length - The length of the segment.
+         * @param {number} _pres - The pressure of the segment.
+         * @param {boolean} _degrees - Whether the angle is in degrees.
+         */
         addSegment (_a = 0,_length = 0,_pres = 1,_degrees = false) {
+            // Convert angle to degrees if necessary
             if (angleMode() === "radians" && !_degrees) _a = _a * 180 / Math.PI
+            // Remove the last angle if the angles array is not empty
             if (this.angles.length > 0) {
                 this.angles.splice(-1)
             }
-            if (_a < 0) {_a = 360+_a} 
-            if (_a > 360) {_a = _a - parseInt(_a/360)*360}
+            // Normalize the angle between 0 and 360 degrees
+            _a = (_a + 360) % 360;
+            // Store the angle, pressure, and segment length
             this.angles.push(_a);
             this.pres.push(_pres);
             this.segments.push(_length);
+            // Calculate the total length of the plot
             this.length =  this.segments.reduce((partialSum, a) => partialSum + a, 0);
+            // Push the angle again to prepare for the next segment
             this.angles.push(_a)
         }
+
+        /**
+         * Finalizes the plot by setting the last angle and pressure.
+         * @param {number} _a - The final angle of the plot.
+         * @param {number} _pres - The final pressure of the plot.
+         * @param {boolean} _degrees - Whether the angle is in degrees.
+         */
         endPlot (_a = 0, _pres = 1, _degrees = false) {
+            // Convert angle to degrees if necessary
             if (angleMode() === "radians" && !_degrees) _a = _a * 180 / Math.PI
+            // Replace the last angle with the final angle
             this.angles.splice(-1)
             this.angles.push(_a);
+            // Store the final pressure
             this.pres.push(_pres);
         }
-        rotate (_a) {if (angleMode() === "radians") _a = _a * 180 / Math.PI; this.dir = _a}
+
+        /**
+         * Rotates the entire plot by a given angle.
+         * @param {number} _a - The angle to rotate the plot.
+         */
+        rotate (_a) {
+            if (angleMode() === "radians") _a = _a * 180 / Math.PI; 
+            this.dir = _a;
+        }
+
+        /**
+         * Calculates the pressure at a given distance along the plot.
+         * @param {number} _d - The distance along the plot.
+         * @returns {number} - The calculated pressure.
+         */
         pressure (_d) {
-            if (_d > this.length) { return this.pres[this.pres.length-1] }
-            return this.curving(this.pres,_d)
+            // If the distance exceeds the plot length, return the last pressure
+            if (_d > this.length) return this.pres[this.pres.length-1];
+            // Otherwise, calculate the pressure using the curving function
+            return this.curving(this.pres,_d);
         }
+
+        /**
+         * Calculates the angle at a given distance along the plot.
+         * @param {number} _d - The distance along the plot.
+         * @returns {number} - The calculated angle.
+         */
         angle (_d) {
-            if (_d > this.length) { return this.angles[this.angles.length-1] }
+            // If the distance exceeds the plot length, return the last angle
+            if (_d > this.length) return this.angles[this.angles.length-1];
+            // Calculate the index for the given distance
             this.calcIndex(_d);
-            return (this.type === "curve") ?  this.curving(this.angles,_d) + this.dir : this.angles[this.index] + this.dir;
+            // Return the angle, adjusted for the plot type and direction
+            return (this.type === "curve") ?
+            this.curving(this.angles, _d) + this.dir :
+            this.angles[this.index] + this.dir;
         }
+
+        /**
+         * Interpolates values between segments for smooth transitions.
+         * @param {Array<number>} array - The array to interpolate within.
+         * @param {number} _d - The distance along the plot.
+         * @returns {number} - The interpolated value.
+         */
         curving (array,_d) {
             let map0 = array[this.index];
             let map1 = array[this.index+1];
@@ -1258,11 +1321,23 @@
             if (Math.abs(map1-map0) > 180) {if (map1 > map0) {map1 = - (360-map1);} else {map0 = - (360-map0);}}
             return R.map(_d-this.suma,0,this.segments[this.index],map0,map1,true);
         }
+
+        /**
+         * Calculates the current index of the plot based on the distance.
+         * @param {number} _d - The distance along the plot.
+         */
         calcIndex(_d) {
             this.index = -1, this.suma = 0;
             let d = 0;
             while (d <= _d) {this.suma = d; d += this.segments[this.index+1]; this.index++;}
         }
+
+        /**
+         * Generates a polygon based on the plot.
+         * @param {number} _x - The x-coordinate for the starting point of the polygon.
+         * @param {number} _y - The y-coordinate for the starting point of the polygon.
+         * @returns {Polygon} - The generated polygon.
+         */
         genPol (_x,_y) {
             _ensureReady();
             let max = 0;
@@ -1283,6 +1358,13 @@
             this.calcIndex(0);
             return new Polygon(vertices);
         }
+
+        /**
+         * Draws the plot on the canvas.
+         * @param {number} x - The x-coordinate to draw at.
+         * @param {number} y - The y-coordinate to draw at.
+         * @param {number} scale - The scale to draw with.
+         */
         draw (x,y,scale) {
             _ensureReady();
             if (this.origin) x = this.origin[0], y = this.origin[1], scale = 1;
