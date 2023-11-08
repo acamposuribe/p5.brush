@@ -35,6 +35,12 @@
 // =============================================================================
 // Section: Configure and Initiate
 // =============================================================================
+/**
+ * This section contains functions for setting up the drawing system. It allows 
+ * for configuration with custom options, initialization of the system, preloading
+ * necessary assets, and a check to ensure the system is ready before any drawing 
+ * operation is performed.
+ */
 
     /**
      * Reference to the renderer or canvas object.
@@ -93,6 +99,13 @@
 // =============================================================================
 // Section: Randomness and other auxiliary functions
 // =============================================================================
+/**
+ * This section includes utility functions for randomness, mapping values, 
+ * constraining numbers within a range, and precalculated trigonometric values 
+ * to optimize performance. Additionally, it provides auxiliary functions for 
+ * geometric calculations such as translation extraction, line intersection, 
+ * and angle calculation.
+ */
 
     /**
      * Object for random number generation and related utility functions.
@@ -296,6 +309,12 @@
 // =============================================================================
 // Section: Color Blending - Uses spectral.js as a module
 // =============================================================================
+/**
+ * The Mix object is responsible for handling color blending operations within 
+ * the rendering context. It utilizes WebGL shaders to apply advanced blending 
+ * effects based on Kubelka-Munk theory. It depends on spectral.js for the 
+ * blending logic incorporated into its fragment shader.
+ */
 
     /**
      * Object handling blending operations with WebGL shaders.
@@ -394,6 +413,11 @@
 // =============================================================================
 // Section: FlowField
 // =============================================================================
+/**
+ * The FlowField (FF) section includes functions and objects for creating and managing vector fields.
+ * These fields can guide the motion of particles or brush strokes in a canvas, creating complex and
+ * dynamic visual patterns.
+ */
 
     /**
      * Activates a specific vector field by name, ensuring it's ready for use.
@@ -907,11 +931,22 @@
             }
         },
     }
-    function brushes() {return Array.from(B.list.keys())}
+
+    /**
+     * Retrieves a list of all available brush names from the brush manager.
+     * @returns {Array<string>} An array containing the names of all brushes.
+     */
+    function brushes() {
+        return Array.from(B.list.keys())
+    }
 
 // =============================================================================
 // Section: Hatching
 // =============================================================================
+/**
+ * The Hatching section of the code is responsible for creating and drawing hatching patterns.
+ * Hatching involves drawing closely spaced parallel lines.
+ */
 
     /**
      * Creates a hatching pattern across the given polygons.
