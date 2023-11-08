@@ -1,29 +1,61 @@
-// ==========================================================
-//  p5.brush 1.0 (c) 2023.
-//  License: MIT License
-//  Author: Alejandro Campos (@acamposuribe)
-// ==========================================================
-//  MIT License
-//
-//  Copyright (c) 2023 Alejandro Campos Uribe
-//
-//  Permission is hereby granted, free of charge, to any person obtaining a
-//  copy of this software and associated documentation files (the "Software"),
-//  to deal in the Software without restriction, including without limitation
-//  the rights to use, copy, modify, merge, publish, distribute, sublicense,
-//  and/or sell copies of the Software, and to permit persons to whom the
-//  Software is furnished to do so, subject to the following conditions:
-//
-//  The above copyright notice and this permission notice shall be included in
-//  all copies or substantial portions of the Software.
-//
-//  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-//  IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-//  FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-//  AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-//  LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
-//  FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
-//  DEALINGS IN THE SOFTWARE.
+/**
+ * @fileoverview p5.brush - A comprehensive toolset for brush management in p5.js.
+ * @version 1.0
+ * @license MIT
+ * @author Alejandro Campos Uribe
+ * 
+ * @description
+ * p5.brush is a p5.js library dedicated to the creation and management of custom brushes.
+ * It extends the drawing capabilities of p5.js by allowing users to simulate a wide range
+ * of brush strokes, vector fields, hatching patterns, and fill textures. These features
+ * are essential for emulating the nuanced effects found in traditional sketching and painting.
+ * Whether for digital art applications or procedural generation of graphics, p5.brush provides
+ * a robust framework for artists and developers to create rich, dynamic, and textured visuals.
+ *
+ * @example
+ * // Basic usage:
+ * brush.pick('marker'); // Select brush type
+ * brush.stroke(255, 0, 0); // Set brush color
+ * brush.strokeWeight(10); // Set brush size
+ * brush.line(25, 25, 75, 75); // Draw a line
+ * 
+ * // Add a new brush type:
+ * brush.add('customBrush', { /* parameters for the brush *\/ });
+ * brush.pick('customBrush');
+ * 
+ * // Use the custom brush for a vector-field line:
+ * brush.field('field_name') // Pick a flowfield
+ * brush.flowLine(50, 50, 100, PI / 4); // Draw a line within the vector-field
+ *
+ * // Fill textures:
+ * brush.noStroke();
+ * brush.fill('#FF0000', 90); // Set fill color to red and opacity to 90
+ * brush.bleed(0.3); // Set bleed effect for a watercolor-like appearance
+ * brush.rect(100, 100, 50, 50); // Fill a rectangle with the bleed effect
+ * 
+ * @license
+ * MIT License
+ * 
+ * Copyright (c) 2023 Alejandro Campos Uribe
+ * 
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ * 
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ * 
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+ * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+ * DEALINGS IN THE SOFTWARE.
+ */
 
 (function (global, factory) {
     typeof exports === 'object' && typeof module !== 'undefined' ? factory(exports) :
@@ -2095,7 +2127,7 @@
     }
 
 // =============================================================================
-// Exports Section
+// Section: Exports
 // =============================================================================
 /** 
  * This section lists the public API for the module, providing access
@@ -2117,7 +2149,7 @@ exports.listFields = _listFields;        // Lists all the available fields.
 
 // BRUSH Management
 exports.scale = _globalScale;            // Rescales all standard brushes.
-exports.addBrush = B.add;                // Adds a new brush definition.
+exports.add = B.add;                     // Adds a new brush definition.
 exports.box = brushes;                   // Retrieves an array with existing brushes.
 exports.set = B.set;                     // Sets values for all properties of a brush.
 exports.pick = B.setBrush;               // Selects a brush to use.
