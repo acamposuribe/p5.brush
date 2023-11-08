@@ -22,7 +22,7 @@ const C = {
     }
 };
 // SET CANVAS SIZE: width, height, pixelDensity, html_id for the canvas
-C.setSize(250,280,10,'mainCanvas')
+C.setSize(500,560,5,'mainCanvas')
 
 function windowResized () {
     C.resize();
@@ -213,33 +213,55 @@ function setup () {
 
     brush.set("2B","#9c2128",1)
 
-    */
     
-    let num_cols = 20
-    let num_rows = 10
+    
+    let num_cols = 10
+    let num_rows = 5
     let col_size = (width - 40) / num_cols
     let row_size = (height - 40) / num_rows
     brush.noStroke()
-    brush.field("seabed")
+    brush.field("curved")
     for (let i = 0; i < num_rows; i++) {
         for (let j = 0; j < num_cols; j++) {
             brush.fill(random(palette),random(75,130))
-            brush.bleed(random(0.05,0.4))
-
-            brush.beginShape(0)
-            brush.vertex(20 + col_size * j, 20 + row_size * i)
-            brush.vertex(20 + col_size * j + col_size, 20 + row_size * i)
-            brush.vertex(20 + col_size * j + col_size, 20 + row_size * i + row_size)
-            brush.vertex(20 + col_size * j, 20 + row_size * i + row_size)
-            brush.endShape()
-
-            //brush.rect(20 + col_size * j, 20 + row_size * i, col_size, row_size)
+            brush.bleed(random(0.05,0.4),random(0,0.3))
+            brush.rect(22.5 + col_size * j, 22.5 + row_size * i, col_size - 5, row_size - 5)
         }
     }
+
+    */
     
+    brush.field("curved")
+
 }
 
+let guardar = true;
+
 function draw() {
+
+    background("#e2e7dc")
+
+    translate(-width/2,-height/2)
+    frameRate(30)
+    
+    randomSeed(12134122)
+    let num_cols = 10
+    let num_rows = 5
+    let col_size = (width - 40) / num_cols
+    let row_size = (height - 40) / num_rows
+    brush.noStroke()
+    brush.refreshField(frameCount)
+    for (let i = 0; i < num_rows; i++) {
+        for (let j = 0; j < num_cols; j++) {
+            randomSeed(12134122 + j * 1212 + i * 1231232)
+            brush.fill(random(palette),random(75,130))
+            brush.bleed(random(0.05,0.4) + frameCount / 300,random(0,0.3))
+            brush.rect(22.5 + col_size * j, 22.5 + row_size * i, col_size - 5, row_size - 5)
+        }
+    }
+
+    if (guardar) saveGif('whatever', 5), guardar = false;
+
     //brush.set(random(brush.box()),random(palette),random(0.8,1.1))
     //brush.flowLine(width*random(0,1),height*random(0,1),width*random(0.5,0.8),random(0,360))
 

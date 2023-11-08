@@ -1455,9 +1455,18 @@
     function drawRectangle(x,y,w,h,mode = false) {
         _ensureReady();
         if (mode) x = x - w / 2, y = y - h / 2;
-        let p = new Polygon([[x,y],[x+w,y],[x+w,y+h],[x,y+h]])
-        p.draw();
-        p.fill();
+        if (FF.isActive) {
+            _beginShape(0);
+            _vertex(x,y);
+            _vertex(x+w,y);
+            _vertex(x+w,y+h);
+            _vertex(x,y+h);
+            _endShape(CLOSE)
+        } else {
+            let p = new Polygon([[x,y],[x+w,y],[x+w,y+h],[x,y+h]])
+            p.draw();
+            p.fill();
+        }
     }
 
 
@@ -1606,12 +1615,14 @@
             let max = 0;
             let min = 9999;
             for (let o of this.segments) {
-                max = Math.max(max,o) == 0 ? max : Math.max(max,o);
-                min = Math.min(min,o) == 0 ? min : Math.min(min,o);
+                if (o !== 0) {
+                    max = Math.max(max, o);
+                    min = Math.min(min, o);
+                }
             }
             let _step = B.spacing()  // get last spacing
             let vertices = []
-            let side = (max + min) / 1.5 * F.b;
+            let side = (max + min) * F.b;
             let linepoint = new Position(_x,_y);
             let numsteps = Math.round(this.length/_step);
             for (let steps = 0; steps < numsteps; steps++) {
@@ -1872,12 +1883,14 @@
     }
 
     /**
-     * Sets the bleed level for the fill operation, simulating a watercolor effect.
+     * Sets the bleed and texture levels for the fill operation, simulating a watercolor effect.
      * @param {number} _i - The intensity of the bleed effect, capped at 0.5.
+     * @param {number} _texture - The texture of the watercolor effect, from 0 to 1.
      * EXPORTED
      */
-    function setBleed(_i) {
+    function setBleed(_i, _texture = 0) {
         F.b = _i > 0.5 ? 0.5 : _i;
+        F.t = _texture > 1 ? 1 : _texture;
     }
 
     /**
@@ -1900,6 +1913,7 @@
     const F = {
         isActive: false,
         b: 0.07,
+        t: 1,
         /**
          * Fills the given polygon with a watercolor effect.
          * @param {Object} polygon - The polygon to fill.
@@ -1920,7 +1934,7 @@
                 this.v = [...this.v.slice(shift), ...this.v.slice(0, shift)];
                 // Create and fill the polygon with the calculated bleed effect
                 let pol = new FillPolygon (this.v, this.m, this.calcCenter())
-                pol.fill(this.c, int(map(this.o,0,255,0,30,true)))
+                pol.fill(this.c, int(map(this.o,0,255,0,30,true)), this.t)
             }
         },
         /**
@@ -2010,17 +2024,20 @@
          * @param {p5.Color|string} color - The fill color.
          * @param {number} intensity - The opacity of the color layers.
          */
-        fill (color, intensity) {
+        fill (color, intensity, tex) {
+
             // Precalculate stuff
             const numLayers = 18;
             const intensityThird = intensity / 3;
             const intensityQuarter = intensity / 4;
             const intensityHalf = intensity / 2;
+            const texture = 1 + tex * 3
 
             // Perform initial setup only once
             _trans();
             Mix.mask.begin();
             push();
+            rectMode(CENTER)
             noStroke();
             translate(_matrix[0], _matrix[1]);
 
@@ -2043,8 +2060,8 @@
                 pol2.grow(0.1).layer(i, intensityQuarter, false);
                 pol3.grow(0.1).layer(i, intensityThird, false);
                 // Erase after each set of layers is drawn
-                pol.erase();
-            }
+                pol.erase(texture);
+}
             pop();
             Mix.mask.end();
             Mix.blend(color)
@@ -2061,8 +2078,8 @@
             // Set fill and stroke properties once
             fill(255, 0, 0, _alpha);
             if (bool) {
-                stroke(255, 0, 0, R.map(_nr, 0, 18, 3.5, 1));
-                strokeWeight(R.map(_nr, 0, 18, 3, 0.5));
+                stroke(255, 0, 0, R.map(_nr, 0, 18, 2, 1));
+                strokeWeight(R.map(_nr, 0, 18, 2.5, 0.5));
             } else {
                 noStroke();
             }
@@ -2075,12 +2092,12 @@
          * Erases parts of the polygon to create a more natural, uneven watercolor texture.
          * Uses random placement and sizing of circles to simulate texture.
          */
-        erase () {
-            const numCircles = R.random(70, 100);
+        erase (texture) {
+            const numCircles = R.random(60, 80);
             const halfSize = this.size / 2;
-            const minSizeFactor = 0.030 * this.size;
-            const maxSizeFactor = 0.20 * this.size;
-            erase(4);
+            const minSizeFactor = 0.025 * this.size;
+            const maxSizeFactor = 0.19 * this.size;
+            erase(5 * texture);
             for (let i = 0; i < numCircles; i++) {
                 const x = this.midP.x + randomGaussian(0, halfSize);
                 const y = this.midP.y + randomGaussian(0, halfSize);
