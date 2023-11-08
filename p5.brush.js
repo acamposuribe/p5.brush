@@ -1028,6 +1028,12 @@
 // =============================================================================
 // Section: Loading Custom Image Tips
 // =============================================================================
+/**
+ * This section defines the functionality for managing the loading and processing of image tips.
+ * Images are loaded from specified source URLs, converted to a white tint for visual effects,
+ * and then stored for future use. It includes methods to add new images, convert their color
+ * scheme, and integrate them into the p5.js graphics library.
+ */
 
     /**
      * A utility object for loading images, converting them to a red tint, and managing their states.
@@ -1098,6 +1104,12 @@
 // =============================================================================
 // Section: Polygon management. Basic geometries
 // =============================================================================
+/**
+ * This section includes the Polygon class for managing polygons and functions for drawing basic geometries
+ * like rectangles and circles. It provides methods for creating, intersecting, drawing, and filling polygons,
+ * as well as hatching them with a given distance and angle. Additional functions leverage the Polygon class
+ * to draw rectangles with options for randomness and different drawing modes.
+ */
 
     /**
      * Represents a polygon with a set of vertices.
@@ -1208,49 +1220,25 @@
         p.draw();
         p.fill();
     }
-    
-    /**
-     * Draws a circle on the canvas and fills it with the current fill color.
-     * 
-     * @param {number} x - The x-coordinate of the center of the circle.
-     * @param {number} y - The y-coordinate of the center of the circle.
-     * @param {number} radius - The radius of the circle.
-     * @param {boolean} [r=false] - If true, applies a random factor to the radius for each segment.
-     */
-    function _circle(x,y,radius,r = false) {
-        _ensureReady();
-        // Create a new Plot instance for a curve shape
-        let p = new Plot("curve")
-        // Calculate the length of the arc for each quarter of the circle
-        let l = Math.PI * radius / 2;
-        // Initialize the angle for the drawing segments
-        let angle = 0
-        // Define a function to optionally add randomness to the segment length
-        let rr = () => (r ? R.random(-1,1) : 0)
-        // Add segments for each quarter of the circle with optional randomness
-        p.addSegment(0 + angle + rr(), l + rr(), 1, true)
-        p.addSegment(-90 + angle + rr(), l + rr(), 1, true)
-        p.addSegment(-180 + angle + rr(), l + rr(), 1, true)
-        p.addSegment(-270 + angle + rr(), l + rr(), 1, true)
-        // Optionally add a random final angle for the last segment
-        let angle2 = r ? R.randInt(-5,5) : 0;
-        if (r) p.addSegment(0 + angle, angle2 * (Math.PI/180) * radius, true)
-        // Finalize the plot
-        p.endPlot(angle2 + angle,1, true)
-        // If the fill is active, generate a polygon from the plot and fill it
-        if (F.isActive) {
-            let pol = p.genPol(x - radius * R.sin(angle),y - radius * R.cos(-angle))
-            pol.fill()
-        }
-        // If the border is active, draw the plot
-        if (B.isActive) p.draw(x - radius * R.sin(angle),y - radius * R.cos(-angle),1)
-    }
+
 
 // =============================================================================
 // Section: Shape, Stroke, and Spline. Plot System
 // =============================================================================
+/**
+ * This section defines the functionality for creating and managing plots, which are used to draw complex shapes,
+ * strokes, and splines on a canvas. It includes classes and functions to create plots of type "curve" or "segments",
+ * manipulate them with operations like adding segments and applying rotations, and render them as visual elements
+ * like polygons or strokes. The spline functionality allows for smooth curve creation using control points with 
+ * specified curvature, which can be rendered directly or used as part of more complex drawings.
+ */
 
-
+    /**
+     * The Plot class is central to the plot system, serving as a blueprint for creating and manipulating a variety
+     * of shapes and paths. It manages a collection of segments, each defined by an angle, length, and pressure,
+     * allowing for intricate designs such as curves and custom strokes. Plot instances can be transformed by rotation,
+     * and their visual representation can be controlled through pressure and angle calculations along their length.
+     */
     class Plot {
 
         /**
@@ -1406,6 +1394,43 @@
             B.flowShape(this,x,y,scale)
         }
     }
+
+    /**
+     * Draws a circle on the canvas and fills it with the current fill color.
+     * 
+     * @param {number} x - The x-coordinate of the center of the circle.
+     * @param {number} y - The y-coordinate of the center of the circle.
+     * @param {number} radius - The radius of the circle.
+     * @param {boolean} [r=false] - If true, applies a random factor to the radius for each segment.
+     */
+        function _circle(x,y,radius,r = false) {
+            _ensureReady();
+            // Create a new Plot instance for a curve shape
+            let p = new Plot("curve")
+            // Calculate the length of the arc for each quarter of the circle
+            let l = Math.PI * radius / 2;
+            // Initialize the angle for the drawing segments
+            let angle = 0
+            // Define a function to optionally add randomness to the segment length
+            let rr = () => (r ? R.random(-1,1) : 0)
+            // Add segments for each quarter of the circle with optional randomness
+            p.addSegment(0 + angle + rr(), l + rr(), 1, true)
+            p.addSegment(-90 + angle + rr(), l + rr(), 1, true)
+            p.addSegment(-180 + angle + rr(), l + rr(), 1, true)
+            p.addSegment(-270 + angle + rr(), l + rr(), 1, true)
+            // Optionally add a random final angle for the last segment
+            let angle2 = r ? R.randInt(-5,5) : 0;
+            if (r) p.addSegment(0 + angle, angle2 * (Math.PI/180) * radius, true)
+            // Finalize the plot
+            p.endPlot(angle2 + angle,1, true)
+            // If the fill is active, generate a polygon from the plot and fill it
+            if (F.isActive) {
+                let pol = p.genPol(x - radius * R.sin(angle),y - radius * R.cos(-angle))
+                pol.fill()
+            }
+            // If the border is active, draw the plot
+            if (B.isActive) p.draw(x - radius * R.sin(angle),y - radius * R.cos(-angle),1)
+        }
     
     // Holds the array of vertices for the custom shape being defined. Each vertex includes position and optional pressure.
     let strokeArray = false;
@@ -1576,8 +1601,16 @@
 // =============================================================================
 // Section: Fill Management
 // =============================================================================
-// This section manages the fill properties, allowing for complex fill operations with
-// effects such as bleeding, which simulates a watercolor-like appearance.
+/**
+ * The Fill Management section contains functions and classes dedicated to handling
+ * the fill properties of shapes within the drawing context. It supports complex fill
+ * operations with effects such as bleeding to simulate watercolor-like textures. The
+ * methods provided allow for setting the fill color with opacity, controlling the
+ * intensity of the bleed effect, and enabling or disabling the fill operation.
+ *
+ * The watercolor effect implementation is inspired by Tyler Hobbs' generative art
+ * techniques for simulating watercolor paints.
+ */
 
     /**
      * Sets the fill color and opacity for subsequent drawing operations.
@@ -1887,10 +1920,13 @@
     }
 
 // =============================================================================
-// Exports Section: This section lists the public API for the module, providing access
-// to the core functionalities such as managing the flow field, brushes, strokes, fills,
-// and geometrical shapes drawing.
+// Exports Section
 // =============================================================================
+/** 
+ * This section lists the public API for the module, providing access
+ * to the core functionalities such as managing the flow field, brushes, strokes, fills,
+ * and geometrical shapes drawing.
+ */
 
 // Basic Functions
 exports.config = _config;                // Configures and seeds the RNG (Random Number Generator).
