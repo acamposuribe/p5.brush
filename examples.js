@@ -96,7 +96,7 @@ function setup () {
     */
 
     /*
-    */
+    
     // Set your brush name, color, and weight. There are 9 standard brushes to select from.
     // Select colors with HEX codes, arrays of [r,g,b] or names
     brush.set("marker","black",1)
@@ -212,34 +212,31 @@ function setup () {
     brush.fill("#002185",120)
     brush.circle(150,100,50)
 
-    /*
+    */
+
+    
     brush.set("2B","#9c2128",1)
 
     
     
-    let num_cols = 12
-    let num_rows = 8
+    let num_cols = 10
+    let num_rows = 3
     let col_size = (width - 40) / num_cols
     let row_size = (height - 40) / num_rows
     brush.noStroke()
     brush.field("curved")
+    let bleed = 0.4
     for (let i = 0; i < num_rows; i++) {
         for (let j = 0; j < num_cols; j++) {
             brush.fill(random(palette),random(75,130))
-            brush.bleed(random(0.05,0.4),random(0,0.3))
+            brush.bleed(bleed,random(0,0.3))
             brush.rect(20 + col_size * j, 20 + row_size * i, col_size, row_size)
         }
     }
-    */
 
 }
 
-let guardar = true;
-
 function draw() {
-
-
-    
 
     //brush.set(random(brush.box()),random(palette),random(0.8,1.1))
     //brush.flowLine(width*random(0,1),height*random(0,1),width*random(0.5,0.8),random(0,360))
@@ -278,6 +275,9 @@ function draw() {
 
 }
 
+let stopped = false;
+
 function mouseClicked() {
-    noLoop();
+    if (stopped) loop(), stopped = false;
+    else noLoop(), stopped = true;
 }

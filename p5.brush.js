@@ -131,6 +131,11 @@
         if (!_isReady) loadSystem();
     }
 
+    /**
+     * Automatically load the library before draw()
+     */
+    p5.prototype.registerMethod('afterSetup', () => _ensureReady());
+
 // =============================================================================
 // Section: Randomness and other auxiliary functions
 // =============================================================================
@@ -422,6 +427,7 @@
                 if (_color) this.currentColor = this.getPigment(_color), this.isBlending = true;
                 else return
             }
+            
             // Checks if newColor is the same than the cadhedColor
             // If it is the same, we wait before applying the shader for color mixing
             // If it's NOT the same, we apply the shader and cache the new color
@@ -461,7 +467,7 @@
      * Register methods after setup() and post draw() for belding last buffered color
      */
     p5.prototype.registerMethod('afterSetup', () => Mix.blend(false, true));
-    p5.prototype.registerMethod('post', () => Mix.blend(false, true));
+    //p5.prototype.registerMethod('post', () => Mix.blend(false, true));
 
 // =============================================================================
 // Section: FlowField
@@ -1666,6 +1672,7 @@
             let _step = B.spacing()  // get last spacing
             let vertices = []
             let side = (max + min) * F.b;
+            //let side = (max + min) * 0.2;
             let linepoint = new Position(_x,_y);
             let numsteps = Math.round(this.length/_step);
             for (let steps = 0; steps < numsteps; steps++) {
@@ -1932,7 +1939,7 @@
      * EXPORTED
      */
     function setBleed(_i, _texture = 0) {
-        F.b = _i > 0.5 ? 0.5 : _i;
+        F.b = R.constrain(_i,0.1,0.6);
         F.t = _texture > 1 ? 1 : _texture;
     }
 
@@ -2103,9 +2110,8 @@
                 pol3.grow(0.1).layer(i, intensityThird, false);
                 // Erase after each set of layers is drawn
                 pol.erase(texture);
-}
+            }
             Mix.mask.pop();
-            
         }
 
         /**
