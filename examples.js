@@ -96,6 +96,7 @@ function setup () {
     */
 
     /*
+    */
     // Set your brush name, color, and weight. There are 9 standard brushes to select from.
     // Select colors with HEX codes, arrays of [r,g,b] or names
     brush.set("marker","black",1)
@@ -127,12 +128,12 @@ function setup () {
         [30,140],
     ]);
     //polygon.draw();
-    brush.set("rotring","#9c2128",1)
+    brush.set("HB","#9c2128",1)
     // You can also atch these polygons .hath(distance_between_lines, angle_of_lines, 0-1.0 for % precission)
     //polygon.hatch(2,45,0.05)
     // You can also hatch arrays of polygons brush.hatch(ARRAY WITH POLS, distance_between_lines, angle_of_lines, 0-1.0 for % precission)
     brush.stroke("#080f15")
-         
+
     let pol_array = []
     for (let i = 0; i < 5; i++) {
         pol_array.push(new brush.Polygon([
@@ -166,7 +167,7 @@ function setup () {
     }
 
     brush.noField()
-    brush.pick("HB")
+    brush.pick("2B")
     // A different way of creating curves, by an array of points [x, y, brush pressure at that point]
     let points = []
     for (let i = 0; i < 55; i++) {
@@ -191,7 +192,7 @@ function setup () {
     brush.pick("marker")
     brush.field("waves");
     
-    let polygon = new brush.Polygon([
+    polygon = new brush.Polygon([
         [20,80],
         [100,80],
         [100,120],
@@ -201,7 +202,7 @@ function setup () {
     // You can also atch these polygons .hath(distance_between_lines, angle_of_lines, options)
     polygon.hatch(1, 45, {rand: 0.2, continuous: true, gradient: 0.5})
     //polygon.draw()
-
+    
     brush.noField()
     brush.noStroke()
     
@@ -211,12 +212,13 @@ function setup () {
     brush.fill("#002185",120)
     brush.circle(150,100,50)
 
+    /*
     brush.set("2B","#9c2128",1)
 
-    */
     
-    let num_cols = 10
-    let num_rows = 5
+    
+    let num_cols = 12
+    let num_rows = 8
     let col_size = (width - 40) / num_cols
     let row_size = (height - 40) / num_rows
     brush.noStroke()
@@ -225,15 +227,19 @@ function setup () {
         for (let j = 0; j < num_cols; j++) {
             brush.fill(random(palette),random(75,130))
             brush.bleed(random(0.05,0.4),random(0,0.3))
-            brush.rect(22.5 + col_size * j, 22.5 + row_size * i, col_size - 5, row_size - 5)
+            brush.rect(20 + col_size * j, 20 + row_size * i, col_size, row_size)
         }
     }
+    */
 
 }
 
 let guardar = true;
 
 function draw() {
+
+
+    
 
     //brush.set(random(brush.box()),random(palette),random(0.8,1.1))
     //brush.flowLine(width*random(0,1),height*random(0,1),width*random(0.5,0.8),random(0,360))

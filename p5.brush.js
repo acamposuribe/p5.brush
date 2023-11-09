@@ -352,9 +352,21 @@
  */
 
     /**
+     * Enables/Disables color caching for WebGL Shaders.
+     * Color caching increases performance but might produce worse textures 
+     * when using the same colour repeteadly.
+     * @param {bool} bool
+     * 
+     */
+    function enableCacheBlending(bool = true) {
+        Mix.isCaching = bool;
+    }
+
+    /**
      * Object handling blending operations with WebGL shaders.
      * @property {boolean} loaded - Flag indicating if the blend shaders have been loaded.
-     * @property {Float32Array} pigmentTypedArray - Typed array to hold color values for shaders.
+     * @property {boolean} isBlending - Flag indicating if the blending has been initiated.
+     * @property {Float32Array} currentColor - Typed array to hold color values for shaders.
      * @property {function} load - Loads resources and initializes blend operations.
      * @property {function} blend - Applies blending effects using the initialized shader.
      * @property {string} vert - Vertex shader source code.
@@ -362,22 +374,18 @@
      */
     const Mix = {
         loaded: false,
-        pigmentTypedArray: new Float32Array(3),
+        currentColor: new Float32Array(3),
+        isBlending: false,
+        isCaching: true,
 
         /**
-         * Loads necessary resources and prepares the framebuffer and shader for blending.
+         * Loads necessary resources and prepares the mask buffer and shader for colour blending.
          */
         load() {
-            // Create a framebuffer to be used as a mask
-            this.mask = _r.createFramebuffer({
-                width: _r.width, 
-                height: _r.height, 
-                density: _r.pixelDensity(), 
-                depth: false, 
-                antialias: false
-            });    
-            // Clear the mask to start fresh
-            this.mask.begin(), _r.clear(), this.mask.end();
+            // Create a buffer to be used as a mask. We use a 2D buffer for faster geometry drawing
+            this.mask = createGraphics(_r.width,_r.height)
+            this.mask.pixelDensity(_r.pixelDensity())
+            this.mask.clear()
             // Load the spectral.js shader code only once                                                        
             if (!Mix.loaded) {
                 this.frag = this.frag.replace('#include "spectral.glsl"', spectral.glsl());
@@ -388,28 +396,56 @@
         },
 
         /**
-         * Applies the blend shader to the current rendering context.
-         * @param {string} _c - The color used for blending, in any CSS color format.
+         * Converts a color object with RGB levels to a Float32Array representation.
+         * The RGB levels are normalized to a range of 0.0 to 1.0.
+         * @param {object} _color - A p5 color object representing a color, containing an 'levels' property.
+         * @returns {Float32Array} A Float32Array with three elements, each representing the normalized levels of red, green, and blue.
          */
-        blend (_c) {
-            this.pigmentTypedArray[0] = red(color(_c)) / 255.0;
-            this.pigmentTypedArray[1] = green(color(_c)) / 255.0;
-            this.pigmentTypedArray[2] = blue(color(_c)) / 255.0;
-            _r.push();
-            // Use the blend shader for rendering
-            _r.shader(this.shader);
-            _r.translate(-_trans()[0],-_trans()[1])
-            // Set shader uniforms: color to add, source texture, and mask texture
-            this.shader.setUniform('addColor', this.pigmentTypedArray);
-            this.shader.setUniform('source', _r._renderer);
-            this.shader.setUniform('mask', this.mask);
-            // Draw a rectangle covering the whole canvas to apply the shader
-            _r.fill(0,0,0,0);
-            _r.noStroke();
-            _r.rect(-_r.width/2, -_r.height/2, _r.width, _r.height);
-            _r.pop();
-            // Clear the mask after drawing
-            this.mask.draw(function () {_r.clear()})
+        getPigment(_color) {
+            let currentLevels = _color.levels;
+            let colorArray = new Float32Array(3);
+            colorArray[0] = currentLevels[0] / 255.0;
+            colorArray[1] = currentLevels[1] / 255.0;
+            colorArray[2] = currentLevels[2] / 255.0;
+            return colorArray;
+        },
+
+        /**
+         * Applies the blend shader to the current rendering context.
+         * @param {string} _c - The color used for blending, as a p5.Color object.
+         * @param {boolean} _isLast - Indicates if this is the last blend after setup and draw.
+         */
+        blend (_color = false, _isLast = false) {
+            // Check if blending is initialised
+            if(!this.isBlending) {
+                // If color has been provided, we initialise blending
+                if (_color) this.currentColor = this.getPigment(_color), this.isBlending = true;
+                else return
+            }
+            // Checks if newColor is the same than the cadhedColor
+            // If it is the same, we wait before applying the shader for color mixing
+            // If it's NOT the same, we apply the shader and cache the new color
+            let newColor = !_color ? this.currentColor : this.getPigment(_color);
+            if (newColor.toString() !== this.currentColor.toString() || _isLast || !this.isCaching) {
+                _r.push();
+                // Use the blend shader for rendering
+                _r.shader(this.shader);
+                _r.translate(-_trans()[0],-_trans()[1])
+                // Set shader uniforms: color to add, source texture, and mask texture
+                this.shader.setUniform('addColor', this.currentColor);
+                this.shader.setUniform('source', _r._renderer);
+                this.shader.setUniform('mask', this.mask);
+                // Draw a rectangle covering the whole canvas to apply the shader
+                _r.fill(0,0,0,0);
+                _r.noStroke();
+                _r.rect(-_r.width/2, -_r.height/2, _r.width, _r.height);
+                _r.pop();
+                // Clear the mask after drawing
+                this.mask.clear()
+                // We cache the new color here
+                if (!_isLast) this.currentColor = this.getPigment(_color)
+            }
+            if (_isLast) this.isBlending = false;
         },
 
         // Vertex shader source code
@@ -420,6 +456,12 @@
         #include "spectral.glsl"
         float v(vec2 v,float d,float f,float s){return fract(sin(dot(v,vec2(d,f)))*s);}void main(){vec4 f=texture2D(mask,vVertTexCoord);if(f.x>0.){vec2 r=vec2(12.9898,78.233),a=vec2(7.9898,58.233),l=vec2(17.9898,3.233);float d=v(vVertTexCoord,r.x,r.y,43358.5453)*2.-1.,x=v(vVertTexCoord,a.x,a.y,43213.5453)*2.-1.,s=v(vVertTexCoord,l.x,l.y,33358.5453)*2.-1.;vec3 y=spectral_mix(texture2D(source,vVertTexCoord).xyz,addColor.xyz,f.w*.8);if(f.w>.8)y=spectral_mix(y,vec3(0),(f.w-.8)/.6);gl_FragColor=vec4(y+.02*vec3(d,x,s),1);}else gl_FragColor=vec4(0);}`
     }
+
+    /**
+     * Register methods after setup() and post draw() for belding last buffered color
+     */
+    p5.prototype.registerMethod('afterSetup', () => Mix.blend(false, true));
+    p5.prototype.registerMethod('post', () => Mix.blend(false, true));
 
 // =============================================================================
 // Section: FlowField
@@ -802,6 +844,7 @@
             B.name = brushName; 
             B.c = color;
             B.w = weight;
+            B.isActive = true;
         },
 
         /**
@@ -959,11 +1002,15 @@
             }
             // Blend Mode
                 this.c = _r.color(this.c);
-                if (this.p.blend) _trans(), Mix.mask.begin();
-                _r.push(); 
-                _r.noStroke();
+                // Select mask buffer for blend mode
+                this.mask = this.p.blend ? Mix.mask : _r;
+                // Set the blender
+                Mix.blend(this.c);
+                this.mask.push(); 
+                this.mask.noStroke();
                 if (this.p.blend) {
-                    _r.translate(_matrix[0],_matrix[1]); 
+                    _trans()
+                    this.mask.translate(_matrix[0] + _r.width/2,_matrix[1] + _r.height/2); 
                     if (!isTip) this.markerTip()
                 };
         },
@@ -973,11 +1020,7 @@
          */
         popState(isTip = false) {
             if (this.p.blend && !isTip) this.markerTip();
-            _r.pop();
-            if (this.p.blend) { 
-                Mix.mask.end(); 
-                Mix.blend(this.c);
-            }
+            this.mask.pop();
         },
         
         /**
@@ -1056,10 +1099,10 @@
          */
         applyColor(alpha) {
             if (this.p.blend) {
-                _r.fill(255, 0, 0, alpha / 2);
+                this.mask.fill(255, 0, 0, alpha / 2);
             } else {
                 this.c.setAlpha(alpha);
-                _r.fill(this.c);
+                this.mask.fill(this.c);
             }
         },
 
@@ -1086,7 +1129,7 @@
                 let yRandomFactor = R.random(-1, 1);
                 let rVibrationSquared = Math.pow(r * vibration, 2);
                 let sqrtPart = Math.sqrt(rVibrationSquared - Math.pow(rX, 2));
-                _r.circle(this.position.x + rX, this.position.y + yRandomFactor * sqrtPart, sw);
+                this.mask.circle(this.position.x + rX, this.position.y + yRandomFactor * sqrtPart, sw);
             }
         },
 
@@ -1099,7 +1142,7 @@
             let vibration = vibrate ? this.w * this.p.vibration : 0;
             let rx = vibrate ? vibration * R.random(-1,1) : 0;
             let ry = vibrate ? vibration * R.random(-1,1) : 0;
-            _r.circle(this.position.x + rx, this.position.y + ry, this.w * this.p.weight * pressure)
+            this.mask.circle(this.position.x + rx, this.position.y + ry, this.w * this.p.weight * pressure)
         },
 
         /**
@@ -1109,14 +1152,14 @@
          * @param {boolean} [vibrate=true] - Whether to apply vibration effect.
          */
         drawCustomOrImage(pressure, alpha, vibrate = true) {
-            _r.push();
+            this.mask.push();
             let vibration = vibrate ? this.w * this.p.vibration : 0;
             let rx = vibrate ? vibration * R.random(-1,1) : 0;
             let ry = vibrate ? vibration * R.random(-1,1) : 0;
-            _r.translate(this.position.x + rx, this.position.y + ry), 
+            this.mask.translate(this.position.x + rx, this.position.y + ry), 
             this.adjustSizeAndRotation(this.w * pressure, alpha)
             this.p.tip();
-            _r.pop();
+            this.mask.pop();
         },
 
         /**
@@ -1126,7 +1169,7 @@
         drawDefault(pressure) {
             let vibration = this.w * this.p.vibration * (this.p.definition + (1-this.p.definition) * randomGaussian() * this.gauss(0.5,0.9,5,0.2,1.2) / pressure);
             if (R.random(0, this.p.quality) > 0.4) {
-                _r.circle(this.position.x + 0.7 * vibration * R.random(-1,1),this.position.y + vibration * R.random(-1,1), pressure * this.p.weight * this.w * R.random(0.85,1.15));
+                this.mask.circle(this.position.x + 0.7 * vibration * R.random(-1,1),this.position.y + vibration * R.random(-1,1), pressure * this.p.weight * this.w * R.random(0.85,1.15));
             }
         },
 
@@ -1136,10 +1179,10 @@
          * @param {number} alpha - The alpha (opacity) level to apply.
          */
         adjustSizeAndRotation(pressure, alpha) {
-            _r.scale(pressure);
-            if (this.p.type === "image") (this.p.blend) ? _r.tint(255, 0, 0, alpha / 2) : _r.tint(_r.red(this.c), _r.green(this.c), _r.blue(this.c), alpha);
-            if (this.p.rotate === "random") _r.rotate(R.randInt(0,360));
-            if (this.p.rotate === "natural") _r.rotate(((this.plot) ? - this.plot.angle(this.position.plotted) : - this.dir) + (this.flow ? this.position.angle() : 0))
+            this.mask.scale(pressure);
+            if (this.p.type === "image") (this.p.blend) ? this.mask.tint(255, 0, 0, alpha / 2) : this.mask.tint(this.mask.red(this.c), this.mask.green(this.c), this.mask.blue(this.c), alpha);
+            if (this.p.rotate === "random") this.mask.rotate(R.randInt(0,360));
+            if (this.p.rotate === "natural") this.mask.rotate(((this.plot) ? - this.plot.angle(this.position.plotted) : - this.dir) + (this.flow ? this.position.angle() : 0))
         },
 
         /**
@@ -1149,7 +1192,7 @@
             if (this.isInsideClippingArea()) {
                 let pressure = this.calculatePressure();
                 let alpha = this.calculateAlpha(pressure);
-                _r.fill(255, 0, 0, alpha / 1.5);
+                this.mask.fill(255, 0, 0, alpha / 1.5);
                 if (B.p.type === "marker") {
                     for (let s = 1; s < 5; s++) {
                         this.drawMarker(pressure * s/5, false)
@@ -2035,11 +2078,10 @@
 
             // Perform initial setup only once
             _trans();
-            Mix.mask.begin();
-            push();
-            rectMode(CENTER)
-            noStroke();
-            translate(_matrix[0], _matrix[1]);
+            Mix.blend(color)
+            Mix.mask.push();
+            Mix.mask.noStroke();
+            Mix.mask.translate(_matrix[0] + _r.width/2, _matrix[1] + _r.height/2);
 
             let pol = this.grow()
             let pol2 = pol.grow().grow(0.5);
@@ -2062,9 +2104,8 @@
                 // Erase after each set of layers is drawn
                 pol.erase(texture);
 }
-            pop();
-            Mix.mask.end();
-            Mix.blend(color)
+            Mix.mask.pop();
+            
         }
 
         /**
@@ -2076,16 +2117,16 @@
          */
         layer (_nr,_alpha,bool = true) {
             // Set fill and stroke properties once
-            fill(255, 0, 0, _alpha);
+            Mix.mask.fill(255, 0, 0, _alpha);
             if (bool) {
-                stroke(255, 0, 0, R.map(_nr, 0, 18, 2, 1));
-                strokeWeight(R.map(_nr, 0, 18, 2.5, 0.5));
+                Mix.mask.stroke(255, 0, 0, R.map(_nr, 0, 18, 2, 1));
+                Mix.mask.strokeWeight(R.map(_nr, 0, 18, 2.5, 0.5));
             } else {
-                noStroke();
+                Mix.mask.noStroke();
             }
-            beginShape();
-            for(let v of this.v) {vertex(v.x, v.y);}
-            endShape(CLOSE);
+            Mix.mask.beginShape();
+            for(let v of this.v) {Mix.mask.vertex(v.x, v.y);}
+            Mix.mask.endShape(CLOSE);
         }
 
         /**
@@ -2097,14 +2138,14 @@
             const halfSize = this.size / 2;
             const minSizeFactor = 0.025 * this.size;
             const maxSizeFactor = 0.19 * this.size;
-            erase(5 * texture);
+            Mix.mask.erase(5 * texture);
             for (let i = 0; i < numCircles; i++) {
                 const x = this.midP.x + randomGaussian(0, halfSize);
                 const y = this.midP.y + randomGaussian(0, halfSize);
                 const size = R.random(minSizeFactor, maxSizeFactor);
-                circle(x, y, size);
+                Mix.mask.circle(x, y, size);
             }
-            noErase();
+            Mix.mask.noErase();
         }
     }
 
@@ -2161,7 +2202,7 @@
         ["spray", { type: "spray", weight: 0.3, vibration: 12, definition: 15, quality: 40,  opacity: 120, spacing: 0.65, pressure: {curve: [0,0.1], min_max: [0.15,1.2]} }],
         ["marker", { type: "marker", weight: 2.5, vibration: 0.08, opacity: 30, spacing: 0.4, pressure: {curve: [0.35,0.25], min_max: [1.35,1]}}],
         ["marker2", { type: "custom", weight: 2.5, vibration: 0.08, opacity: 23, spacing: 0.6, pressure: {curve: [0.35,0.25], min_max: [1.35,1]}, 
-            tip: function () { _r.rect(-1.5,-1.5,3,3); _r.rect(1,1,1,1) }, rotate: "natural"
+            tip: function () { B.mask.rect(-1.5,-1.5,3,3); B.mask.rect(1,1,1,1) }, rotate: "natural"
         }],
     ];
     /**
@@ -2198,6 +2239,7 @@
 exports.config = configureSystem;                // Configures and seeds the RNG (Random Number Generator).
 exports.load = loadSystem;                    // Loads the library into the selected buffer.
 exports.preload = preloadBrushAssets;              // Preloads custom tips for the library.
+exports.colorCache = enableCacheBlending;      // Enables/disables cache color blending for improved performance
 
 // FLOWFIELD Management
 exports.addField = addField;            // Adds a new vector field.
