@@ -75,7 +75,61 @@ p5.brush.js provides a comprehensive API for creating complex drawings and effec
 
 Vector Fields allow for dynamic control over brush stroke behavior, enabling the creation of complex and fluid motion within sketches.
 
-#### Advanced vector-field functions
+ #### Basic vector-field functions
+ 
+- `brush.field(name)`
+  - **Description**: Activates a named vector field. When a vector field is active, it influences the flow and direction of the brush strokes for shapes drawn thereafter. It is important to note that certain shapes may be exempt from this influence; such exceptions will be clearly documented in the API for each specific geometry.
+  - **Parameters**:
+    - `name` (String): The identifier for the vector field to be activated. This can be a name of one of the predefined fields or a custom field created with `brush.addField()`.
+  - **Default Fields**: The library comes with a set of built-in vector fields: `curved`, `truncated`, `zigzag`, `seabed`, and `waves`. These, as well as any custom fields added, can be activated using this function.
+  - **Usage**:
+    ```javascript
+    // To activate the "waves" vector field
+    brush.field("waves");
+
+    // To activate a custom vector field named "myCustomField"
+    brush.field("myCustomField");
+    ```
+    Once a vector field is activated, it affects how the subsequent shapes are drawn, aligning them with its directional flow, unless stated otherwise in the documentation
+
+- `brush.noField()`
+  - **Description**: Deactivates the currently active vector field, returning the drawing behavior to its default state where shapes are not influenced by any vector field. Any shapes drawn after this function call will not be affected by the previously active vector field.
+  - **Usage**:
+    ```javascript
+    // Deactivate the current vector field
+    brush.noField();
+    ```
+    Use this function when you want to draw shapes that are unaffected by the directional flow of any vector field, effectively resetting the drawing behavior to its original state.
+
+- `brush.refreshField(time)`
+  - **Description**: Updates the current vector field values using its time-dependent generator function. Ideal for animations that require the vector field to change over time, influencing the movement of strokes and shapes in a natural way.
+  - **Parameters**:
+    - `time` (Number): The time input for the vector field generator function, typically related to the frame count.
+  - **Usage**:
+    ```javascript
+    // In the draw loop, refresh the vector field based on the frame count
+    function draw() {
+      brush.refreshField(frameCount / 10);
+      // Additional drawing code
+    }
+    ```
+    This function will invoke the generator function of the active vector field with the provided time argument, allowing the field to evolve and create fluid, dynamic animations in the rendering.
+
+- `brush.listFields()`
+  - **Description**: Retrieves an iterator containing the names of all the available vector fields within the system. This includes both the default fields provided by the library and any custom fields that have been added using `brush.addField()`.
+  - **Returns**: `Iterator<string>` - An iterator that yields the names of the vector fields.
+  - **Usage**:
+    ```javascript
+    // Get an iterator of all vector field names
+    let fieldNames = brush.listFields();
+    // Loop through the names using the iterator
+    for (let name of fieldNames) {
+      console.log(name);
+    }
+    ```
+    Use `brush.listFields()` to access the names of all existing vector fields, which can then be used to activate or modify fields as needed.
+ 
+ #### Advanced vector-field functions
 - `brush.addField(name, generatorFunction)`
   - **Description**: Adds a custom vector field to the list of available fields. This advanced function requires a unique name for the field and a generator function that defines the behavior of the vector field over time.
   - **Parameters**:
@@ -98,32 +152,6 @@ Vector Fields allow for dynamic control over brush stroke behavior, enabling the
     });
     ```
     This `generatorFunction` uses sinusoidal functions to create a time-varying wave pattern within the vector field. Each cell's angle is calculated and assigned, resulting in a dynamic field that can be used to influence brush strokes.
-
-
-- `brush.field(name)`
-  - **Description**: Activates a named vector field. When a vector field is active, it influences the flow and direction of the brush strokes for shapes drawn thereafter. It is important to note that certain shapes may be exempt from this influence; such exceptions will be clearly documented in the API for each specific geometry.
-  - **Parameters**:
-    - `name` (String): The identifier for the vector field to be activated. This can be a name of one of the predefined fields or a custom field created with `brush.addField()`.
-  - **Default Fields**: The library comes with a set of built-in vector fields: `curved`, `truncated`, `zigzag`, `seabed`, and `waves`. These, as well as any custom fields added, can be activated using this function.
-  - **Usage**:
-    ```javascript
-    // To activate the "waves" vector field
-    brush.field("waves");
-
-    // To activate a custom vector field named "myCustomField"
-    brush.field("myCustomField");
-    ```
-    Once a vector field is activated, it affects how the subsequent shapes are drawn, aligning them with its directional flow, unless stated otherwise in the documentation
-
-
-- `selectField(a)`
-  - Activates a specific vector field by name.
-- `disableField()`
-  - Deactivates the current vector field.
-- `refreshField(t = 0)`
-  - Refreshes the current vector field based on a generator function.
-- `listFields()`
-  - Retrieves a list of all available vector field names.
 
 ### Brush Management
 
