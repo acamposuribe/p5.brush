@@ -43,7 +43,7 @@ brush.config({
 // YOU CAN CREATE YOU OWN BRUSHES
 brush.add("watercolor", {
     type: "image",       // this is the TIP TYPE: choose standard / spray / marker / custom / image
-    weight: 15,          // Base weight of the brush tip
+    weight: 10,          // Base weight of the brush tip
     vibration: 2,        // Vibration of the lines, spread
     definition: 0.5,     // Between 0 and 1
     quality: 8,          // + quality = more continuous line
@@ -58,14 +58,14 @@ brush.add("watercolor", {
     },
     // if you select the a custom type brush, define the tip geometry here. Use 0,0 as center of tip. If not, you can remove these lines.
     tip: function () {
-        rotate(45),rect(-1.5,-1.5,3,3),rect(1.5,1.5,1,1); // in this example, the tip would be two squares, rotated 45 degrees
+        B.mask.rotate(45),B.mask.rect(-1.5,-1.5,3,3),B.mask.rect(1.5,1.5,1,1); // in this example, the tip would be two squares, rotated 45 degrees
     },
     // if you select the image type brush, link your image below. If not, you can remove these lines.
     image: {
         src: "./brush_tips/brush.jpg",
     },
     // For "custom" and "image" types, you can define the tip angle rotation here.
-    rotate: "random", // "none" disables rotation | "natural" follows the direction of the stroke | "random"
+    rotate: "natural", // "none" disables rotation | "natural" follows the direction of the stroke | "random"
 })
 
 
@@ -219,17 +219,21 @@ function setup () {
 
     
     
-    let num_cols = 10
+    let num_cols = 5
     let num_rows = 3
     let col_size = (width - 40) / num_cols
     let row_size = (height - 40) / num_rows
-    brush.noStroke()
-    brush.field("curved")
-    let bleed = 0.4
+    //brush.noStroke()
+    brush.field("seabed")
+    let brushes = ["marker", "marker2"]
+    let pencils = ["charcoal", "HB", "HB"]
+
+    
     for (let i = 0; i < num_rows; i++) {
         for (let j = 0; j < num_cols; j++) {
-            brush.fill(random(palette),random(75,130))
-            brush.bleed(bleed,random(0,0.3))
+            brush.set(random(pencils),random(palette))
+            brush.setHatch(random(brushes),random(palette))
+            brush.hatch(random(1,6), random(0,180), {rand: 0, continuous: false, gradient: false})
             brush.rect(20 + col_size * j, 20 + row_size * i, col_size, row_size)
         }
     }

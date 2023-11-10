@@ -467,7 +467,7 @@
      * Register methods after setup() and post draw() for belding last buffered color
      */
     p5.prototype.registerMethod('afterSetup', () => Mix.blend(false, true));
-    //p5.prototype.registerMethod('post', () => Mix.blend(false, true));
+    p5.prototype.registerMethod('post', () => Mix.blend(false, true));
 
 // =============================================================================
 // Section: FlowField
@@ -487,6 +487,7 @@
         _ensureReady();
         FF.isActive = true; // Mark the field framework as active
         if (FF.current !== a) FF.current = a; // Update the current field if a different one is selected
+        FF.refresh(); // Fill flowfield values
     }
 
     /**
@@ -847,7 +848,7 @@
             const isBlendableType = b.type === "marker" || b.type === "custom" || b.type === "image";
             if (b.type === "image") {
                 T.add(b.image.src);
-                b.tip = () => _r.image(T.tips.get(B.p.image.src), -B.p.weight / 2, -B.p.weight / 2, B.p.weight, B.p.weight);
+                b.tip = () => B.mask.image(T.tips.get(B.p.image.src), -B.p.weight / 2, -B.p.weight / 2, B.p.weight, B.p.weight);
             }
             b.blend = isBlendableType && b.blend !== false;
             B.list.set(a, { param: b, colors: [], buffers: [] });
@@ -860,7 +861,7 @@
          * @param {number} weight - The weight (size) to set for the brush.
          * EXPORTED
          */  
-        set(brushName, color, weight) {
+        set(brushName, color, weight = 1) {
             B.name = brushName; 
             B.c = color;
             B.w = weight;
@@ -884,7 +885,7 @@
          * EXPORTED
          */        
         setColor(r,g,b) {
-            B.c = (arguments.length < 2) ? r : [r,g,b]; 
+            if (arguments.length > 0) B.c = (arguments.length < 2) ? r : [r,g,b]; 
             B.isActive = true;
         },
 
@@ -924,7 +925,9 @@
          */        
         line(x1,y1,x2,y2) {
             _ensureReady();
-            B.initializeDrawingState(x1, y1, dist(x1,y1,x2,y2), false, false);
+            let d = dist(x1,y1,x2,y2)
+            if (d == 0) return;
+            B.initializeDrawingState(x1, y1, d, false, false);
             let angle = _calculateAngle(x1,y1,x2,y2);
             B.draw(angle, false);
         },
@@ -1033,10 +1036,10 @@
                 // Select mask buffer for blend mode
                 this.mask = this.p.blend ? Mix.mask : _r;
                 // Set the blender
-                Mix.blend(this.c);
                 this.mask.push(); 
                 this.mask.noStroke();
                 if (this.p.blend) {
+                    Mix.blend(this.c);
                     _trans()
                     this.mask.translate(_matrix[0] + _r.width/2,_matrix[1] + _r.height/2); 
                     if (!isTip) this.markerTip()
@@ -1247,91 +1250,6 @@
         B.drawTip(pressure)
     }
 
-// =============================================================================
-// Section: Hatching
-// =============================================================================
-/**
- * The Hatching section of the code is responsible for creating and drawing hatching patterns.
- * Hatching involves drawing closely spaced parallel lines.
- */
-
-    /**
-     * Creates a hatching pattern across the given polygons.
-     * 
-     * @param {Array|Object} polygons - A single polygon or an array of polygons to apply the hatching.
-     * @param {number} dist - The distance between hatching lines.
-     * @param {number} angle - The angle at which hatching lines are drawn.
-     * @param {Object} options - An object containing optional parameters to affect the hatching style:
-     *                           - rand: Introduces randomness to the line placement.
-     *                           - continuous: Connects the end of a line with the start of the next.
-     *                           - gradient: Changes the distance between lines to create a gradient effect.
-     *                           Defaults to {rand: false, continuous: false, gradient: false}.
-     * EXPORTED
-     */
-    B.hatch = function (polygons, dist, angle, options = {rand: false, continuous: false, gradient: false}) {
-        _ensureReady();
-        angle = ((angleMode() === "radians") ? angle * 180 / Math.PI : angle) % 180
-        // Calculate the bounding area of the provided polygons
-        let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
-        let processPolygonPoints = (p) => {
-            for (let a of p.a) {
-                // (process points of a single polygon to find bounding area)
-                minX = a[0] < minX ? a[0] : minX;
-                maxX = a[0] > maxX ? a[0] : maxX;
-                minY = a[1] < minY ? a[1] : minY;
-                maxY = a[1] > maxY ? a[1] : maxY;
-            }
-        };
-        // Ensure polygons is an array and find overall bounding area
-        if (!Array.isArray(polygons)) {polygons = [polygons]}
-        for (let p of polygons) {processPolygonPoints(p);}
-        // Create a bounding polygon
-        let ventana = new Polygon([[minX,minY],[maxX,minY],[maxX,maxY],[minX,maxY]])
-        // Set initial values for line generation
-        let startY = (angle <= 90 && angle >= 0) ? minY : maxY;
-        let gradient = options.gradient ? map(options.gradient,0,1,1,1.1,true) : 1
-        let dots = [], i = 0, dist1 = dist;
-        let linea = (i) => {
-            return {
-                point1 : { x: minX + dist1 * i * R.cos(-angle+90),                   y: startY + dist1 * i * R.sin(-angle+90) },
-                point2 : { x: minX + dist1 * i * R.cos(-angle+90) + R.cos(-angle),   y: startY + dist1 * i * R.sin(-angle+90) + R.sin(-angle) }
-            }
-        }
-        // Generate lines and calculate intersections with polygons
-        // Loop through the lines based on the distance and angle to calculate intersections with the polygons
-        // The loop continues until a line does not intersect with the bounding window polygon
-        // Each iteration accounts for the gradient effect by adjusting the distance between lines
-        while (ventana.intersect(linea(i)).length > 0) {
-            let tempArray = [];
-            for (let p of polygons) {tempArray.push(p.intersect(linea(i)))};
-            dots[i] = tempArray.flat().sort((a, b) => (a.x === b.x) ? (a.y - b.y) : (a.x - b.x));
-            dist1 *= gradient
-            i++
-        }
-        // Filter out empty arrays to avoid drawing unnecessary lines
-        let gdots = []
-        for (let dd of dots) {if (typeof dd[0] !== "undefined") { gdots.push(dd)} }
-        // Draw the hatching lines using the calculated intersections
-        // If the 'rand' option is enabled, add randomness to the start and end points of the lines
-        // If the 'continuous' option is set, connect the end of one line to the start of the next
-        for (let j = 0; j < gdots.length; j++) {
-            let dd = gdots[j]
-            let r = options.rand || 0;
-            let shouldDrawContinuousLine = j > 0 && options.continuous;
-            for (let i = 0; i < dd.length-1; i += 2) {
-                if (r !== 0) {
-                    dd[i].x += r * dist * R.random(-1, 1);
-                    dd[i].y += r * dist * R.random(-1, 1);
-                    dd[i + 1].x += r * dist * R.random(-1, 1);
-                    dd[i + 1].y += r * dist * R.random(-1, 1);
-                }
-                B.line(dd[i].x, dd[i].y, dd[i + 1].x, dd[i + 1].y);
-                if (shouldDrawContinuousLine) {
-                    B.line(gdots[j - 1][1].x, gdots[j - 1][1].y, dd[i].x, dd[i].y);
-                }
-            }
-        }
-    }
 
 // =============================================================================
 // Section: Loading Custom Image Tips
@@ -1408,6 +1326,143 @@
             }
         }
     }
+
+
+// =============================================================================
+// Section: Hatching
+// =============================================================================
+/**
+ * The Hatching section of the code is responsible for creating and drawing hatching patterns.
+ * Hatching involves drawing closely spaced parallel lines.
+ */
+
+    let _isHatching = false;
+    let _hatchingParams;
+    let _hatchingBrush = false;
+
+    /**
+     * Activates hatching for subsequent geometries, with the given params.
+     * @param {number} dist - The distance between hatching lines.
+     * @param {number} angle - The angle at which hatching lines are drawn.
+     * @param {Object} options - An object containing optional parameters to affect the hatching style:
+     *                           - rand: Introduces randomness to the line placement.
+     *                           - continuous: Connects the end of a line with the start of the next.
+     *                           - gradient: Changes the distance between lines to create a gradient effect.
+     *                           Defaults to {rand: false, continuous: false, gradient: false}.
+     * EXPORTED
+     */
+    function hatch(dist = 5, angle = 45, options = {rand: false, continuous: false, gradient: false}) {
+        _isHatching = true;
+        _hatchingParams = [dist, angle, options]
+    }
+
+    /**
+     * Sets the brush for subsequent hatches.
+     * @param {string} brushName - The name of the brush to set as current.
+     * @param {string|p5.Color} color - The color to set for the brush.
+     * @param {number} weight - The weight (size) to set for the brush.
+     * EXPORTED
+     */  
+    function setHatch(brush, color, weight = 1) {
+        _hatchingBrush = [brush, color, weight]
+    }
+
+    /**
+     * Disables hatching
+     * EXPORTED
+     */
+    function noHatch() {
+        _isHatching = false;
+        _hatchingBrush = false;
+    }
+
+    /**
+     * Creates a hatching pattern across the given polygons.
+     * 
+     * @param {Array|Object} polygons - A single polygon or an array of polygons to apply the hatching.
+     * @param {number} dist - The distance between hatching lines.
+     * @param {number} angle - The angle at which hatching lines are drawn.
+     * @param {Object} options - An object containing optional parameters to affect the hatching style:
+     *                           - rand: Introduces randomness to the line placement.
+     *                           - continuous: Connects the end of a line with the start of the next.
+     *                           - gradient: Changes the distance between lines to create a gradient effect.
+     *                           Defaults to {rand: false, continuous: false, gradient: false}.
+     * EXPORTED
+     */
+    B.hatch = function (polygons) {
+        let dist = _hatchingParams[0];
+        let angle = _hatchingParams[1];
+        let options = _hatchingParams[2];
+
+        let strokeColor = this.c, strokeBrush = this.name, strokeWeight = this.w, strokeActive = this.isActive;
+        if (_hatchingBrush) this.set(_hatchingBrush[0],_hatchingBrush[1],_hatchingBrush[2])
+
+        _ensureReady();
+        angle = ((angleMode() === "radians") ? angle * 180 / Math.PI : angle) % 180
+        // Calculate the bounding area of the provided polygons
+        let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+        let processPolygonPoints = (p) => {
+            for (let a of p.a) {
+                // (process points of a single polygon to find bounding area)
+                minX = a[0] < minX ? a[0] : minX;
+                maxX = a[0] > maxX ? a[0] : maxX;
+                minY = a[1] < minY ? a[1] : minY;
+                maxY = a[1] > maxY ? a[1] : maxY;
+            }
+        };
+        // Ensure polygons is an array and find overall bounding area
+        if (!Array.isArray(polygons)) {polygons = [polygons]}
+        for (let p of polygons) {processPolygonPoints(p);}
+        // Create a bounding polygon
+        let ventana = new Polygon([[minX,minY],[maxX,minY],[maxX,maxY],[minX,maxY]])
+        // Set initial values for line generation
+        let startY = (angle <= 90 && angle >= 0) ? minY : maxY;
+        let gradient = options.gradient ? map(options.gradient,0,1,1,1.1,true) : 1
+        let dots = [], i = 0, dist1 = dist;
+        let linea = (i) => {
+            return {
+                point1 : { x: minX + dist1 * i * R.cos(-angle+90),                   y: startY + dist1 * i * R.sin(-angle+90) },
+                point2 : { x: minX + dist1 * i * R.cos(-angle+90) + R.cos(-angle),   y: startY + dist1 * i * R.sin(-angle+90) + R.sin(-angle) }
+            }
+        }
+        // Generate lines and calculate intersections with polygons
+        // Loop through the lines based on the distance and angle to calculate intersections with the polygons
+        // The loop continues until a line does not intersect with the bounding window polygon
+        // Each iteration accounts for the gradient effect by adjusting the distance between lines
+        while (ventana.intersect(linea(i)).length > 0) {
+            let tempArray = [];
+            for (let p of polygons) {tempArray.push(p.intersect(linea(i)))};
+            dots[i] = tempArray.flat().sort((a, b) => (a.x === b.x) ? (a.y - b.y) : (a.x - b.x));
+            dist1 *= gradient
+            i++
+        }
+        // Filter out empty arrays to avoid drawing unnecessary lines
+        let gdots = []
+        for (let dd of dots) {if (typeof dd[0] !== "undefined") { gdots.push(dd)} }
+        // Draw the hatching lines using the calculated intersections
+        // If the 'rand' option is enabled, add randomness to the start and end points of the lines
+        // If the 'continuous' option is set, connect the end of one line to the start of the next
+        for (let j = 0; j < gdots.length; j++) {
+            let dd = gdots[j]
+            let r = options.rand || 0;
+            let shouldDrawContinuousLine = j > 0 && options.continuous;
+            for (let i = 0; i < dd.length-1; i += 2) {
+                if (r !== 0) {
+                    dd[i].x += r * dist * R.random(-1, 1);
+                    dd[i].y += r * dist * R.random(-1, 1);
+                    dd[i + 1].x += r * dist * R.random(-1, 1);
+                    dd[i + 1].y += r * dist * R.random(-1, 1);
+                }
+                B.line(dd[i].x, dd[i].y, dd[i + 1].x, dd[i + 1].y);
+                if (shouldDrawContinuousLine) {
+                    B.line(gdots[j - 1][1].x, gdots[j - 1][1].y, dd[i].x, dd[i].y);
+                }
+            }
+        }
+        this.set(strokeBrush, strokeColor, strokeWeight)
+        this.isActive = strokeActive;
+    }
+
     
 // =============================================================================
 // Section: Polygon management. Basic geometries
@@ -1462,8 +1517,8 @@
          * Draws the polygon by iterating over its sides and drawing lines between the vertices.
          */
         draw () {
-            _ensureReady();
             if (B.isActive) {
+                _ensureReady();
                 for (let s of this.sides) {B.line(s[0].x,s[0].y,s[1].x,s[1].y)}
             }
         }
@@ -1471,22 +1526,19 @@
          * Fills the polygon using the current fill state.
          */
         fill () {
-            _ensureReady();
-            F.fill(this);
+            if (F.isActive) {
+                _ensureReady();
+                F.fill(this);
+            }
         }
         /**
          * Creates hatch lines across the polygon based on a given distance and angle.
-         * 
-         * @param {number} dist - The distance between hatch lines.
-         * @param {number} angle - The angle of the hatch lines.
-         * @param {Object} options - Additional options for hatching.
-         * @param {number} [options.rand=0] - The vibration of the lines, between 0 (none) and 1 (a lot)
-         * @param {number} [options.gradient=0] - Gradually increase distance between lines, between 0 (none) and 1 (a lot)
-         * @param {boolean} [options.continuous=false] - If true, hatches the polygon with a single, continuous line
          */
-        hatch (dist, angle, options) {
-            _ensureReady();
-            B.hatch(this,dist,angle,options)
+        hatch () {
+            if (_isHatching) {
+                _ensureReady();
+                B.hatch(this)
+            }
         }
     }
 
@@ -1504,14 +1556,12 @@
         }
         // Create a new Polygon instance
         let polygon = new Polygon(pointsArray);
-        // Draw the polygon if the B state is active
-        if (B.isActive) {
-            polygon.draw();
-        }
-        // Fill the polygon if the F state is active
-        if (F.isActive) {
-            polygon.fill();
-        }
+        // Draw the polygon if the B state is active (the check is in the polygon class)
+        polygon.draw();
+        // Fill the polygon if the F state is active (the check is in the polygon class)
+        polygon.fill();
+        // Hatch the polygon if _isHatching is active (the check is in the polygon class)
+        polygon.hatch()
     }
 
     /**
@@ -1521,11 +1571,11 @@
      * @param {number} y - The y-coordinate of the rectangle.
      * @param {number} w - The width of the rectangle.
      * @param {number} h - The height of the rectangle.
-     * @param {boolean} [mode=false] - If true, the rectangle is drawn centered at (x, y).
+     * @param {boolean} [mode=CORNER] - If true, the rectangle is drawn centered at (x, y).
      */
-    function drawRectangle(x,y,w,h,mode = false) {
+    function drawRectangle(x,y,w,h,mode = CORNER) {
         _ensureReady();
-        if (mode) x = x - w / 2, y = y - h / 2;
+        if (mode == CENTER) x = x - w / 2, y = y - h / 2;
         if (FF.isActive) {
             _beginShape(0);
             _vertex(x,y);
@@ -1537,6 +1587,7 @@
             let p = new Polygon([[x,y],[x+w,y],[x+w,y+h],[x,y+h]])
             p.draw();
             p.fill();
+            p.hatch();
         }
     }
 
@@ -1570,6 +1621,7 @@
             this.type = _type;
             this.dir = 0;
             this.calcIndex(0);
+            this.pol = false;
         }
 
         /**
@@ -1712,9 +1764,37 @@
          * @param {number} scale - The scale to draw with.
          */
         draw (x,y,scale) {
-            _ensureReady();
-            if (this.origin) x = this.origin[0], y = this.origin[1], scale = 1;
-            B.flowShape(this,x,y,scale)
+            if (B.isActive) {
+                _ensureReady();
+                if (this.origin) x = this.origin[0], y = this.origin[1], scale = 1;
+                B.flowShape(this,x,y,scale)
+            }
+        }
+
+        /**
+         * Fill the plot on the canvas.
+         * @param {number} x - The x-coordinate to draw at.
+         * @param {number} y - The y-coordinate to draw at.
+         */
+        fill (x,y) {
+            if (F.isActive) {
+                _ensureReady();
+                if (!this.pol) this.pol = this.genPol(x,y)
+                this.pol.fill()
+            }
+        }
+
+        /**
+         * Hatch the plot on the canvas.
+         * @param {number} x - The x-coordinate to draw at.
+         * @param {number} y - The y-coordinate to draw at.
+         */
+        hatch (x,y) {
+            if (_isHatching) {
+                _ensureReady();
+                if (!this.pol) this.pol = this.genPol(x,y)
+                this.pol.hatch()
+            }
         }
     }
 
@@ -1746,10 +1826,11 @@
             if (r) p.addSegment(0 + angle, angle2 * (Math.PI/180) * radius, true)
             // Finalize the plot
             p.endPlot(angle2 + angle,1, true)
-            // If the fill is active, generate a polygon from the plot and fill it
-            if (F.isActive) {
+            // If the fill or hatch are active, generate a polygon from the plot and fill/hatch it
+            if (F.isActive || _isHatching) {
                 let pol = p.genPol(x - radius * R.sin(angle),y - radius * R.cos(-angle))
                 pol.fill()
+                pol.hatch()
             }
             // If the border is active, draw the plot
             if (B.isActive) p.draw(x - radius * R.sin(angle),y - radius * R.cos(-angle),1)
@@ -1791,8 +1872,10 @@
             _strokeArray.push(_strokeArray[0]); // Close the shape by connecting the last vertex to the first
         }
         let sp = new Spline(_strokeArray, _strokeOption); // Create a new Spline with the recorded vertices and curvature option
-        if (F.isActive) {
-            sp.p.genPol(_strokeArray[0][0], _strokeArray[0][1]).fill(); // Fill the shape if the fill state is active
+        if (F.isActive || _isHatching) {
+            let pol = sp.p.genPol(_strokeArray[0][0], _strokeArray[0][1])
+            pol.fill(); // Fill the shape if the fill state is active
+            pol.hatch(); // Hatch the shape if the hatch state is active
         }
         if (B.isActive) {
             sp.draw(); // Draw the shape if the brush state is active
@@ -2210,6 +2293,7 @@
 // =============================================================================
 // Section: Standard Brushes
 // =============================================================================
+    
     /**
      * Defines a set of standard brushes with specific characteristics. Each brush is defined
      * with properties such as weight, vibration, definition, quality, opacity, spacing, and
@@ -2250,62 +2334,65 @@
  * and geometrical shapes drawing.
  */
 
-// Basic Functions
-exports.config = configureSystem;                // Configures and seeds the RNG (Random Number Generator).
-exports.load = loadSystem;                    // Loads the library into the selected buffer.
-exports.preload = preloadBrushAssets;              // Preloads custom tips for the library.
-exports.colorCache = enableCacheBlending;      // Enables/disables cache color blending for improved performance
+    // Basic Functions
+    exports.config = configureSystem;                // Configures and seeds the RNG (Random Number Generator).
+    exports.load = loadSystem;                    // Loads the library into the selected buffer.
+    exports.preload = preloadBrushAssets;              // Preloads custom tips for the library.
+    exports.colorCache = enableCacheBlending;      // Enables/disables cache color blending for improved performance
 
-// FLOWFIELD Management
-exports.addField = addField;            // Adds a new vector field.
-exports.field = selectField;                  // Activates or selects a specific vector field.
-exports.noField = disableField;         // Disables the current vector field.
-exports.refreshField = refreshField;    // Refreshes the vector field, useful for animations.
-exports.listFields = listFields;        // Lists all the available fields.
+    // FLOWFIELD Management
+    exports.addField = addField;            // Adds a new vector field.
+    exports.field = selectField;                  // Activates or selects a specific vector field.
+    exports.noField = disableField;         // Disables the current vector field.
+    exports.refreshField = refreshField;    // Refreshes the vector field, useful for animations.
+    exports.listFields = listFields;        // Lists all the available fields.
 
-// BRUSH Management
-exports.scale = globalScale;            // Rescales all standard brushes.
-exports.add = B.add;                     // Adds a new brush definition.
-exports.box = listOfBrushes;                   // Retrieves an array with existing brushes.
-exports.set = B.set;                     // Sets values for all properties of a brush.
-exports.pick = B.setBrush;               // Selects a brush to use.
-exports.clip = B.clip;                   // Clips brushes with a rectangle.
-exports.noClip = B.noClip; 
-exports.tip = drawTip;                   // Draw tip of the brush with a custom pressure
+    // BRUSH Management
+    exports.scale = globalScale;            // Rescales all standard brushes.
+    exports.add = B.add;                     // Adds a new brush definition.
+    exports.box = listOfBrushes;             // Retrieves an array with existing brushes.
+    exports.set = B.set;                     // Sets values for all properties of a brush.
+    exports.pick = B.setBrush;               // Selects a brush to use.
+    exports.clip = B.clip;                   // Clips brushes with a rectangle.
+    exports.noClip = B.noClip; 
+    exports.tip = drawTip;                   // Draw tip of the brush with a custom pressure
 
-// STROKE Properties
-exports.stroke = B.setColor;             // Sets the stroke color.
-exports.strokeWeight = B.setWeight;      // Sets the weight (thickness) of the stroke.
-exports.noStroke = disableBrush;            // Disables the stroke.
+    // STROKE Properties
+    exports.stroke = B.setColor;          // Activates and sets the stroke color.
+    exports.strokeWeight = B.setWeight;      // Sets the weight (thickness) of the stroke.
+    exports.noStroke = disableBrush;         // Disables the stroke.
 
-// FILL Operations (affects rect, circle, and beginShape)
-exports.fill = setFill;                    // Sets the fill color.
-exports.bleed = setBleed;                  // Sets the bleed property for fills.
-exports.noFill = disableFill;                // Disables the fill.
+    // FILL Operations (affects rect, circle, and beginShape)
+    exports.fill = setFill;                    // Sets the fill color.
+    exports.bleed = setBleed;                  // Sets the bleed property for fills.
+    exports.noFill = disableFill;                // Disables the fill.
 
-// GEOMETRY Drawing Functions
-exports.line = B.line;                   // Draws a line.
-exports.flowLine = B.flowLine;           // Draws a line that follows the vector field.
-exports.flowShape = B.flowShape;         // Draws a shape that follows the vector field.
-exports.rect = drawRectangle;                    // Draws a rectangle.
-exports.circle = drawCircle;                // Draws a circle.
-exports.polygon = drawPolygon;              // Draws a polygon.
-exports.spline = drawSpline;                // Draws a spline curve.
-// Equivalent to beginShape in p5.js
-exports.beginShape = _beginShape;        // Begins recording vertices for a custom shape.
-exports.vertex = _vertex;                // Records a vertex for a custom shape.
-exports.endShape = _endShape;            // Finishes recording vertices and draws the shape.
-// HandStroke - simulates a hand-drawn stroke
-exports.beginStroke = _beginStroke;      // Begins a hand-drawn stroke.
-exports.nextStroke = _move;                    // Moves to a specified point in the hand-drawn stroke.
-exports.endStroke = _endStroke;          // Ends a hand-drawn stroke.
+    // GEOMETRY Drawing Functions
+    exports.line = B.line;                   // Draws a line.
+    exports.flowLine = B.flowLine;           // Draws a line that follows the vector field.
+    exports.flowShape = B.flowShape;         // Draws a shape that follows the vector field.
+    exports.rect = drawRectangle;                    // Draws a rectangle.
+    exports.circle = drawCircle;                // Draws a circle.
+    exports.polygon = drawPolygon;              // Draws a polygon.
+    exports.spline = drawSpline;                // Draws a spline curve.
+    // Equivalent to beginShape in p5.js
+    exports.beginShape = _beginShape;        // Begins recording vertices for a custom shape.
+    exports.vertex = _vertex;                // Records a vertex for a custom shape.
+    exports.endShape = _endShape;            // Finishes recording vertices and draws the shape.
+    // HandStroke - simulates a hand-drawn stroke
+    exports.beginStroke = _beginStroke;      // Begins a hand-drawn stroke.
+    exports.nextStroke = _move;                    // Moves to a specified point in the hand-drawn stroke.
+    exports.endStroke = _endStroke;          // Ends a hand-drawn stroke.
 
-// HATCHING Operations
-exports.hatch = B.hatch;                 // Function to create hatched patterns within polygons.
+    // HATCHING Operations
+    exports.hatchArray = B.hatch;                 // Function to create hatched patterns within polygons.
+    exports.hatch = hatch;
+    exports.setHatch = setHatch;
+    exports.noHatch = noHatch;
 
-// Classes Exposed
-exports.Polygon = Polygon;               // The Polygon class, used for creating and manipulating polygons.
-exports.Plot = Plot;                     // The Plot class, for plotting curves.
-exports.Position = Position;                  // The Position class, for managing positions on the canvas.
+    // Exposed Classes
+    exports.Polygon = Polygon;               // The Polygon class, used for creating and manipulating polygons.
+    exports.Plot = Plot;                     // The Plot class, for plotting curves.
+    exports.Position = Position;             // The Position class, for managing positions on the canvas.
 
 })));
