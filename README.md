@@ -196,10 +196,10 @@ Vector Fields allow for dynamic control over brush stroke behavior, enabling the
 Functions for managing brush behaviors and properties.
 
 
-- `brush.scale(_scale)`
+- `brush.scale(scale)`
   - **Description**: Adjusts the global scale of all standard brush parameters, including weight, vibration, and spacing, based on the given scaling factor. This function is specifically designed to affect dafault brushes, allowing for uniform scaling across various brush types.
   - **Parameters**:
-    - `_scale` (Number): The scaling factor to be applied to the brush parameters.
+    - `scale` (Number): The scaling factor to be applied to the brush parameters.
   - **Note**: This function only impacts the default brushes. Custom brushes may not be affected by this scaling, since they are defined per case basis.
   - **Usage**:
     ```javascript
@@ -212,7 +212,6 @@ Functions for managing brush behaviors and properties.
 
 - `brush.box()`
   - **Description**: Retrieves an array containing the unique names of all available brushes. This function is useful for accessing the variety of brushes included in the library, which range from different pencil types to markers and specialized brushes like the hatch brush. Of course, the function will also return the custom brushes you've created.
-  - **Parameters**: None.
   - **Returns**: `Array<string>` - An array listing the names of all brushes.
   - **Default Brushes**: The library includes a default set of 11 brushes: `2B`, `HB`, `2H`, `cpencil`, `pen`, `rotring`, `spray`, `marker`, `marker2`, `charcoal`, and `hatch_brush` (for clean hatching).
   - **Usage**:
@@ -364,7 +363,6 @@ Stroke Operations encompass methods for manipulating and applying brushes to str
     - `r` (Number|String|p5.Color): The red component of the color, a CSS color string, or a p5.Color object.
     - `g` (Number): Optional. The green component of the color.
     - `b` (Number): Optional. The blue component of the color.
-  - **Returns**: None.
   - **Usage**:
     ```javascript
     // Set the brush color using RGB values
@@ -378,7 +376,6 @@ Stroke Operations encompass methods for manipulating and applying brushes to str
 
 - `brush.noStroke()`
   - **Description**: Disables the stroke for subsequent drawing operations. This function is useful when you want to draw shapes without an outline.
-  - **Returns**: None.
   - **Usage**:
     ```javascript
     // Disable stroke for the upcoming shapes
