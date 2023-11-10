@@ -91,6 +91,7 @@ p5.brush.js provides a comprehensive API for creating complex drawings and effec
 |                    | brush.noFill()      |
 |                    | brush.bleed()       |
 | Hatch Operations   | brush.hatch()       |
+|                    | brush.setHatch()    |
 |                    | brush.noHatch()     |
 | Geometry           | brush.line()        |
 |                    | brush.flowLine()    |
