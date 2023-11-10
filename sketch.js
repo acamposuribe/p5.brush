@@ -56,7 +56,7 @@ brush.add("watercolor", {
         curve: function (x) {return 1-x},     // If "custom", define the curve function with a curve equation from x = 0 to x = 1, returning values from 0 to 1
         min_max: [0.5,1.2]                    // For both cases, define min and max pressure (reverse for inverted presure)
     },
-    // if you select the a custom type brush, define the tip geometry here. Use 0,0 as center of tip. If not, you can remove these lines.
+    // if you select the a custom type brush, define the tip geometry here. Use 0,0 as center of tip. If not, you can remove these lines. 
     tip: function () {
         B.mask.rotate(45),B.mask.rect(-1.5,-1.5,3,3),B.mask.rect(1.5,1.5,1,1); // in this example, the tip would be two squares, rotated 45 degrees
     },
