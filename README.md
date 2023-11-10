@@ -1,3 +1,5 @@
+![Teaser](/images/teaser.gif)
+
 # p5.brush.js
 
 p5.brush.js is a versatile library for the p5.js ecosystem, tailored for artists, designers, and hobbyists who wish to explore natural textures in generative art. This library extends the drawing capabilities of p5.js by introducing a rich set of tools that allow for the creation of dynamic and customizable brushes, vector-fields, and fill modes.
