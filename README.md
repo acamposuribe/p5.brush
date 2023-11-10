@@ -70,51 +70,29 @@ p5.brush.js provides a comprehensive API for creating complex drawings and effec
 
 ### Table of Contents
 
-|      Section       |      Functions      |
-|--------------------|---------------------|
-| [Vector-Fields](#vector-fields)       | brush.field()       |
-|                    | brush.noField()     |
-|                    | brush.refreshField()|
-|                    | brush.listFields()  |
-|                    | brush.addField()    |
-| [Brush Management](#brush-management)   | brush.scale()       |
-|                    | brush.box()         |
-|                    | brush.add()         |
-|                    | brush.clip()        |
-|                    | brush.noClip()      |
-| Stroke Operations  | brush.set()         |
-|                    | brush.pick()        |
-|                    | brush.stroke()      |
-|                    | brush.noStroke()    |
-|                    | brush.strokeWeight()|
-| Fill Operations    | brush.fill()        |
-|                    | brush.noFill()      |
-|                    | brush.bleed()       |
-| Hatch Operations   | brush.hatch()       |
-|                    | brush.setHatch()    |
-|                    | brush.noHatch()     |
-| Geometry           | brush.line()        |
-|                    | brush.flowLine()    |
-|                    | brush.flowShape()   |
-|                    | brush.rect()        |
-|                    | brush.circle()      |
-|                    | brush.polygon()     |
-|                    | brush.spline()      |
-|                    | brush.beginShape()  |
-|                    | brush.vertex()      |
-|                    | brush.endShape()    |
-|                    | brush.beginStroke() |
-|                    | brush.nextStroke()  |
-|                    | brush.endStroke()   |
-| [Configuration](#optional-configuration)      | brush.config()      |
-|                    | brush.load()        |
-|                    | brush.preload()     |
-|                    | brush.colorCache()  |
-| Exposed Classes    | brush.Polygon()     |
-|                    | brush.Plot()        |
-|                    | brush.Position()    |
-| Advanced Functions | brush.tip()         |
-
+|      Section                            |      Functions      |   | Section                                    |      Functions      |   |
+|-----------------------------------------|---------------------|---|--------------------------------------------|---------------------|---|
+| [Vector-Fields](#vector-fields)         | brush.field()       |   | [Geometry](#geometry)                      | brush.line()        |   |
+|                                         | brush.noField()     |   |                                            | brush.flowLine()    |   |
+|                                         | brush.refreshField()|   |                                            | brush.flowShape()   |   |
+|                                         | brush.listFields()  |   |                                            | brush.rect()        |   |
+|                                         | brush.addField()    |   |                                            | brush.circle()      |   |
+| [Brush Management](#brush-management)   | brush.scale()       |   |                                            | brush.polygon()     |   |
+|                                         | brush.box()         |   |                                            | brush.spline()      |   |
+|                                         | brush.add()         |   |                                            | brush.beginShape()  |   |
+|                                         | brush.clip()        |   |                                            | brush.vertex()      |   |
+|                                         | brush.noClip()      |   |                                            | brush.endShape()    |   |
+| [Stroke Operations](#stroke-operations) | brush.set()         |   |                                            | brush.beginStroke() |   |
+|                                         | brush.pick()        |   |                                            | brush.nextStroke()  |   |
+|                                         | brush.stroke()      |   |                                            | brush.endStroke()   |   |
+|                                         | brush.noStroke()    |   | [Configuration](#optional-configuration)   | brush.config()      |
+|                                         | brush.strokeWeight()|   |                                            | brush.load()        |
+| [Fill Operations](#fill-operations)     | brush.fill()        |   |                                            | brush.preload()     |
+|                                         | brush.noFill()      |   |                                            | brush.colorCache()  | 
+|                                         | brush.bleed()       |   | [Classes](#exposed-classes)                | brush.Polygon()     |
+| [Hatch Operations](#hatch-operations)   | brush.hatch()       |   |                                            | brush.Plot()        |
+|                                         | brush.setHatch()    |   |                                            | brush.Position()    |
+|                                         | brush.noHatch()     |   | [Advanced Functions](#advanced-functions)  | brush.tip()         |
 
 
 ### Vector Fields
