@@ -62,7 +62,7 @@ p5.brush.js enhances the p5.js framework with a set of tools that allow for soph
 
 With p5.brush.js, your digital canvas becomes a playground for innovation and expression, where each tool is fine-tuned to complement your unique creative process.
 
----
+.
 
 ## Reference
 
@@ -91,8 +91,8 @@ p5.brush.js provides a comprehensive API for creating complex drawings and effec
 |                                         | brush.noFill()      |   |                                            | brush.colorCache()  | 
 |                                         | brush.bleed()       |   | [Classes](#exposed-classes)                | brush.Polygon()     |
 | [Hatch Operations](#hatch-operations)   | brush.hatch()       |   |                                            | brush.Plot()        |
-|                                         | brush.setHatch()    |   |                                            | brush.Position()    |
-|                                         | brush.noHatch()     |   | [Advanced Functions](#advanced-functions)  | brush.tip()         |
+|                                         | brush.noHatch()     |   |                                            | brush.Position()    |
+|                                         | brush.setHatch()    |   | [Advanced Functions](#advanced-functions)  | brush.tip()         |
 
 
 ### Vector Fields
@@ -118,6 +118,7 @@ Vector Fields allow for dynamic control over brush stroke behavior, enabling the
     ```
     Once a vector field is activated, it affects how the subsequent shapes are drawn, aligning them with its directional flow, unless stated otherwise in the documentation
 
+---
 
 - `brush.noField()`
   - **Description**: Deactivates the currently active vector field, returning the drawing behavior to its default state where shapes are not influenced by any vector field. Any shapes drawn after this function call will not be affected by the previously active vector field.
@@ -128,6 +129,7 @@ Vector Fields allow for dynamic control over brush stroke behavior, enabling the
     ```
     Use this function when you want to draw shapes that are unaffected by the directional flow of any vector field, effectively resetting the drawing behavior to its original state.
 
+---
 
 - `brush.refreshField(time)`
   - **Description**: Updates the current vector field values using its time-dependent generator function. Ideal for animations that require the vector field to change over time, influencing the movement of strokes and shapes in a natural way.
@@ -143,6 +145,7 @@ Vector Fields allow for dynamic control over brush stroke behavior, enabling the
     ```
     This function will invoke the generator function of the active vector field with the provided time argument, allowing the field to evolve and create fluid, dynamic animations in the rendering.
 
+---
 
 - `brush.listFields()`
   - **Description**: Retrieves an iterator containing the names of all the available vector fields within the system. This includes both the default fields provided by the library and any custom fields that have been added using `brush.addField()`.
@@ -158,6 +161,7 @@ Vector Fields allow for dynamic control over brush stroke behavior, enabling the
     ```
     Use `brush.listFields()` to access the names of all existing vector fields, which can then be used to activate or modify fields as needed.
 
+---
  
  #### Advanced vector-field functions
 
@@ -185,7 +189,7 @@ Vector Fields allow for dynamic control over brush stroke behavior, enabling the
     ```
     This `generatorFunction` uses sinusoidal functions to create a time-varying wave pattern within the vector field. Each cell's angle is calculated and assigned, resulting in a dynamic field that can be used to influence brush strokes.
 
-
+---
 
 ### Brush Management
 
@@ -204,6 +208,8 @@ Functions for managing brush behaviors and properties.
     ```
     Using `brush.scale()`, you can easily adjust the size and spacing characteristics of standard brushes in your project, providing a convenient way to adapt to different canvas sizes or artistic styles.
 
+---
+
 - `brush.box()`
   - **Description**: Retrieves an array containing the unique names of all available brushes. This function is useful for accessing the variety of brushes included in the library, which range from different pencil types to markers and specialized brushes like the hatch brush. Of course, the function will also return the custom brushes you've created.
   - **Parameters**: None.
@@ -217,6 +223,7 @@ Functions for managing brush behaviors and properties.
     ```
     `brush.box()` allows you to explore and select from the various brushes, facilitating the choice of the appropriate brush for different artistic needs.
 
+---
 
 - `brush.add(name, params)`
   - **Description**: Adds a new brush to the brush list with specified parameters, defining the brush's behavior and appearance. This function allows for extensive customization, enabling the creation of unique brush types suited to various artistic needs.
@@ -253,7 +260,8 @@ Functions for managing brush behaviors and properties.
         pressure: {
             type: "custom",
             min_max: [0.5,1.2],
-            // This means that the pressure will change in a linear distribution through the whole length of the line. Minimum pressure at the start, maximum pressure at the end.
+            // This formula implies that the pressure changes in a linear distribution through the whole length of the line.
+            // Minimum pressure at the start, maximum pressure at the end.
             curve: (x) => 1-x
         },
         image: {
@@ -285,6 +293,7 @@ Functions for managing brush behaviors and properties.
     ```
     By using `brush.add()`, you can expand your brush collection with custom brushes tailored to specific artistic effects and styles.
 
+---
 
 - `brush.clip(clippingRegion)`
   - **Description**: Sets a rectangular clipping region for all subsequent brush strokes. When this clipping region is active, brush strokes outside this area will not be rendered. This is particularly useful for ensuring that strokes, such as lines and curves, are contained within a specified area. The clipping affects only stroke and hatch operations, not fill operations. The clipping remains in effect for all strokes drawn after the call to `brush.clip()` until `brush.noClip()` is used.
@@ -303,6 +312,7 @@ Functions for managing brush behaviors and properties.
     brush.line(0, 0, 200, 300);
     ```
 
+---
 
 - `brush.noClip()`
   - **Description**: Disables the current clipping region, allowing subsequent brush strokes to be drawn across the entire canvas without being clipped. Use this function to revert to the default state where strokes are unrestricted.
@@ -312,18 +322,85 @@ Functions for managing brush behaviors and properties.
     brush.noClip();
     ```
 
-### Geometry
-
-Tools for creating and manipulating geometric shapes.
-
-*(Insert Geometry related functions here)*
-
+---
+    
 ### Stroke Operations
 
-Methods to perform operations related to brush strokes.
+Stroke Operations encompass methods for manipulating and applying brushes to strokes (aka lines), providing artists with precise control over their brushwork.
 
-- `drawTip(x, y, pressure)`
-  - Draws the tip of the selected brush at the specified coordinates with the given pressure.
+
+- `brush.set(brushName, color, weight)`
+  - **Description**: Selects and sets up the current brush with a specific name, color, and weight. This function is crucial for preparing the brush to draw strokes with the desired characteristics.
+  - **Parameters**:
+    - `brushName` (String): The name of the brush to be used.
+    - `color` (String|p5.Color): The color for the brush, which can be specified as a HEX string or a p5.Color object.
+    - `weight` (Number): The weight or size of the brush.
+  - **Note**: This function will automatically activate stroke mode for subsequent geometries.
+  - **Usage**:
+    ```javascript
+    // Set the "HB" brush with a specific blue color and weight factor 1
+    brush.set("HB", "#002185", 1);
+    ```
+    By using `brush.set()`, you can quickly switch between different brushes, colors, and sizes, allowing for dynamic and varied stroke applications in your artwork.
+
+---
+
+ - `brush.pick(brushName)`
+   - **Description**: Selects the current brush type based on the specified name. This function is used to change the brush type without altering its color or weight.
+   - **Parameters**:
+     - `brushName` (String): The name of the brush to set as current.
+   - **Usage**:
+    ```javascript
+    // Set the current brush to "charcoal"
+    brush.pick("charcoal");
+    ```
+    Use `brush.pick()` to switch between different brush types while maintaining the current color and weight settings.
+
+---
+
+- `brush.stroke(r, g, b)` or `brush.stroke(color)`
+  - **Description**: Sets the color of the current brush. This function can take either RGB color components or a CSS color string/p5.Color object. It also activates stroke mode for subsequent shapes.
+  - **Parameters**:
+    - `r` (Number|String|p5.Color): The red component of the color, a CSS color string, or a p5.Color object.
+    - `g` (Number): Optional. The green component of the color.
+    - `b` (Number): Optional. The blue component of the color.
+  - **Returns**: None.
+  - **Usage**:
+    ```javascript
+    // Set the brush color using RGB values
+    brush.stroke(105, 111, 34);
+    // Or set the brush color using a HEX string
+    brush.stroke("#002185");
+    ```
+    Use `brush.stroke()` to define the color of your brush strokes, enabling a diverse palette for your artwork.
+
+---
+
+- `brush.noStroke()`
+  - **Description**: Disables the stroke for subsequent drawing operations. This function is useful when you want to draw shapes without an outline.
+  - **Returns**: None.
+  - **Usage**:
+    ```javascript
+    // Disable stroke for the upcoming shapes
+    brush.noStroke();
+    ```
+    `brush.noStroke()` is essential for creating drawings where only fill and no outline is desired.
+
+---
+
+- `brush.strokeWeight(weight)`
+  - **Description**: Sets the weight or size of the current brush. The specified weight acts as a multiplier to the base size of the brush, allowing for dynamic adjustments.
+  - **Parameters**:
+    - `weight` (Number): The weight to set for the brush.
+  - **Returns**: None.
+  - **Usage**:
+    ```javascript
+    // Set the brush stroke weight to 2.3 times the base size
+    brush.strokeWeight(2.3);
+    ```
+    `brush.strokeWeight()` provides the flexibility to easily adjust the thickness of your brush strokes, enhancing the expressiveness of your drawing tools.
+
+---
 
 ### Fill Operations
 
@@ -331,11 +408,23 @@ Functions that handle the filling of shapes and areas.
 
 *(Insert Fill Operations related functions here)*
 
+---
+
 ### Hatching Operations
 
 Procedures for applying hatching patterns to areas.
 
 *(Insert Hatching Operations related functions here)*
+
+---
+
+### Geometry
+
+Tools for creating and manipulating geometric shapes.
+
+*(Insert Geometry related functions here)*
+
+---
 
 ### Optional: Configuration
 
@@ -354,12 +443,14 @@ This section covers functions for initializing the drawing system, preloading re
     ```
     Replace `$fx.random()` with the actual function provided by the platform. By default, if `objct.R` is not provided, `p5.brush.js` uses p5's `random()` function, which allows for the use of `randomSeed()` to set the seed for randomness.
 
+---
 
 - `brush.load(canvasID)`
   - **Description**: Initializes the drawing system and sets up the environment. If `canvasID` is not provided, the current window is used as the rendering context. If you want to load the library on a custom p5.Graphics element (or instanced canvas), you can do it by executing this function.
   - **Parameters**: 
     - `canvasID` (string): Optional ID of the buffer/canvas element. If false, uses the window's rendering context.
 
+---
 
 - `brush.preload()`
   - **Description**: Preloads necessary assets or configurations for brushes. If you are using custom image tip brushes, you need to include this question within the preload() function of your p5 sketch.
@@ -372,11 +463,14 @@ This section covers functions for initializing the drawing system, preloading re
     }
     ```
 
+---
 
 - `brush.colorCache(bool = true)`
   - **Description**: Enables or disables color caching for WebGL shaders. Color caching can increase performance but may produce less accurate textures when the same color is used repeatedly. It's set to _true_ by default
   - **Parameters**: 
     - `bool` (boolean): Set to true to enable caching, or false to disable it.
+
+---
 
 ### Exposed Classes
 
