@@ -13,7 +13,7 @@ Embrace the full potential of your creative coding projects with p5.brush.js, wh
 ## Table of Contents
 - [Installation](#installation)
 - [Features](#features)
-- [API Reference](#api-reference)
+- [Reference](#reference)
 - [Examples](#examples)
 - [Contributing](#contributing)
 - [License](#license)
@@ -62,15 +62,59 @@ p5.brush.js enhances the p5.js framework with a set of tools that allow for soph
 
 With p5.brush.js, your digital canvas becomes a playground for innovation and expression, where each tool is fine-tuned to complement your unique creative process.
 
+---
 
-## API Reference
+## Reference
 
 p5.brush.js provides a comprehensive API for creating complex drawings and effects. Below are the categorized functions and classes available in the library.
 
 ### Table of Contents
-- [Vector-Fields](#vector-fields)
-- [Optional: Configuration](#optional-configuration)
-  
+
+|      Section       |      Functions      |
+|--------------------|---------------------|
+| [Vector-Fields](#vector-fields)       | brush.field()       |
+|                    | brush.noField()     |
+|                    | brush.refreshField()|
+|                    | brush.listFields()  |
+|                    | brush.addField()    |
+| [Brush Management](#brush-management)   | brush.scale()       |
+|                    | brush.box()         |
+|                    | brush.add()         |
+|                    | brush.clip()        |
+|                    | brush.noClip()      |
+| Stroke Operations  | brush.set()         |
+|                    | brush.pick()        |
+|                    | brush.stroke()      |
+|                    | brush.noStroke()    |
+|                    | brush.strokeWeight()|
+| Fill Operations    | brush.fill()        |
+|                    | brush.noFill()      |
+|                    | brush.bleed()       |
+| Hatch Operations   | brush.hatch()       |
+|                    | brush.noHatch()     |
+| Geometry           | brush.line()        |
+|                    | brush.flowLine()    |
+|                    | brush.flowShape()   |
+|                    | brush.rect()        |
+|                    | brush.circle()      |
+|                    | brush.polygon()     |
+|                    | brush.spline()      |
+|                    | brush.beginShape()  |
+|                    | brush.vertex()      |
+|                    | brush.endShape()    |
+|                    | brush.beginStroke() |
+|                    | brush.nextStroke()  |
+|                    | brush.endStroke()   |
+| [Configuration](#optional-configuration)      | brush.config()      |
+|                    | brush.load()        |
+|                    | brush.preload()     |
+|                    | brush.colorCache()  |
+| Exposed Classes    | brush.Polygon()     |
+|                    | brush.Plot()        |
+|                    | brush.Position()    |
+| Advanced Functions | brush.tip()         |
+
+
 ### Vector Fields
 
 Vector Fields allow for dynamic control over brush stroke behavior, enabling the creation of complex and fluid motion within sketches.
@@ -130,6 +174,7 @@ Vector Fields allow for dynamic control over brush stroke behavior, enabling the
     Use `brush.listFields()` to access the names of all existing vector fields, which can then be used to activate or modify fields as needed.
  
  #### Advanced vector-field functions
+ 
 - `brush.addField(name, generatorFunction)`
   - **Description**: Adds a custom vector field to the list of available fields. This advanced function requires a unique name for the field and a generator function that defines the behavior of the vector field over time.
   - **Parameters**:
@@ -153,9 +198,22 @@ Vector Fields allow for dynamic control over brush stroke behavior, enabling the
     ```
     This `generatorFunction` uses sinusoidal functions to create a time-varying wave pattern within the vector field. Each cell's angle is calculated and assigned, resulting in a dynamic field that can be used to influence brush strokes.
 
+
 ### Brush Management
 
 Functions for managing brush behaviors and properties.
+
+- `brush.scale(_scale)`
+  - **Description**: Adjusts the global scale of all standard brush parameters, including weight, vibration, and spacing, based on the given scaling factor. This function is specifically designed to affect dafault brushes, allowing for uniform scaling across various brush types.
+  - **Parameters**:
+    - `_scale` (Number): The scaling factor to be applied to the brush parameters.
+  - **Note**: This function only impacts the default brushes. Custom brushes may not be affected by this scaling, since they are defined per case basis.
+  - **Usage**:
+    ```javascript
+    // Scale all standard brushes by a factor of 1.5
+    brush.scale(1.5);
+    ```
+    Using `brush.scale()`, you can easily adjust the size and spacing characteristics of standard brushes in your project, providing a convenient way to adapt to different canvas sizes or artistic styles.
 
 - `brush.box()`
   - **Description**: Retrieves an array containing the unique names of all available brushes. This function is useful for accessing the variety of brushes included in the library, which range from different pencil types to markers and specialized brushes like the hatch brush. Of course, the function will also return the custom brushes you've created.
@@ -171,9 +229,31 @@ Functions for managing brush behaviors and properties.
     `brush.box()` allows you to explore and select from the various brushes, facilitating the choice of the appropriate brush for different artistic needs.
 
 
-- `disableBrush()`
-  - Disables the stroke for subsequent drawing operations.
 
+- `brush.clip(clippingRegion)`
+  - **Description**: Sets a rectangular clipping region for all subsequent brush strokes. When this clipping region is active, brush strokes outside this area will not be rendered. This is particularly useful for ensuring that strokes, such as lines and curves, are contained within a specified area. The clipping affects only stroke and hatch operations, not fill operations. The clipping remains in effect for all strokes drawn after the call to `brush.clip()` until `brush.noClip()` is used.
+  - **Parameters**:
+    - `clippingRegion` (Array): An array defining the clipping region as `[x1, y1, x2, y2]`, with `(x1, y1)` and `(x2, y2)` being the corners of the clipping rectangle.
+  - **Usage**:
+    ```javascript
+    // Set a clipping region
+    brush.clip([10, 10, 250, 200]);
+    // Draw a line - it will be clipped according to the region
+    brush.line(100, 90, 300, 40);
+
+    // Remove the clipping region
+    brush.noClip();
+    // Draw another line - it will not be clipped
+    brush.line(0, 0, 200, 300);
+    ```
+
+- `brush.noClip()`
+  - **Description**: Disables the current clipping region, allowing subsequent brush strokes to be drawn across the entire canvas without being clipped. Use this function to revert to the default state where strokes are unrestricted.
+  - **Usage**:
+    ```javascript
+    // Disable the clipping region
+    brush.noClip();
+    ```
 
 ### Geometry
 
