@@ -52,11 +52,11 @@ p5.brush.js enhances the p5.js framework with a set of tools that allow for soph
 - **Custom Configuration**: Customize your drawing strokes with the ability to select different buffers and leverage a custom random number generator to introduce variability in procedural designs.
 - **Vector Field Integration**: Direct the motion of your brush strokes with vector fields, crafting fluid, dynamic visuals within your sketches.
 - **Dynamic Brush System**: Select from an array of brushes, each offering distinct characteristics, to create a variety of effects and textures.
-- **Preloaded Assets**: Optimize your workflow by preloading brush tip assets, ensuring your brushes are ready for use without delay.
-- **Interactive Brush Tips**: Utilize pressure-sensitive brush tips for interactive drawing, adding a level of responsiveness to your canvas work.
-- **Hatching Patterns**: Implement hatching techniques with precision control over the patterns' density and orientation, enhancing your artwork with automated detailing.
 - **Brush and Field Management**: Manage and switch between brushes and vector fields with ease, adapting to the needs of your project seamlessly.
 - **Extensibility**: Expand the library's capabilities by integrating your own custom brushes and vector fields, tailoring the toolset to your artistic vision.
+- **Custom Brush Tips**: Load and use your own custom brush tip assets.
+- **Interactive Brush Tips**: Utilize pressure-sensitive brush tips for interactive drawing, adding a level of responsiveness to your canvas work.
+- **Hatch Patterns**: Implement hatching techniques with precision control over the patterns' density and orientation, enhancing your artwork with automated detailing.
 - **Intuitive Spline and Curve Generation**: Generate smooth and accurate curves and splines effortlessly, simplifying the process of intricate path creation.
 - **Watercolor Fill System**: Achieve the subtle nuances of watercolor with a digital fill system designed to blend and diffuse colors in a naturally fluid way.
 
@@ -94,6 +94,7 @@ p5.brush.js provides a comprehensive API for creating complex drawings and effec
 |                                         | brush.noHatch()     |   |                                            | brush.Position()    |
 |                                         | brush.setHatch()    |   | [Advanced Functions](#advanced-functions)  | brush.tip()         |
 
+---
 
 ### Vector Fields
 
@@ -407,7 +408,7 @@ Functions that handle the filling of shapes and areas.
 
 ---
 
-### Hatching Operations
+### Hatch Operations
 
 Procedures for applying hatching patterns to areas.
 
