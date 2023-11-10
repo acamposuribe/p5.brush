@@ -792,6 +792,20 @@
  */
 
     /**
+     * Adjusts the global scale of brush parameters based on the provided scale factor.
+     * This affects the weight, vibration, and spacing of each standard brush.
+     * 
+     * @param {number} _scale - The scaling factor to apply to the brush parameters.
+     * EXPORTED
+     */
+    function globalScale(_scale) {
+        for (let s of _standard_brushes) {
+            let params = B.list.get(s[0]).param
+            params.weight *= _scale, params.vibration *= _scale, params.spacing *= _scale;
+        }
+    }
+
+    /**
      * Disables the stroke for subsequent drawing operations.
      * This function sets the brush's `isActive` property to false, indicating that no stroke
      * should be applied to the shapes drawn after this method is called.
@@ -890,6 +904,14 @@
          */
         clip(clippingRegion) {
             B.cr = clippingRegion;
+        },
+
+        /**
+         * Disables clipping region.
+         * EXPORTED
+         */
+        noClip() {
+            B.cr = null;
         },
 
         /**
@@ -2218,19 +2240,6 @@
     for (let s of _standard_brushes) {
         B.add(s[0],s[1])
     }
-    /**
-     * Adjusts the global scale of brush parameters based on the provided scale factor.
-     * This affects the weight, vibration, and spacing of each standard brush.
-     * 
-     * @param {number} _scale - The scaling factor to apply to the brush parameters.
-     * EXPORTED
-     */
-    function globalScale(_scale) {
-        for (let s of _standard_brushes) {
-            let params = B.list.get(s[0]).param
-            params.weight *= _scale, params.vibration *= _scale, params.spacing *= _scale;
-        }
-    }
 
 // =============================================================================
 // Section: Exports
@@ -2261,7 +2270,8 @@ exports.box = listOfBrushes;                   // Retrieves an array with existi
 exports.set = B.set;                     // Sets values for all properties of a brush.
 exports.pick = B.setBrush;               // Selects a brush to use.
 exports.clip = B.clip;                   // Clips brushes with a rectangle.
-exports.tip = drawTip;                   // Clips brushes with a rectangle.
+exports.noClip = B.noClip; 
+exports.tip = drawTip;                   // Draw tip of the brush with a custom pressure
 
 // STROKE Properties
 exports.stroke = B.setColor;             // Sets the stroke color.
@@ -2287,7 +2297,7 @@ exports.vertex = _vertex;                // Records a vertex for a custom shape.
 exports.endShape = _endShape;            // Finishes recording vertices and draws the shape.
 // HandStroke - simulates a hand-drawn stroke
 exports.beginStroke = _beginStroke;      // Begins a hand-drawn stroke.
-exports.move = _move;                    // Moves to a specified point in the hand-drawn stroke.
+exports.nextStroke = _move;                    // Moves to a specified point in the hand-drawn stroke.
 exports.endStroke = _endStroke;          // Ends a hand-drawn stroke.
 
 // HATCHING Operations
@@ -2296,6 +2306,6 @@ exports.hatch = B.hatch;                 // Function to create hatched patterns 
 // Classes Exposed
 exports.Polygon = Polygon;               // The Polygon class, used for creating and manipulating polygons.
 exports.Plot = Plot;                     // The Plot class, for plotting curves.
-exports.Pos = Position;                  // The Position class, for managing positions on the canvas.
+exports.Position = Position;                  // The Position class, for managing positions on the canvas.
 
 })));
