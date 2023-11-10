@@ -115,11 +115,14 @@ p5.brush.js provides a comprehensive API for creating complex drawings and effec
 | Advanced Functions | brush.tip()         |
 
 
+
 ### Vector Fields
 
 Vector Fields allow for dynamic control over brush stroke behavior, enabling the creation of complex and fluid motion within sketches.
 
+
  #### Basic vector-field functions
+
  
 - `brush.field(name)`
   - **Description**: Activates a named vector field. When a vector field is active, it influences the flow and direction of the brush strokes for shapes drawn thereafter. It is important to note that certain shapes may be exempt from this influence; such exceptions will be clearly documented in the API for each specific geometry.
@@ -136,6 +139,7 @@ Vector Fields allow for dynamic control over brush stroke behavior, enabling the
     ```
     Once a vector field is activated, it affects how the subsequent shapes are drawn, aligning them with its directional flow, unless stated otherwise in the documentation
 
+
 - `brush.noField()`
   - **Description**: Deactivates the currently active vector field, returning the drawing behavior to its default state where shapes are not influenced by any vector field. Any shapes drawn after this function call will not be affected by the previously active vector field.
   - **Usage**:
@@ -144,6 +148,7 @@ Vector Fields allow for dynamic control over brush stroke behavior, enabling the
     brush.noField();
     ```
     Use this function when you want to draw shapes that are unaffected by the directional flow of any vector field, effectively resetting the drawing behavior to its original state.
+
 
 - `brush.refreshField(time)`
   - **Description**: Updates the current vector field values using its time-dependent generator function. Ideal for animations that require the vector field to change over time, influencing the movement of strokes and shapes in a natural way.
@@ -159,6 +164,7 @@ Vector Fields allow for dynamic control over brush stroke behavior, enabling the
     ```
     This function will invoke the generator function of the active vector field with the provided time argument, allowing the field to evolve and create fluid, dynamic animations in the rendering.
 
+
 - `brush.listFields()`
   - **Description**: Retrieves an iterator containing the names of all the available vector fields within the system. This includes both the default fields provided by the library and any custom fields that have been added using `brush.addField()`.
   - **Returns**: `Iterator<string>` - An iterator that yields the names of the vector fields.
@@ -172,8 +178,10 @@ Vector Fields allow for dynamic control over brush stroke behavior, enabling the
     }
     ```
     Use `brush.listFields()` to access the names of all existing vector fields, which can then be used to activate or modify fields as needed.
+
  
  #### Advanced vector-field functions
+
  
 - `brush.addField(name, generatorFunction)`
   - **Description**: Adds a custom vector field to the list of available fields. This advanced function requires a unique name for the field and a generator function that defines the behavior of the vector field over time.
@@ -199,9 +207,11 @@ Vector Fields allow for dynamic control over brush stroke behavior, enabling the
     This `generatorFunction` uses sinusoidal functions to create a time-varying wave pattern within the vector field. Each cell's angle is calculated and assigned, resulting in a dynamic field that can be used to influence brush strokes.
 
 
+
 ### Brush Management
 
 Functions for managing brush behaviors and properties.
+
 
 - `brush.scale(_scale)`
   - **Description**: Adjusts the global scale of all standard brush parameters, including weight, vibration, and spacing, based on the given scaling factor. This function is specifically designed to affect dafault brushes, allowing for uniform scaling across various brush types.
@@ -229,6 +239,73 @@ Functions for managing brush behaviors and properties.
     `brush.box()` allows you to explore and select from the various brushes, facilitating the choice of the appropriate brush for different artistic needs.
 
 
+- `brush.add(name, params)`
+  - **Description**: Adds a new brush to the brush list with specified parameters, defining the brush's behavior and appearance. This function allows for extensive customization, enabling the creation of unique brush types suited to various artistic needs.
+  - **Parameters**:
+    - `name` (String): A unique identifier for the brush.
+    - `params` (BrushParameters): An object containing the parameters for the brush. The parameters include:
+      - `type`: (`standard` | `spray` | `marker` | `custom` | `image`) The tip type. 
+      - `weight`: Base size of the brush tip, in canvas units.
+      - `vibration`: Vibration of the lines, affecting spread, in canvas units.
+      - `definition`: (Number from 0-1) Between 0 and 1, defining clarity. Unnecessary for custom, marker, and image type brushes.
+      - `quality`: Higher values lead to a more continuous line. Unnecessary for custom, marker, and image type brushes.
+      - `opacity`: (Number from 0-255) Base opacity of the brush (affected by pressure).
+      - `spacing`: Spacing between points in the brush stroke, in canvas units.
+      - `blend`: (Boolean) Enables or disables realistic color mixing (default true for marker, custom, and image brushes).
+      - `pressure`: An object or function defining the pressure sensitivity.
+         - `type` : 'standard" or 'custom". Use standard for simple gauss bell curves. Use 'custom' for custom pressure curves.
+         - `min_max`: (Array [min, max]) Define min and max pressure (reverse for inverted presure).
+         - `curve`: function or array.
+            - Standard pressure: [a, b] - If 'standard' pressure curve, pick a and b values for the gauss curve. a is max horizontal mvt of the bell, b changes the slope.
+            - Custom pressure: (x) => function - If 'custom' pressure curve, define the curve function with a curve equation receiving values from 0 to 1, returning values from 0 to 1. Use https://mycurvefit.com/
+      - `tip`: (For custom types) A function defining the geometry of the brush tip. Remove if unnecessary.
+      - `image`: (For image types) The url path to your image, which MUST be in the same baseURL. Remove if unnecessary.
+      - `rotate`: (`none` | `natural` | `random`) Defines the tip angle rotation.
+  - **Usage**:
+    ```javascript
+    // You create an image brush like this:
+    brush.add("watercolor", {
+        type: "image",
+        weight: 10,
+        vibration: 2,
+        opacity: 30,
+        spacing: 1.5,
+        blend: true,
+        pressure: {
+            type: "custom",
+            min_max: [0.5,1.2],
+            // This means that the pressure will change in a linear distribution through the whole length of the line. Minimum pressure at the start, maximum pressure at the end.
+            curve: (x) => 1-x
+        },
+        image: {
+            src: "./brush_tips/brush.jpg",
+        },
+        rotate: "random",
+    })
+    
+    // You create a custom tip brush like this:
+    brush.add("watercolor", {
+        type: "custom",
+        weight: 5,
+        vibration: 0.08,
+        opacity: 23,
+        spacing: 0.6,
+        blend: true,
+        pressure: {
+            type: "custom",
+            min_max: [1.35,1],
+            curve: [0.35,0.25] // Values for the bell curve
+        },
+        tip: () => {
+           // in this example, the tip is composed of two squares, rotated 45 degrees
+           // Always execute drawing functions within the B.mask buffer!
+           B.mask.rotate(45), B.mask.rect(-1.5,-1.5,3,3), B.mask.rect(1,1,1,1);
+        }
+        rotate: "natural",
+    })
+    ```
+    By using `brush.add()`, you can expand your brush collection with custom brushes tailored to specific artistic effects and styles.
+
 
 - `brush.clip(clippingRegion)`
   - **Description**: Sets a rectangular clipping region for all subsequent brush strokes. When this clipping region is active, brush strokes outside this area will not be rendered. This is particularly useful for ensuring that strokes, such as lines and curves, are contained within a specified area. The clipping affects only stroke and hatch operations, not fill operations. The clipping remains in effect for all strokes drawn after the call to `brush.clip()` until `brush.noClip()` is used.
@@ -246,6 +323,7 @@ Functions for managing brush behaviors and properties.
     // Draw another line - it will not be clipped
     brush.line(0, 0, 200, 300);
     ```
+
 
 - `brush.noClip()`
   - **Description**: Disables the current clipping region, allowing subsequent brush strokes to be drawn across the entire canvas without being clipped. Use this function to revert to the default state where strokes are unrestricted.
