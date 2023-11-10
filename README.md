@@ -29,7 +29,7 @@ To set up your project, add both `p5.brush.js` and `Spectral.js` to your HTML fi
 
 ```html
 <!-- Commented version of p5.brush.js, with a Spectral.js dependency -->
-<script src="path_to/spectral.js"></script>
+<script src="path_to/spectral.min.js"></script>
 <script src="path_to/p5.brush.js"></script>
 ```
 Replace path_to with the actual path to the minified script in your project directory or the URL if you are using a CDN.
