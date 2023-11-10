@@ -404,17 +404,133 @@ Stroke Operations encompass methods for manipulating and applying brushes to str
 
 ### Fill Operations
 
-Functions that handle the filling of shapes and areas.
+The Fill Management section focuses on managing fill properties for shapes, enabling complex fill operations with effects like bleeding to simulate watercolor-like textures. These methods set fill colors with opacity, control bleed intensity, and manage fill operations. The watercolor fill effect is inspired by Tyler Hobbs' generative art techniques.
 
-*(Insert Fill Operations related functions here)*
+- `brush.fill(a, b, c, d)` or `brush.fill(color, opacity)`
+  - **Description**: Sets the fill color and opacity for subsequent shapes, activating fill mode. This function can accept either RGB color components with opacity or a CSS color string/p5.Color object with an optional opacity.
+  - **Parameters**:
+    - `a` (Number|String|p5.Color): The red component of the color or grayscale value, a CSS color string, or a p5.Color object.
+    - `b` (Number): Optional. The green component of the color or grayscale opacity if two arguments are used.
+    - `c` (Number): Optional. The blue component of the color.
+    - `d` (Number): Optional. The opacity of the color.
+  - **Usage**:
+    ```javascript
+    // Set the fill color using RGB values and opacity
+    brush.fill(244, 15, 24, 75);
+    // Or set the fill color using a HEX string and opacity
+    brush.fill("#002185", 110);
+    ```
+    `brush.fill()` allows for detailed control over the color and transparency of the fill.
 
 ---
 
-### Hatch Operations
+- `brush.noFill()`
+  - **Description**: Disables the fill for subsequent drawing operations. Useful for creating shapes or lines without a fill.
+  - **Usage**:
+    ```javascript
+    // Disable fill for the upcoming shapes
+    brush.noFill();
+    ```
 
-Procedures for applying hatching patterns to areas.
+---
 
-*(Insert Hatching Operations related functions here)*
+- `brush.bleed(_i, _texture)`
+  - **Description**: Adjusts the bleed and texture levels for the fill operation, mimicking the behavior of watercolor paints. This function adds a natural and organic feel to digital artwork.
+  - **Parameters**:
+    - `_i` (Number): The intensity of the bleed effect, capped at 0.5.
+    - `_texture` (Number): The texture level of the watercolor effect, ranging from 0 to 1.
+  - **Usage**:
+    ```javascript
+    // Set the bleed intensity and texture for a watercolor effect
+    brush.bleed(0.3, 0.7);
+    ```
+
+---
+
+- `brush.fillAnimatedMode(mode)`
+  - **Description**: Toggles certain operations on or off to ensure a consistent bleed effect for animations, especially useful at varying bleed levels.
+  - **Parameters**:
+    - `mode` (Boolean): Set to `true` to enable animated mode, `false` to disable.
+  - **Usage**:
+    ```javascript
+    // Enable animated mode for consistent bleed effects in animations
+    brush.fillAnimatedMode(true);
+    ```
+    `brush.fillAnimatedMode()` is valuable for animators and artists working on dynamic projects, where maintaining consistent fill effects across frames is crucial.
+
+---
+
+### Hatching Operations
+
+The Hatching section focuses on creating and drawing hatching patterns, which involves drawing closely spaced parallel lines. These functions offer control over the hatching style and application.
+
+- `brush.hatch(dist, angle, options)`
+  - **Description**: Activates hatching with specified parameters for subsequent geometries. This function enables the drawing of hatching patterns with controlled line spacing, angle, and additional stylistic options.
+  - **Parameters**:
+    - `dist` (Number): The distance between hatching lines, in canvas units.
+    - `angle` (Number): The angle at which hatching lines are drawn. The angle mode (degrees or radians) is set by p5's `angleMode()`.
+    - `options` (Object): Optional settings to affect the hatching style, including:
+      - `rand`: Randomness in line placement (0 to 1 or false).
+      - `continuous`: Whether to connect the end of a line with the start of the next.
+      - `gradient`: Modifies the distance between lines to create a gradient effect (0 to 1 or false).
+      - Defaults to `{rand: false, continuous: false, gradient: false}`.
+  - **Usage**:
+    ```javascript
+    // Set hatching with specific distance, angle, and options
+    brush.hatch(5, 30, {rand: 0.1, continuous: true, gradient: 0.3});
+    ```
+
+---
+
+- `brush.noHatch()`
+  - **Description**: Disables hatching for subsequent shapes. Use this function to return to normal drawing modes without hatching.
+  - **Usage**:
+    ```javascript
+    // Disable hatching for upcoming shapes
+    brush.noHatch();
+    ```
+
+---
+
+- `brush.setHatch(brushName, color, weight)`
+  - **Description**: Sets the brush type, color, and weight specifically for hatching. If not called, hatching will use the parameters defined by the current stroke settings.
+  - **Parameters**:
+    - `brushName` (String): The name of the brush to use for hatching.
+    - `color` (String|p5.Color): The color for the brush, either as a CSS string or a p5.Color object.
+    - `weight` (Number): The weight or size of the brush for hatching.
+  - **Usage**:
+    ```javascript
+    // Set the hatching brush to "rotring" with green color and specific weight
+    brush.setHatch("rotring", "green", 1.3);
+    ```
+
+---
+In essence, the hatching system activates hatches for subsequent shapes, similarly to stroke and fill operations. However, you can also directly hatch multiple objects at ones (and their intersections), if you proceed as described below
+.
+
+- `brush.hatchArray(polygons)`
+  - **Description**: Creates a hatching pattern across specified polygons. This function applies the set hatching parameters to a single polygon or an array of polygons.
+  - **Parameters**:
+    - `polygons` (Array|Object): The polygon(s) to apply the hatching. Can be a single polygon object or an array of polygon objects.
+  - **Note**: This is not the main, but an alternative way of applying hatches. Read above.
+  - **Usage**:
+    ```javascript
+    // Define an array of polygons (reference in the classes section)
+    let myPolygons = []
+    for (let i = 0; i < 10; i++) {
+       // We're creating 10 random triangles here
+    			let p = new brush.Polygon([
+          [random(width), random(height)],
+          [random(width), random(height)],
+          [random(width), random(height)],  
+       ])
+       myPolygons.push(p)
+    }
+    // Create hatching across specified polygons
+    brush.hatchArray(myPolygons);
+    ```
+    `brush.hatchArray()` provides an efficient way to apply complex hatching patterns to a set of defined shapes.
+
 
 ---
 
@@ -476,10 +592,9 @@ This section covers functions for initializing the drawing system, preloading re
 
 Classes that are exposed for creating and manipulating objects.
 
-- `Position`
-  - Represents a point within a two-dimensional space which can interact with a vector field.
-
-*(Insert other Exposed Classes here)*
+- brush.Polygon
+- brush.Plot
+- brush.Position
 
 
 
