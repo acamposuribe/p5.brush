@@ -22,22 +22,14 @@ const C = {
     }
 };
 // SET CANVAS SIZE: width, height, pixelDensity, html_id for the canvas
+// Here I'm working with mm units, so I want a big pixelDensity for high-res.
 C.setSize(250,280,10,'mainCanvas')
 
 function windowResized () {
     C.resize();
 }
 
-let palette = ["#7b4800", "#002185", "#003c32", "#fcd300", "#ff2702", "#6b9404"]
 
-
-//////////////////////////////////////////////////
-// p5.brush
-
-// YOU CAN SEED THE BRUSHBOX RANDOM NUMBER GENERATOR for determinism
-brush.config({
-    R: function () { return random() },
-})
 
 
 // YOU CAN CREATE YOU OWN BRUSHES
@@ -77,6 +69,9 @@ function preload() {
     brush.preload();
 }
 
+
+let palette = ["#7b4800", "#002185", "#003c32", "#fcd300", "#ff2702", "#6b9404"]
+
 function setup () {
 
     C.createCanvas()
@@ -86,14 +81,14 @@ function setup () {
     translate(-width/2,-height/2)
 
     // STANDARD PALETTE TEST
-    /*
+    
     let i = 0
     for (let b of brush.box()) {
             brush.set(b,random(palette),1)
             brush.line(30,30+i*10,220,30+i*10)
         i++
     }
-    */
+    
 
     /*
     
@@ -212,7 +207,7 @@ function setup () {
     brush.fill("#002185",120)
     brush.circle(150,100,50)
 
-    */
+    
 
     
     brush.set("2B","#9c2128",1)
@@ -237,6 +232,8 @@ function setup () {
             brush.rect(20 + col_size * j, 20 + row_size * i, col_size, row_size)
         }
     }
+
+    */
 
 }
 

@@ -948,7 +948,7 @@
         },
 
         /**
-         * Draws a shape with a flowing brush stroke.
+         * Draws a predefined shape/plot with a flowing brush stroke.
          * @param {Object} p - An object representing the shape to draw.
          * @param {number} x - The x-coordinate of the starting position to draw the shape.
          * @param {number} y - The y-coordinate of the starting position to draw the shape.
@@ -1571,7 +1571,7 @@
      * @param {number} y - The y-coordinate of the rectangle.
      * @param {number} w - The width of the rectangle.
      * @param {number} h - The height of the rectangle.
-     * @param {boolean} [mode=CORNER] - If true, the rectangle is drawn centered at (x, y).
+     * @param {boolean} [mode=CORNER] - If CENTER, the rectangle is drawn centered at (x, y).
      */
     function drawRectangle(x,y,w,h,mode = CORNER) {
         _ensureReady();
@@ -1843,7 +1843,7 @@
 
     /**
      * Starts recording vertices for a custom shape. Optionally, a curvature can be defined.
-     * @param {number} [curvature] - Defines the curvature for the vertices being recorded (optional).
+     * @param {number} [curvature] - From 0 to 1. Defines the curvature for the vertices being recorded (optional).
      * EXPORTED
      */
     function _beginShape(curvature) {
@@ -1864,7 +1864,7 @@
 
     /**
      * Finishes recording vertices for a custom shape and either closes it or leaves it open.
-     * It also triggers the drawing of the shape if the brush state is active.
+     * It also triggers the drawing of the shape with the active stroke(), fill() and hatch() states.
      * @param {string} [a] - An optional argument to close the shape if set to CLOSE.
      */
     function _endShape(a) {
@@ -1903,7 +1903,7 @@
      * @param {number} length - The length of the segment.
      * @param {number} pressure - The pressure at the start of the segment, affecting properties like width.
      */
-    function _move(angle, length, pressure) {
+    function _segment(angle, length, pressure) {
         _strokeArray.addSegment(angle, length, pressure); // Add the new segment to the Plot
     }
 
@@ -2370,7 +2370,7 @@
     // GEOMETRY Drawing Functions
     exports.line = B.line;                   // Draws a line.
     exports.flowLine = B.flowLine;           // Draws a line that follows the vector field.
-    exports.flowShape = B.flowShape;         // Draws a shape that follows the vector field.
+    exports.plot = B.flowShape;         // Draws a shape that follows the vector field.
     exports.rect = drawRectangle;                    // Draws a rectangle.
     exports.circle = drawCircle;                // Draws a circle.
     exports.polygon = drawPolygon;              // Draws a polygon.
@@ -2381,7 +2381,7 @@
     exports.endShape = _endShape;            // Finishes recording vertices and draws the shape.
     // HandStroke - simulates a hand-drawn stroke
     exports.beginStroke = _beginStroke;      // Begins a hand-drawn stroke.
-    exports.nextStroke = _move;                    // Moves to a specified point in the hand-drawn stroke.
+    exports.segment = _segment;                    // Moves to a specified point in the hand-drawn stroke.
     exports.endStroke = _endStroke;          // Ends a hand-drawn stroke.
 
     // HATCHING Operations
