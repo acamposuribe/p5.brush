@@ -193,7 +193,7 @@ Vector Fields allow for dynamic control over brush stroke behavior, enabling the
     This `generatorFunction` uses sinusoidal functions to create a time-varying wave pattern within the vector field. Each cell's angle is calculated and assigned, resulting in a dynamic field that can be used to influence brush strokes.
 
 ---
-
+<sub>[back to table](#table-of-contents)</sub>
 ### Brush Management
 
 Functions for managing brush behaviors and properties.
@@ -325,7 +325,7 @@ Functions for managing brush behaviors and properties.
     ```
 
 ---
-    
+<sub>[back to table](#table-of-contents)</sub>
 ### Stroke Operations
 
 Stroke Operations encompass methods for manipulating and applying brushes to strokes (aka lines), providing artists with precise control over their brushwork.
@@ -401,7 +401,7 @@ Stroke Operations encompass methods for manipulating and applying brushes to str
     `brush.strokeWeight()` provides the flexibility to easily adjust the thickness of your brush strokes, enhancing the expressiveness of your drawing tools.
 
 ---
-
+<sub>[back to table](#table-of-contents)</sub>
 ### Fill Operations
 
 The Fill Management section focuses on managing fill properties for shapes, enabling complex fill operations with effects like bleeding to simulate watercolor-like textures. These methods set fill colors with opacity, control bleed intensity, and manage fill operations. The watercolor fill effect is inspired by Tyler Hobbs' generative art techniques.
@@ -459,7 +459,7 @@ The Fill Management section focuses on managing fill properties for shapes, enab
     `brush.fillAnimatedMode()` is valuable for animators and artists working on dynamic projects, where maintaining consistent fill effects across frames is crucial.
 
 ---
-
+<sub>[back to table](#table-of-contents)</sub>
 ### Hatching Operations
 
 The Hatching section focuses on creating and drawing hatching patterns, which involves drawing closely spaced parallel lines. These functions offer control over the hatching style and application.
@@ -533,7 +533,7 @@ In essence, the hatching system activates hatches for subsequent shapes, similar
 
 
 ---
-
+<sub>[back to table](#table-of-contents)</sub>
 ### Geometry
 
 Tools for creating and manipulating geometric shapes.
@@ -541,7 +541,7 @@ Tools for creating and manipulating geometric shapes.
 *(Insert Geometry related functions here)*
 
 ---
-
+<sub>[back to table](#table-of-contents)</sub>
 ### Optional: Configuration
 
 This section covers functions for initializing the drawing system, preloading required assets, and configuring system behavior. By default, the library works without executing these functions, but you might want to configure them to your liking.
@@ -587,7 +587,7 @@ This section covers functions for initializing the drawing system, preloading re
     - `bool` (boolean): Set to true to enable caching, or false to disable it.
 
 ---
-
+<sub>[back to table](#table-of-contents)</sub>
 ### Exposed Classes
 
 Classes that are exposed for creating and manipulating objects.
