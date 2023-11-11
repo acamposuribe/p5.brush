@@ -822,6 +822,8 @@ This section covers functions for initializing the drawing system, preloading re
 
 Exposed Classes provide foundational elements for creating and manipulating shapes and paths, as well as interacting with vector-fields in a more advanced manner.
 
+---
+
 #### Class: `brush.Polygon`
 
 - **Description**: Represents a polygon defined by a set of vertices. The `Polygon` class is essential for creating and working with multi-sided shapes, offering various methods to manipulate and render these shapes.
@@ -847,6 +849,7 @@ Exposed Classes provide foundational elements for creating and manipulating shap
   - `.vertices`: An array of the polygon's vertices, each vertex being an object with `x` and `y` properties.
   - `.sides`: An array representing the different segments that make up the polygon.
 
+---
 
 #### Class: `brush.Plot`
 
@@ -901,6 +904,8 @@ Exposed Classes provide foundational elements for creating and manipulating shap
   - `.type`: The type of the plot, either "curve" or "segments".
   - `.pol`: Stores the generated polygon object after executing the `.genPol()` method.
 
+---
+
 #### Class: `brush.Position`
 
 - **Description**: The `Position` class represents a point within a two-dimensional space, capable of interacting with a vector field. It includes methods for updating the position based on the field's flow, allowing for movement through the vector field in various ways.
@@ -941,7 +946,7 @@ Exposed Classes provide foundational elements for creating and manipulating shap
 We welcome contributions from the community. If you find a bug or have a feature request, please open an issue on Github.
 
 ## License
-Spectral.js is released under the MIT License. See the LICENSE file for details.
+p5.brush.js is released under the MIT License. See the LICENSE file for details.
 
 ## Acknowledgements
 - The fill() operations followed the steps explained by Tyler Hobbs [here](https://tylerxhobbs.com/essays/2017/a-generative-approach-to-simulating-watercolor-paints)https://tylerxhobbs.com/essays/2017/a-generative-approach-to-simulating-watercolor-paints
