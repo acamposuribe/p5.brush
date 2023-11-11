@@ -74,27 +74,27 @@ p5.brush.js provides a comprehensive API for creating complex drawings and effec
 
 |      Section                            |      Functions      |   | Section                                    |      Functions      |
 |-----------------------------------------|---------------------|---|--------------------------------------------|---------------------|
-| [Vector-Fields](#vector-fields)         | brush.field()       |   | [Geometry](#geometry)                      | brush.line()        |   
-|                                         | brush.noField()     |   |                                            | brush.flowLine()    |   
-|                                         | brush.refreshField()|   |                                            | brush.beginStroke() |   
-|                                         | brush.listFields()  |   |                                            | brush.segment()     |   
-|                                         | brush.addField()    |   |                                            | brush.endStroke()   |   
-| [Brush Management](#brush-management)   | brush.scale()       |   |                                            | brush.spline()      |   
-|                                         | brush.box()         |   |                                            | brush.plot()        |   
-|                                         | brush.add()         |   |                                            | brush.rect()        |   
-|                                         | brush.clip()        |   |                                            | brush.circle()      |   
-|                                         | brush.noClip()      |   |                                            | brush.beginShape()  |   
-| [Stroke Operations](#stroke-operations) | brush.set()         |   |                                            | brush.vertex()      |
-|                                         | brush.pick()        |   |                                            | brush.endShape()    |
-|                                         | brush.stroke()      |   |                                            | brush.polygon()     |
-|                                         | brush.noStroke()    |   | [Configuration](#optional-configuration)   | brush.config()      |
-|                                         | brush.strokeWeight()|   |                                            | brush.load()        |
-| [Fill Operations](#fill-operations)     | brush.fill()        |   |                                            | brush.preload()     |
-|                                         | brush.noFill()      |   |                                            | brush.colorCache()  | 
-|                                         | brush.bleed()       |   | [Classes](#exposed-classes)                | brush.Polygon()     |
-| [Hatch Operations](#hatch-operations)   | brush.hatch()       |   |                                            | brush.Plot()        |
-|                                         | brush.noHatch()     |   |                                            | brush.Position()    |
-|                                         | brush.setHatch()    |   | [Advanced Functions](#advanced-functions)  | brush.tip()         |
+| [Vector-Fields](#vector-fields)         | brush.field()       |   | [Geometry](#geometry)                      | brush.point()       |   
+|                                         | brush.noField()     |   |                                            | brush.line()        |   
+|                                         | brush.refreshField()|   |                                            | brush.flowLine()    |   
+|                                         | brush.listFields()  |   |                                            | brush.beginStroke() |   
+|                                         | brush.addField()    |   |                                            | brush.segment()     |   
+| [Brush Management](#brush-management)   | brush.scale()       |   |                                            | brush.endStroke()   |   
+|                                         | brush.box()         |   |                                            | brush.spline()      |   
+|                                         | brush.add()         |   |                                            | brush.plot()        |   
+|                                         | brush.clip()        |   |                                            | brush.rect()        |   
+|                                         | brush.noClip()      |   |                                            | brush.circle()      |   
+| [Stroke Operations](#stroke-operations) | brush.set()         |   |                                            | brush.beginShape()  |
+|                                         | brush.pick()        |   |                                            | brush.vertex()      |
+|                                         | brush.stroke()      |   |                                            | brush.endShape()    |
+|                                         | brush.noStroke()    |   |                                            | brush.polygon()     |
+|                                         | brush.strokeWeight()|   |  [Configuration](#optional-configuration)  | brush.config()      |
+| [Fill Operations](#fill-operations)     | brush.fill()        |   |                                            | brush.load()        |
+|                                         | brush.noFill()      |   |                                            | brush.preload()     | 
+|                                         | brush.bleed()       |   |                                            | brush.colorCache()  |
+| [Hatch Operations](#hatch-operations)   | brush.hatch()       |   | [Classes](#exposed-classes)                | brush.Polygon()     |
+|                                         | brush.noHatch()     |   |                                            | brush.Plot()        |
+|                                         | brush.setHatch()    |   |                                            | brush.Position()    |
 
 ---
 
@@ -558,6 +558,14 @@ The following functions are only affected by stroke() operations, completely ign
 
 ---
 
+- `brush.point(x,y)`
+  - **Description**: Tips the brush into the canvas, with current stroke() state. This might be useful for creating textures or particle systems, but at that point you rather create your own set of functions, since you won't be using 99% of the library
+  - **Parameters**:
+    - `x` (Number): The x-coordinate of the point.
+    - `y` (Number): The y-coordinate of the point.
+
+---
+
 - `brush.line(x1, y1, x2, y2)`
   - **Description**: Draws a line from one point to another using the current brush settings. This function is affected only by stroke operations and will not produce any drawing if `noStroke()` has been called.
   - **Parameters**:
@@ -892,6 +900,39 @@ Exposed Classes provide foundational elements for creating and manipulating shap
   - `.press`: An array with custom brush pressures at the various control points.
   - `.type`: The type of the plot, either "curve" or "segments".
   - `.pol`: Stores the generated polygon object after executing the `.genPol()` method.
+
+#### Class: `brush.Position`
+
+- **Description**: The `Position` class represents a point within a two-dimensional space, capable of interacting with a vector field. It includes methods for updating the position based on the field's flow, allowing for movement through the vector field in various ways.
+
+- **Constructor**:
+  - `brush.Position(x, y)`
+    - `x` (Number): The initial x-coordinate.
+    - `y` (Number): The initial y-coordinate.
+
+- **Methods**:
+  - `.moveTo(_length, _dir, _step_length, isFlow)`
+    - Moves the position along the flow field by a specified length.
+    - Parameters:
+      - `_length` (Number): The length to move along the field.
+      - `_dir` (Number): The direction of movement, with angles measured anticlockwise from the x-axis.
+      - `_step_length` (Number): The length of each step.
+      - `isFlow` (Boolean): Whether to use the flow field for movement.
+  - `.plotTo(_plot, _length, _step_length, _scale)`
+    - Plots a point to another position within the flow field, following a given `Plot` object.
+    - Parameters:
+      - `_plot` (Position): The `Plot` path object.
+      - `_length` (Number): The length to move towards the target position.
+      - `_step_length` (Number): The length of each step.
+      - `_scale` (Number): The scaling factor for the plotting path.
+  - `.reset()`
+    - Resets the `plotted` property to 0. This property tracks the distance moved since the last reset or the creation of the position. Important for consecutive different `Plot` paths.
+
+- **Attributes**:
+  - `.x`: The current x-coordinate.
+  - `.y`: The current y-coordinate.
+  - `.plotted`: Stores the distance moved since the last reset or the creation of the position.
+
 
 ## Examples
 - examples here
