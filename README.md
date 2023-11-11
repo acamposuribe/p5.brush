@@ -70,23 +70,23 @@ With p5.brush.js, your digital canvas becomes a playground for innovation and ex
 
 p5.brush.js provides a comprehensive API for creating complex drawings and effects. Below are the categorized functions and classes available in the library.
 
-### Table of Contents
+### Table of Functions
 
-|      Section                            |      Functions      |   | Section                                    |      Functions      |   |
-|-----------------------------------------|---------------------|---|--------------------------------------------|---------------------|---|
-| [Vector-Fields](#vector-fields)         | brush.field()       |   | [Geometry](#geometry)                      | brush.line()        |   |
-|                                         | brush.noField()     |   |                                            | brush.flowLine()    |   |
-|                                         | brush.refreshField()|   |                                            | brush.flowShape()   |   |
-|                                         | brush.listFields()  |   |                                            | brush.rect()        |   |
-|                                         | brush.addField()    |   |                                            | brush.circle()      |   |
-| [Brush Management](#brush-management)   | brush.scale()       |   |                                            | brush.polygon()     |   |
-|                                         | brush.box()         |   |                                            | brush.spline()      |   |
-|                                         | brush.add()         |   |                                            | brush.beginShape()  |   |
-|                                         | brush.clip()        |   |                                            | brush.vertex()      |   |
-|                                         | brush.noClip()      |   |                                            | brush.endShape()    |   |
-| [Stroke Operations](#stroke-operations) | brush.set()         |   |                                            | brush.beginStroke() |   |
-|                                         | brush.pick()        |   |                                            | brush.nextStroke()  |   |
-|                                         | brush.stroke()      |   |                                            | brush.endStroke()   |   |
+|      Section                            |      Functions      |   | Section                                    |      Functions      |
+|-----------------------------------------|---------------------|---|--------------------------------------------|---------------------|
+| [Vector-Fields](#vector-fields)         | brush.field()       |   | [Geometry](#geometry)                      | brush.line()        |   
+|                                         | brush.noField()     |   |                                            | brush.flowLine()    |   
+|                                         | brush.refreshField()|   |                                            | brush.beginStroke() |   
+|                                         | brush.listFields()  |   |                                            | brush.segment()     |   
+|                                         | brush.addField()    |   |                                            | brush.endStroke()   |   
+| [Brush Management](#brush-management)   | brush.scale()       |   |                                            | brush.spline()      |   
+|                                         | brush.box()         |   |                                            | brush.plot()        |   
+|                                         | brush.add()         |   |                                            | brush.rect()        |   
+|                                         | brush.clip()        |   |                                            | brush.circle()      |   
+|                                         | brush.noClip()      |   |                                            | brush.beginShape()  |   
+| [Stroke Operations](#stroke-operations) | brush.set()         |   |                                            | brush.vertex()      |
+|                                         | brush.pick()        |   |                                            | brush.endShape()    |
+|                                         | brush.stroke()      |   |                                            | brush.polygon()     |
 |                                         | brush.noStroke()    |   | [Configuration](#optional-configuration)   | brush.config()      |
 |                                         | brush.strokeWeight()|   |                                            | brush.load()        |
 | [Fill Operations](#fill-operations)     | brush.fill()        |   |                                            | brush.preload()     |
@@ -98,6 +98,7 @@ p5.brush.js provides a comprehensive API for creating complex drawings and effec
 
 ---
 
+<sub>[back to table](#table-of-functions)</sub>
 ### Vector Fields
 
 Vector Fields allow for dynamic control over brush stroke behavior, enabling the creation of complex and fluid motion within sketches.
@@ -193,7 +194,8 @@ Vector Fields allow for dynamic control over brush stroke behavior, enabling the
     This `generatorFunction` uses sinusoidal functions to create a time-varying wave pattern within the vector field. Each cell's angle is calculated and assigned, resulting in a dynamic field that can be used to influence brush strokes.
 
 ---
-<sub>[back to table](#table-of-contents)</sub>
+
+<sub>[back to table](#table-of-functions)</sub>
 ### Brush Management
 
 Functions for managing brush behaviors and properties.
@@ -325,7 +327,8 @@ Functions for managing brush behaviors and properties.
     ```
 
 ---
-<sub>[back to table](#table-of-contents)</sub>
+
+<sub>[back to table](#table-of-functions)</sub>
 ### Stroke Operations
 
 Stroke Operations encompass methods for manipulating and applying brushes to strokes (aka lines), providing artists with precise control over their brushwork.
@@ -401,7 +404,8 @@ Stroke Operations encompass methods for manipulating and applying brushes to str
     `brush.strokeWeight()` provides the flexibility to easily adjust the thickness of your brush strokes, enhancing the expressiveness of your drawing tools.
 
 ---
-<sub>[back to table](#table-of-contents)</sub>
+
+<sub>[back to table](#table-of-functions)</sub>
 ### Fill Operations
 
 The Fill Management section focuses on managing fill properties for shapes, enabling complex fill operations with effects like bleeding to simulate watercolor-like textures. These methods set fill colors with opacity, control bleed intensity, and manage fill operations. The watercolor fill effect is inspired by Tyler Hobbs' generative art techniques.
@@ -459,7 +463,8 @@ The Fill Management section focuses on managing fill properties for shapes, enab
     `brush.fillAnimatedMode()` is valuable for animators and artists working on dynamic projects, where maintaining consistent fill effects across frames is crucial.
 
 ---
-<sub>[back to table](#table-of-contents)</sub>
+
+<sub>[back to table](#table-of-functions)</sub>
 ### Hatching Operations
 
 The Hatching section focuses on creating and drawing hatching patterns, which involves drawing closely spaced parallel lines. These functions offer control over the hatching style and application.
@@ -533,15 +538,179 @@ In essence, the hatching system activates hatches for subsequent shapes, similar
 
 
 ---
-<sub>[back to table](#table-of-contents)</sub>
+
+<sub>[back to table](#table-of-functions)</sub>
 ### Geometry
 
-Tools for creating and manipulating geometric shapes.
+This section details the functions for creating various shapes and strokes with the set brush, fill, and hatch parameters.
 
-*(Insert Geometry related functions here)*
+#### Lines, Strokes, Splines, and Plots
+
+The following functions are only affected by stroke() operations, completely ignoring fill() and hatch().
+
+- `brush.line(x1, y1, x2, y2)`
+  - **Description**: Draws a line from one point to another using the current brush settings. This function is affected only by stroke operations and will not produce any drawing if `noStroke()` has been called.
+  - **Parameters**:
+    - `x1` (Number): The x-coordinate of the start point.
+    - `y1` (Number): The y-coordinate of the start point.
+    - `x2` (Number): The x-coordinate of the end point.
+    - `y2` (Number): The y-coordinate of the end point.
+  - **Usage**:
+    ```javascript
+    // Set the brush color and draw a line
+    brush.stroke("red");
+    brush.line(15, 10, 200, 10);
+    ```
 
 ---
-<sub>[back to table](#table-of-contents)</sub>
+
+- `brush.flowLine(x, y, length, dir)`
+  - **Description**: Draws a flow line that adheres to the currently selected vector field. Flow lines are defined by a starting point, length, and direction. They are useful for creating strokes that dynamically follow the flow of the vector field.
+  - **Parameters**:
+    - `x` (Number): The x-coordinate of the starting point.
+    - `y` (Number): The y-coordinate of the starting point.
+    - `length` (Number): The length of the line.
+    - `dir` (Number): The direction in which to draw the line, measured anticlockwise from the x-axis.
+  - **Usage**:
+    ```javascript
+    // Set a vector field and draw a flow line
+    brush.field("seabed");
+    brush.flowLine(15, 10, 185, 0);
+    ```
+
+---
+
+These three functions provide advanced control over the creation of strokes/paths, allowing for custom pressure and direction at different points along the path. This is a strange way of defining strokes, but intuitive when you think of them as bodily movements performed with the hands. You can create two types of strokes: "curve" or "segments". For curved strokes, the curvature at any point of the stroke is lerped between the nearest control points.
+
+These functions allow for the creation of strokes with varied pressures and directions, mimicking the organic nature of hand-drawn strokes. For an application of these principles, see: [Enfantines II](https://art.arqtistic.com/Enfantines-2)
+
+- `brush.beginStroke(type, x, y)`
+  - **Description**: Initializes a new stroke, setting the type and starting position. The type determines the kind of Plot to create, either a "curve" or "segments".
+  - **Parameters**:
+    - `type` (String): The type of the stroke, either "curve" or "segments".
+    - `x` (Number): The x-coordinate of the starting point of the stroke.
+    - `y` (Number): The y-coordinate of the starting point of the stroke.
+  - **Usage**:
+    ```javascript
+    // Begin a new curve stroke
+    brush.beginStroke("curve", 15, 30);
+    ```
+
+- `brush.stroke(angle, length, pressure)`
+  - **Description**: Adds a segment to the stroke, defining its path by specifying the angle, length, and pressure. This function is used after `brush.beginStroke()` and before `brush.endStroke()` to outline the stroke's trajectory and characteristics.
+  - **Parameters**:
+    - `angle` (Number): The initial angle of the segment, relative to the canvas, measured anticlockwise from the x-axis.
+    - `length` (Number): The length of the segment.
+    - `pressure` (Number): The pressure at the start of the segment, influencing properties like width.
+  - **Usage**:
+    ```javascript
+    // Add two segments to the stroke
+    brush.stroke(30, 150, 0.6);
+    brush.stroke(75, 40, 1.1);
+    ```
+
+- `brush.endStroke(angle, pressure)`
+  - **Description**: Completes the stroke path and triggers its rendering. This function defines the angle and pressure at the last point of the stroke path.
+  - **Parameters**:
+    - `angle` (Number): The angle of the curve at the end point of the stroke path.
+    - `pressure` (Number): The pressure at the end of the stroke.
+  - **Usage**:
+    ```javascript
+    // Complete the stroke with a specific angle and pressure
+    brush.endStroke(-45, 0.8);
+    ```
+
+---
+
+- `brush.spline(array_points, curvature)`
+  - **Description**: Generates and draws a spline curve, a smooth curve defined by a series of control points. The curve connects the start and end points directly, using the other points in the array as control points to define the curve's path. The curvature parameter allows for adjusting the smoothness of the curve. Spline is maybe not the appropriate description, since these splines are basically segmented paths with rounded corners.
+  - **Parameters**:
+    - `array_points` (Array<Array<number>>): An array of points, where each point is an array of two numbers `[x, y]`.
+    - `curvature` (Number): Optional. The curvature of the spline curve, ranging from 0 to 1. A curvature of 0 results in a series of straight segments.
+  - **Usage**:
+    ```javascript
+    // Define points for the spline curve
+    let points = [[30, 70], [85, 20], [130, 100], [180, 50]];
+    // Create a spline curve with a specified curvature
+    brush.spline(points, 0.5);
+    ```
+
+---
+
+- `brush.plot(p, x, y, scale)`
+  - **Description**: Renders a predefined shape or plot with a flowing brush stroke, following the currently active vector field. The shape is drawn at a specified starting position and scale. The plot object should be defined following the instructions in the Exposed Classes section.
+  - **Parameters**:
+    - `p` (Plot Object): A plot object representing the shape.
+    - `x` (Number): The x-coordinate of the starting position.
+    - `y` (Number): The y-coordinate of the starting position.
+    - `scale` (Number): The scale at which to draw the shape.
+  - **Note**: This is an alternative to beginStroke() - endStroke() operations. It is useful for drawing the same Plot at different starting points and scales.
+  - **Usage**:
+    ```javascript
+    // Define a plot (heart shape)
+    let heart = new brush.Plot();
+    // ... Define the heart plot here ...
+    // Draw the heart shape with a flowing stroke
+    brush.flowShape(heart, 200, 200, 1.3);
+    ```
+
+---
+
+#### Shapes and Polygons
+
+
+
+- `brush.rect(x, y, w, h, mode)`
+  - **Description**: Draws a rectangle on the canvas. This shape adheres to the current stroke, fill, and hatch attributes. Rectangles are influenced by active vector fields.
+  - **Parameters**:
+    - `x` (Number): The x-coordinate of the rectangle.
+    - `y` (Number): The y-coordinate of the rectangle.
+    - `w` (Number): The width of the rectangle.
+    - `h` (Number): The height of the rectangle.
+    - `mode` (Boolean): Optional. If `CENTER`, the rectangle is drawn centered at `(x, y)`.
+  - **Usage**:
+    ```javascript
+    brush.noStroke();
+    brush.noHatch();
+    brush.fill("#002185", 75);
+    brush.rect(150, 100, 50, 35, CENTER);
+    ```
+
+---
+
+- `brush.circle(x, y, radius, r)`
+  - **Description**: Draws a circle on the canvas, using the current brush settings. If `r` is true, the circle is rendered with a hand-drawn style. Circles are affected by vector fields.
+  - **Parameters**:
+    - `x` (Number): The x-coordinate of the circle's center.
+    - `y` (Number): The y-coordinate of the circle's center.
+    - `radius` (Number): The radius of the circle.
+    - `r` (Boolean): Optional. When true, applies a hand-drawn style to the circle.
+  - **Usage**:
+    ```javascript
+    brush.circle(100, 150, 75, true);
+    ```
+
+
+
+
+
+- `brush.polygon(pointsArray)`
+  - **Description**: Creates and draws a polygon based on a provided array of points. This function is useful for drawing shapes that are not affected by vector fields, offering an alternative to the `beginShape()` and `endShape()` approach.
+  - **Parameters**:
+    - `pointsArray` (Array): An array of points, where each point is an array of two numbers `[x, y]`.
+  - **Note**: This is an alternative to beginShape() - endShape() operations, useful for certain applications.
+  - **Usage**:
+    ```javascript
+    // Define a polygon using an array of points
+    let points = [[x1, y1], [x2, y2], ...];
+    brush.polygon(points);
+    ```
+    `brush.polygon()` is ideal for drawing fixed shapes that remain unaffected by vector fields, providing precise control over their form and appearance.
+
+
+---
+
+<sub>[back to table](#table-of-functions)</sub>
 ### Optional: Configuration
 
 This section covers functions for initializing the drawing system, preloading required assets, and configuring system behavior. By default, the library works without executing these functions, but you might want to configure them to your liking.
@@ -587,7 +756,8 @@ This section covers functions for initializing the drawing system, preloading re
     - `bool` (boolean): Set to true to enable caching, or false to disable it.
 
 ---
-<sub>[back to table](#table-of-contents)</sub>
+
+<sub>[back to table](#table-of-functions)</sub>
 ### Exposed Classes
 
 Classes that are exposed for creating and manipulating objects.
