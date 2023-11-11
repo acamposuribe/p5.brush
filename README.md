@@ -106,6 +106,7 @@ Vector Fields allow for dynamic control over brush stroke behavior, enabling the
 
  #### Basic vector-field functions
 
+---
  
 - `brush.field(name)`
   - **Description**: Activates a named vector field. When a vector field is active, it influences the flow and direction of the brush strokes for shapes drawn thereafter. It is important to note that certain shapes may be exempt from this influence; such exceptions will be clearly documented in the API for each specific geometry.
@@ -169,6 +170,7 @@ Vector Fields allow for dynamic control over brush stroke behavior, enabling the
  
  #### Advanced vector-field functions
 
+---
  
 - `brush.addField(name, generatorFunction)`
   - **Description**: Adds a custom vector field to the list of available fields. This advanced function requires a unique name for the field and a generator function that defines the behavior of the vector field over time.
@@ -200,6 +202,7 @@ Vector Fields allow for dynamic control over brush stroke behavior, enabling the
 
 Functions for managing brush behaviors and properties.
 
+---
 
 - `brush.scale(scale)`
   - **Description**: Adjusts the global scale of all standard brush parameters, including weight, vibration, and spacing, based on the given scaling factor. This function is specifically designed to affect dafault brushes, allowing for uniform scaling across various brush types.
@@ -333,6 +336,7 @@ Functions for managing brush behaviors and properties.
 
 Stroke Operations encompass methods for manipulating and applying brushes to strokes (aka lines), providing artists with precise control over their brushwork.
 
+---
 
 - `brush.set(brushName, color, weight)`
   - **Description**: Selects and sets up the current brush with a specific name, color, and weight. This function is crucial for preparing the brush to draw strokes with the desired characteristics.
@@ -410,6 +414,8 @@ Stroke Operations encompass methods for manipulating and applying brushes to str
 
 The Fill Management section focuses on managing fill properties for shapes, enabling complex fill operations with effects like bleeding to simulate watercolor-like textures. These methods set fill colors with opacity, control bleed intensity, and manage fill operations. The watercolor fill effect is inspired by Tyler Hobbs' generative art techniques.
 
+---
+
 - `brush.fill(a, b, c, d)` or `brush.fill(color, opacity)`
   - **Description**: Sets the fill color and opacity for subsequent shapes, activating fill mode. This function can accept either RGB color components with opacity or a CSS color string/p5.Color object with an optional opacity.
   - **Parameters**:
@@ -469,6 +475,8 @@ The Fill Management section focuses on managing fill properties for shapes, enab
 
 The Hatching section focuses on creating and drawing hatching patterns, which involves drawing closely spaced parallel lines. These functions offer control over the hatching style and application.
 
+---
+
 - `brush.hatch(dist, angle, options)`
   - **Description**: Activates hatching with specified parameters for subsequent geometries. This function enables the drawing of hatching patterns with controlled line spacing, angle, and additional stylistic options.
   - **Parameters**:
@@ -510,7 +518,7 @@ The Hatching section focuses on creating and drawing hatching patterns, which in
     ```
 
 ---
-In essence, the hatching system activates hatches for subsequent shapes, similarly to stroke and fill operations. However, you can also directly hatch multiple objects at ones (and their intersections), if you proceed as described below
+In essence, the hatching system activates hatches for subsequent shapes, similarly to stroke and fill operations. However, you can also directly hatch multiple objects at once (and their intersections), if you proceed as described below
 .
 
 - `brush.hatchArray(polygons)`
@@ -547,6 +555,8 @@ This section details the functions for creating various shapes and strokes with 
 #### Lines, Strokes, Splines, and Plots
 
 The following functions are only affected by stroke() operations, completely ignoring fill() and hatch().
+
+---
 
 - `brush.line(x1, y1, x2, y2)`
   - **Description**: Draws a line from one point to another using the current brush settings. This function is affected only by stroke operations and will not produce any drawing if `noStroke()` has been called.
@@ -627,6 +637,7 @@ These functions allow for the creation of strokes with varied pressures and dire
   - **Parameters**:
     - `array_points` (Array<Array<number>>): An array of points, where each point is an array of two numbers `[x, y]`.
     - `curvature` (Number): Optional. The curvature of the spline curve, ranging from 0 to 1. A curvature of 0 results in a series of straight segments.
+  - **Note**: This is a simplified alternative to beginShape() - endShape() operations, useful for certain stroke() applications.
   - **Usage**:
     ```javascript
     // Define points for the spline curve
@@ -658,7 +669,9 @@ These functions allow for the creation of strokes with varied pressures and dire
 
 #### Shapes and Polygons
 
+The following functions are affected by stroke(), fill() and hatch() operations.
 
+---
 
 - `brush.rect(x, y, w, h, mode)`
   - **Description**: Draws a rectangle on the canvas. This shape adheres to the current stroke, fill, and hatch attributes. Rectangles are influenced by active vector fields.
@@ -690,15 +703,54 @@ These functions allow for the creation of strokes with varied pressures and dire
     brush.circle(100, 150, 75, true);
     ```
 
+---
 
+These three functions perform similarly to the p5.js beginShape(), vertex(), and endShape() functions, althouh curvature calculation is very different. These allow you to draw custom shapes, with fine control over brush pressure at the different points of the perimeter.
 
+- `brush.beginShape(curvature)`
+  - **Description**: Initiates the creation of a custom shape by starting to record vertices. An optional curvature can be defined for the vertices.
+  - **Parameters**:
+    - `curvature` (Number): Optional. A value from 0 to 1 that defines the curvature of the shape's edges.
+  - **Returns**: None.
+  - **Usage**:
+    ```javascript
+    // Begin defining a custom shape with a specified curvature
+    brush.beginShape(0.3);
+    ```
 
+- `brush.vertex(x, y, pressure)`
+  - **Description**: Adds a vertex to the custom shape currently being defined. The function is used between `brush.beginShape()` and `brush.endShape()` calls. An optional pressure parameter can be applied at each vertex.
+  - **Parameters**:
+    - `x` (Number): The x-coordinate of the vertex.
+    - `y` (Number): The y-coordinate of the vertex.
+    - `pressure` (Number): Optional. The pressure at the vertex, affecting properties like width.
+  - **Returns**: None.
+  - **Usage**:
+    ```javascript
+    // Add vertices to the custom shape
+    brush.vertex(50, 100);
+    brush.vertex(100, 150, 0.5);
+    brush.vertex(150, 100);
+    ```
+
+- `brush.endShape(a)`
+  - **Description**: Completes the custom shape, finalizing the recording of vertices. The shape can be either closed or left open based on the optional argument. The function also triggers the rendering of the shape with the current stroke, fill, and hatch settings.
+  - **Parameters**:
+    - `a` (String): Optional. If set to `CLOSE`, the shape is closed.
+  - **Returns**: None.
+  - **Usage**:
+    ```javascript
+    // Finish the custom shape and close it with a straight line
+    brush.endShape(CLOSE);
+    ```
+
+---
 
 - `brush.polygon(pointsArray)`
   - **Description**: Creates and draws a polygon based on a provided array of points. This function is useful for drawing shapes that are not affected by vector fields, offering an alternative to the `beginShape()` and `endShape()` approach.
   - **Parameters**:
     - `pointsArray` (Array): An array of points, where each point is an array of two numbers `[x, y]`.
-  - **Note**: This is an alternative to beginShape() - endShape() operations, useful for certain applications.
+  - **Note**: This is a simplified alternative to beginShape() - endShape() operations, useful for certain fill() and hatch() applications.
   - **Usage**:
     ```javascript
     // Define a polygon using an array of points
