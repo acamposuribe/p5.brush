@@ -949,6 +949,6 @@ We welcome contributions from the community. If you find a bug or have a feature
 p5.brush.js is released under the MIT License. See the LICENSE file for details.
 
 ## Acknowledgements
-- The fill() operations followed the steps explained by Tyler Hobbs [here](https://tylerxhobbs.com/essays/2017/a-generative-approach-to-simulating-watercolor-paints)https://tylerxhobbs.com/essays/2017/a-generative-approach-to-simulating-watercolor-paints
-- The realistic color blending is calculated with [spectral.js](https://github.com/rvanwijnen/spectral.js)https://github.com/rvanwijnen/spectral.js, by Ronald van Wijnen
-- Several p5 bugs that impacted the library have been found and solved with the help of [Dave Pagurek](https://twitter.com/davepvm)https://twitter.com/davepvm
+- The fill() operations followed the steps explained by Tyler Hobbs [here](https://tylerxhobbs.com/essays/2017/a-generative-approach-to-simulating-watercolor-paints)
+- The realistic color blending is calculated with [spectral.js](https://github.com/rvanwijnen/spectral.js), by Ronald van Wijnen
+- Several p5 bugs that impacted the library have been found and solved with the help of [Dave Pagurek](https://twitter.com/davepvm)
