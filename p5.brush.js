@@ -391,6 +391,8 @@
             this.mask = createGraphics(_r.width,_r.height)
             this.mask.pixelDensity(_r.pixelDensity())
             this.mask.clear()
+            exports.mask = this.mask;
+
             // Load the spectral.js shader code only once                                                        
             if (!Mix.loaded) {
                 this.frag = this.frag.replace('#include "spectral.glsl"', spectral.glsl());
@@ -398,6 +400,11 @@
             // Create the shader program from the vertex and fragment shaders
             this.shader = _r.createShader(this.vert, this.frag);
             Mix.loaded = true;
+
+            // Create a buffer for noBlend brushes
+            this.noBlend = createGraphics(_r.width,_r.height);
+            this.noBlend.pixelDensity(_r.pixelDensity())
+            this.noBlend.noSmooth()
         },
 
         /**
@@ -432,11 +439,16 @@
             // If it is the same, we wait before applying the shader for color mixing
             // If it's NOT the same, we apply the shader and cache the new color
             let newColor = !_color ? this.currentColor : this.getPigment(_color);
+
             if (newColor.toString() !== this.currentColor.toString() || _isLast || !this.isCaching) {
                 _r.push();
+                // Copy info from noBlend buffer
+                _r.translate(-_trans()[0],-_trans()[1])
+                _r.image(this.noBlend,-_r.width/2, -_r.height/2)
+                this.noBlend.clear()
                 // Use the blend shader for rendering
                 _r.shader(this.shader);
-                _r.translate(-_trans()[0],-_trans()[1])
+                
                 // Set shader uniforms: color to add, source texture, and mask texture
                 this.shader.setUniform('addColor', this.currentColor);
                 this.shader.setUniform('source', _r._renderer);
@@ -451,6 +463,14 @@
                 // We cache the new color here
                 if (!_isLast) this.currentColor = this.getPigment(_color)
             }
+
+            if (this.isBlending == false && _isLast) {
+                _r.push();
+                _r.translate(-_trans()[0],-_trans()[1])
+                _r.image(this.noBlend,-_r.width/2, -_r.height/2)
+                _r.pop();
+            }
+
             if (_isLast) this.isBlending = false;
         },
 
@@ -460,7 +480,7 @@
         // Fragment shader source code with blending operations
         frag: `precision highp float;varying vec2 vVertTexCoord;uniform sampler2D source,mask;uniform vec4 addColor;
         #include "spectral.glsl"
-        float v(vec2 v,float d,float f,float s){return fract(sin(dot(v,vec2(d,f)))*s);}void main(){vec4 f=texture2D(mask,vVertTexCoord);if(f.x>0.){vec2 r=vec2(12.9898,78.233),a=vec2(7.9898,58.233),l=vec2(17.9898,3.233);float d=v(vVertTexCoord,r.x,r.y,43358.5453)*2.-1.,x=v(vVertTexCoord,a.x,a.y,43213.5453)*2.-1.,s=v(vVertTexCoord,l.x,l.y,33358.5453)*2.-1.;vec3 y=spectral_mix(texture2D(source,vVertTexCoord).xyz,addColor.xyz,f.w*.8);if(f.w>.8)y=spectral_mix(y,vec3(0),(f.w-.8)/.6);gl_FragColor=vec4(y+.02*vec3(d,x,s),1);}else gl_FragColor=vec4(0);}`
+        float v(vec2 v,float d,float f,float s){return fract(sin(dot(v,vec2(d,f)))*s);}void main(){vec4 f=texture2D(mask,vVertTexCoord);if(f.x>0.){vec2 r=vec2(12.9898,78.233),a=vec2(7.9898,58.233),l=vec2(17.9898,3.233);float d=v(vVertTexCoord,r.x,r.y,43358.5453)*2.-1.,x=v(vVertTexCoord,a.x,a.y,43213.5453)*2.-1.,s=v(vVertTexCoord,l.x,l.y,33358.5453)*2.-1.;vec3 y=spectral_mix(texture2D(source,vVertTexCoord).xyz,addColor.xyz,f.w*.8);if(f.w>.8)y=spectral_mix(y,vec3(0),(f.w-.8)/.6);gl_FragColor=vec4(y+.02*vec3(d,x,s),1);}}`
     }
 
     /**
@@ -486,8 +506,7 @@
     function selectField (a) {
         _ensureReady();
         FF.isActive = true; // Mark the field framework as active
-        if (FF.current !== a) FF.current = a; // Update the current field if a different one is selected
-        FF.refresh(); // Fill flowfield values
+        FF.current = a; // Update the current field
     }
 
     /**
@@ -523,7 +542,7 @@
      * @returns {Iterator<string>} An iterator that provides the names of all the fields.
      * EXPORTED
      */
-    function listFields() {return FF.list.keys()}
+    function listFields() {return Array.from(FF.list.keys())}
 
     /**
      * Represents a framework for managing vector fields used in dynamic simulations or visualizations.
@@ -553,10 +572,6 @@
             this.top_y = -1 * _r.height; // Top boundary of the field
             this.num_columns = Math.round(2 * _r.width / this.R); // Number of columns in the grid
             this.num_rows = Math.round(2 * _r.height / this.R); // Number of columns in the grid
-            this.field = new Array(FF.num_columns); // Initialize the field array
-            for (let i = 0; i < this.num_columns; i++) {
-                this.field[i] = new Float64Array(this.num_rows);
-            }
             this.addStandard(); // Add default vector fields
         },
 
@@ -577,22 +592,36 @@
         },
 
         /**
+         * Generates empty field array using its associated generator function.
+         * @returns {Float64Array[]} Empty vector field grid.
+         */
+        genField() {
+            let grid = new Array(FF.num_columns); // Initialize the field array
+            for (let i = 0; i < this.num_columns; i++) {
+                grid[i] = new Float64Array(this.num_rows);
+            }
+            return grid;
+        },
+
+        /**
          * Adds standard predefined vector fields to the list with unique behaviors.
          */
         addStandard() {
             addField("curved", function(t) {
+                let field = FF.genField()
                 let angleRange = R.randInt(-25,-15);
                 if (R.randInt(0,100)%2 == 0) {angleRange = angleRange * -1}
                 for (let column=0;column<FF.num_columns;column++){
                     for (let row=0;row<FF.num_rows;row++) {               
                         let noise_val = noise(column * 0.02 + t * 0.03, row * 0.02 + t * 0.03)
                         let angle = R.map(noise_val, 0.0, 1.0, -angleRange, angleRange)
-                        FF.field[column][row] = 3 * angle;
+                        field[column][row] = 3 * angle;
                     }
                 }
-                return FF.field;
+                return field;
             })
             addField("truncated", function(t) {
+                let field = FF.genField()
                 let angleRange = R.randInt(-25,-15) + 5 * R.sin(t);
                 if (R.randInt(0,100)%2 == 0) {angleRange=angleRange*-1}
                 let truncate = R.randInt(5,10);
@@ -600,50 +629,53 @@
                     for (let row=0;row<FF.num_rows;row++) {               
                         let noise_val = noise(column * 0.02, row * 0.02)
                         let angle = Math.round(R.map(noise_val, 0.0, 1.0, -angleRange, angleRange)/truncate)*truncate;
-                        FF.field[column][row] = 4 * angle;
+                        field[column][row] = 4 * angle;
                     }
                 }
-                return FF.field;
+                return field;
             })
             addField("zigzag", function(t) {   
+                let field = FF.genField()
                 let angleRange = R.randInt(-30,-15) + Math.abs(44 * R.sin(t));
                 if (R.randInt(0,100)%2 == 0) {angleRange=angleRange*-1}
                 let dif = angleRange;
                 let angle = 0;
                 for (let column=0;column<FF.num_columns;column++){
                     for (let row=0;row<FF.num_rows;row++) {               
-                        FF.field[column][row] = angle;
+                        field[column][row] = angle;
                         angle = angle + dif;
                         dif = -1*dif;
                     }
                     angle = angle + dif;
                     dif = -1*dif;
                 }
-                return FF.field;
+                return field;
             })
             addField("waves", function(t) {
+                let field = FF.genField()
                 let sinrange = R.randInt(10,15) + 5 * R.sin(t);
                 let cosrange = R.randInt(3,6) + 3 * R.cos(t);
                 let baseAngle = R.randInt(20,35);
                 for (let column=0;column<FF.num_columns;column++){
                     for (let row=0;row<FF.num_rows;row++) {               
                         let angle = R.sin(sinrange*column)*(baseAngle * R.cos(row*cosrange)) + R.randInt(-3,3);
-                        FF.field[column][row] = angle;
+                        field[column][row] = angle;
                     }
                 }
-                return FF.field;
+                return field;
             })
             addField("seabed", function(t) {
+                let field = FF.genField()
                 let baseSize = R.random(0.4,0.8)
                 let baseAngle = R.randInt(18,26) ;
                 for (let column=0;column<FF.num_columns;column++){
                     for (let row=0;row<FF.num_rows;row++) {       
                         let addition = R.randInt(15,20)        
                         let angle = baseAngle*R.sin(baseSize*row*column+addition);
-                        FF.field[column][row] = 1.1*angle * R.cos(t);
+                        field[column][row] = 1.1*angle * R.cos(t);
                     }
                 }
-                return FF.field;
+                return field;
             })           
         }
     }
@@ -850,7 +882,7 @@
                 T.add(b.image.src);
                 b.tip = () => B.mask.image(T.tips.get(B.p.image.src), -B.p.weight / 2, -B.p.weight / 2, B.p.weight, B.p.weight);
             }
-            b.blend = isBlendableType && b.blend !== false;
+            b.blend = ((isBlendableType && b.blend !== false) || b.blend) ? true : false;
             B.list.set(a, { param: b, colors: [], buffers: [] });
         },
 
@@ -1034,16 +1066,16 @@
             // Blend Mode
                 this.c = _r.color(this.c);
                 // Select mask buffer for blend mode
-                this.mask = this.p.blend ? Mix.mask : _r;
+                this.mask = this.p.blend ? Mix.mask : Mix.noBlend;
                 // Set the blender
                 this.mask.push(); 
                 this.mask.noStroke();
+                _trans()
+                this.mask.translate(_matrix[0] + _r.width/2,_matrix[1] + _r.height/2); 
                 if (this.p.blend) {
                     Mix.blend(this.c);
-                    _trans()
-                    this.mask.translate(_matrix[0] + _r.width/2,_matrix[1] + _r.height/2); 
                     if (!isTip) this.markerTip()
-                };
+                }
         },
 
         /**
@@ -1213,7 +1245,9 @@
             this.mask.scale(pressure);
             if (this.p.type === "image") (this.p.blend) ? this.mask.tint(255, 0, 0, alpha / 2) : this.mask.tint(this.mask.red(this.c), this.mask.green(this.c), this.mask.blue(this.c), alpha);
             if (this.p.rotate === "random") this.mask.rotate(R.randInt(0,360));
-            if (this.p.rotate === "natural") this.mask.rotate(((this.plot) ? - this.plot.angle(this.position.plotted) : - this.dir) + (this.flow ? this.position.angle() : 0))
+            if (this.p.rotate === "natural") {
+                this.mask.rotate(((this.plot) ? - this.plot.angle(this.position.plotted) : - this.dir) + (this.flow ? this.position.angle() : 0))
+            }
         },
 
         /**
@@ -1384,6 +1418,7 @@
      * EXPORTED
      */
     B.hatch = function (polygons) {
+
         let dist = _hatchingParams[0];
         let angle = _hatchingParams[1];
         let options = _hatchingParams[2];
@@ -1550,12 +1585,12 @@
         }
         // Create a new Polygon instance
         let polygon = new Polygon(pointsArray);
-        // Draw the polygon if the B state is active (the check is in the polygon class)
-        polygon.draw();
         // Fill the polygon if the F state is active (the check is in the polygon class)
         polygon.fill();
         // Hatch the polygon if _isHatching is active (the check is in the polygon class)
         polygon.hatch()
+        // Draw the polygon if the B state is active (the check is in the polygon class)
+        polygon.draw();
     }
 
     /**
@@ -1579,9 +1614,9 @@
             _endShape(CLOSE)
         } else {
             let p = new Polygon([[x,y],[x+w,y],[x+w,y+h],[x,y+h]])
-            p.draw();
             p.fill();
             p.hatch();
+            p.draw();
         }
     }
 
@@ -1739,12 +1774,12 @@
             }
             let _step = B.spacing()  // get last spacing
             let vertices = []
-            let side = (max + min) * (F.isAnimated) ? 0.25 : F.b;
+            let side = (max + min) * ((F.isAnimated) ? 0.25 : F.b);
             //let side = (max + min) * 0.2;
             let linepoint = new Position(_x,_y);
             let numsteps = Math.round(this.length/_step);
             for (let steps = 0; steps < numsteps; steps++) {
-                vertices[Math.floor(linepoint.plotted / side)] = [linepoint.x,linepoint.y]
+                if (linepoint.x) vertices[Math.floor(linepoint.plotted / side)] = [linepoint.x,linepoint.y]
                 linepoint.plotTo(this,_step,_step,1)
             }
             this.calcIndex(0);
@@ -2316,7 +2351,7 @@
         ["hatch_brush", { weight: 0.2, vibration: 0.4, definition: 0.3, quality: 2,  opacity: 150, spacing: 0.15, pressure: {curve: [0.5,0.7], min_max: [1,1.5]} }],
         ["spray", { type: "spray", weight: 0.3, vibration: 12, definition: 15, quality: 40,  opacity: 120, spacing: 0.65, pressure: {curve: [0,0.1], min_max: [0.15,1.2]} }],
         ["marker", { type: "marker", weight: 2.5, vibration: 0.08, opacity: 30, spacing: 0.4, pressure: {curve: [0.35,0.25], min_max: [1.35,1]}}],
-        ["marker2", { type: "custom", weight: 2.5, vibration: 0.08, opacity: 23, spacing: 0.6, pressure: {curve: [0.35,0.25], min_max: [1.35,1]}, 
+        ["marker2", { type: "custom", weight: 2.5, vibration: 0.08, opacity: 28, spacing: 0.6, pressure: {curve: [0.35,0.25], min_max: [1.2,1]}, 
             tip: function () { B.mask.rect(-1.5,-1.5,3,3); B.mask.rect(1,1,1,1) }, rotate: "natural"
         }],
     ];

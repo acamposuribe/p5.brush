@@ -30,8 +30,6 @@ function windowResized () {
 }
 
 
-
-
 // YOU CAN CREATE YOU OWN BRUSHES
 brush.add("watercolor", {
     type: "image",       // this is the TIP TYPE: choose standard / spray / marker / custom / image
@@ -50,7 +48,7 @@ brush.add("watercolor", {
     },
     // if you select the a custom type brush, define the tip geometry here. Use 0,0 as center of tip. If not, you can remove these lines. 
     tip: function () {
-        B.mask.rotate(45),B.mask.rect(-1.5,-1.5,3,3),B.mask.rect(1.5,1.5,1,1); // in this example, the tip would be two squares, rotated 45 degrees
+        brush.mask.rotate(45),brush.mask.rect(-1.5,-1.5,3,3),brush.mask.rect(1.5,1.5,1,1); // in this example, the tip would be two squares, rotated 45 degrees
     },
     // if you select the image type brush, link your image below. If not, you can remove these lines.
     image: {
@@ -69,7 +67,6 @@ function preload() {
     brush.preload();
 }
 
-
 let palette = ["#7b4800", "#002185", "#003c32", "#fcd300", "#ff2702", "#6b9404"]
 
 function setup () {
@@ -82,13 +79,13 @@ function setup () {
 
     // STANDARD PALETTE TEST
     
+    brush.field("seabed")
     let i = 0
     for (let b of brush.box()) {
             brush.set(b,random(palette),1)
-            brush.line(30,30+i*10,220,30+i*10)
+            brush.flowLine(30,30+i*10,200,0)
         i++
     }
-    
 
     /*
     
@@ -212,7 +209,7 @@ function setup () {
     
     brush.set("2B","#9c2128",1)
 
-    
+   
     
     let num_cols = 5
     let num_rows = 3
@@ -232,8 +229,9 @@ function setup () {
             brush.rect(20 + col_size * j, 20 + row_size * i, col_size, row_size)
         }
     }
+     */
 
-    */
+    
 
 }
 
