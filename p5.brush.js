@@ -1357,7 +1357,8 @@
     }
 
     /**
-     * Sets the brush for subsequent hatches.
+     * Sets the brush type, color, and weight for subsequent hatches.
+     * If this function is not called, hatches will use the parameters from stroke operations.
      * @param {string} brushName - The name of the brush to set as current.
      * @param {string|p5.Color} color - The color to set for the brush.
      * @param {number} weight - The weight (size) to set for the brush.
@@ -1368,7 +1369,7 @@
     }
 
     /**
-     * Disables hatching
+     * Disables hatching for subsequent shapes
      * EXPORTED
      */
     function noHatch() {
@@ -1380,13 +1381,6 @@
      * Creates a hatching pattern across the given polygons.
      * 
      * @param {Array|Object} polygons - A single polygon or an array of polygons to apply the hatching.
-     * @param {number} dist - The distance between hatching lines.
-     * @param {number} angle - The angle at which hatching lines are drawn.
-     * @param {Object} options - An object containing optional parameters to affect the hatching style:
-     *                           - rand: Introduces randomness to the line placement.
-     *                           - continuous: Connects the end of a line with the start of the next.
-     *                           - gradient: Changes the distance between lines to create a gradient effect.
-     *                           Defaults to {rand: false, continuous: false, gradient: false}.
      * EXPORTED
      */
     B.hatch = function (polygons) {
@@ -1745,7 +1739,7 @@
             }
             let _step = B.spacing()  // get last spacing
             let vertices = []
-            let side = (max + min) * F.b;
+            let side = (max + min) * (F.isAnimated) ? 0.25 : F.b;
             //let side = (max + min) * 0.2;
             let linepoint = new Position(_x,_y);
             let numsteps = Math.round(this.length/_step);
@@ -2025,8 +2019,8 @@
 
     /**
      * Sets the fill color and opacity for subsequent drawing operations.
-     * @param {number|p5.Color} a - The red component of the color or grayscale value, or a color object.
-     * @param {number} [b] - The green component of the color or grayscale opacity.
+     * @param {number|p5.Color} a - The red component of the color or grayscale value, a CSS color string, or a p5.Color object.
+     * @param {number} [b] - The green component of the color or the grayscale opacity if two arguments.
      * @param {number} [c] - The blue component of the color.
      * @param {number} [d] - The opacity of the color.
      * EXPORTED
@@ -2057,6 +2051,14 @@
     }
 
     /**
+     * Disables some operations in order to guarantee a consistent bleed efect for animations (at different bleed levels)
+     * EXPORTED
+     */
+        function fillAnimatedMode(bool) {
+            F.isAnimated = bool;
+        }
+
+    /**
      * Object representing the fill state and operations for drawing.
      * @property {boolean} isActive - Indicates if the fill operation is active.
      * @property {number} b - Base value for bleed effect.
@@ -2067,6 +2069,7 @@
      */
     const F = {
         isActive: false,
+        isAnimated: false,
         b: 0.07,
         t: 1,
         /**
@@ -2366,6 +2369,7 @@
     exports.fill = setFill;                    // Sets the fill color.
     exports.bleed = setBleed;                  // Sets the bleed property for fills.
     exports.noFill = disableFill;                // Disables the fill.
+    exports.fillAnimatedMode = fillAnimatedMode;
 
     // GEOMETRY Drawing Functions
     exports.line = B.line;                   // Draws a line.
