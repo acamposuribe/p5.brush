@@ -19,7 +19,7 @@ Embrace the full potential of your creative coding projects with p5.brush.js, wh
 - [Examples](#examples)
 - [Contributing](#contributing)
 - [License](#license)
-
+- [Acknowledgements](#acknowledgements)
 
 ## Installation
 
