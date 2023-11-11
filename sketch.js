@@ -82,6 +82,8 @@ function setup () {
 
     // STANDARD PALETTE TEST
     
+    /*
+
     let i = 0
     for (let b of brush.box()) {
             brush.set(b,random(palette),1)
@@ -90,7 +92,7 @@ function setup () {
     }
     
 
-    /*
+    
     
     // Set your brush name, color, and weight. There are 9 standard brushes to select from.
     // Select colors with HEX codes, arrays of [r,g,b] or names
@@ -212,7 +214,7 @@ function setup () {
     
     brush.set("2B","#9c2128",1)
 
-    
+    */
     
     let num_cols = 5
     let num_rows = 3
@@ -233,7 +235,7 @@ function setup () {
         }
     }
 
-    */
+    
 
 }
 
