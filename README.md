@@ -471,7 +471,7 @@ The Fill Management section focuses on managing fill properties for shapes, enab
 ---
 
 <sub>[back to table](#table-of-functions)</sub>
-### Hatching Operations
+### Hatch Operations
 
 The Hatching section focuses on creating and drawing hatching patterns, which involves drawing closely spaced parallel lines. These functions offer control over the hatching style and application.
 
