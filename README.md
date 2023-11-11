@@ -812,11 +812,97 @@ This section covers functions for initializing the drawing system, preloading re
 <sub>[back to table](#table-of-functions)</sub>
 ### Exposed Classes
 
-Classes that are exposed for creating and manipulating objects.
+Exposed Classes provide foundational elements for creating and manipulating shapes and paths, as well as interacting with vector-fields in a more advanced manner.
 
-- brush.Polygon
-- brush.Plot
-- brush.Position
+#### Class: `brush.Polygon`
+
+- **Description**: Represents a polygon defined by a set of vertices. The `Polygon` class is essential for creating and working with multi-sided shapes, offering various methods to manipulate and render these shapes.
+
+- **Constructor**:
+  - `brush.Polygon(pointsArray)`
+    - `pointsArray` (Array): An array of points, where each point is an array of two numbers `[x, y]`.
+
+- **Methods**:
+  - `.intersect(line)`
+    - Intersects the polygon with a given line, returning all intersection points.
+    - Parameters:
+      - `line` (Object): A line object with properties `point1` and `point2`.
+    - Returns: `Array` of objects, each with `x` and `y` properties, representing the intersection points.
+  - `.draw()`
+    - Draws the polygon on the canvas, following the current stroke state.
+  - `.fill()`
+    - Fills the polygon on the canvas, adhering to the current fill state.
+  - `.hatch()`
+    - Applies hatching to the polygon on the canvas, based on the current hatch state.
+
+- **Attributes**:
+  - `.vertices`: An array of the polygon's vertices, each vertex being an object with `x` and `y` properties.
+  - `.sides`: An array representing the different segments that make up the polygon.
 
 
+#### Class: `brush.Plot`
 
+- **Description**: The `Plot` class is crucial for the plot system, managing a collection of segments to create a variety of shapes and paths. It enables intricate designs, such as curves and custom strokes, by defining each segment with an angle, length, and pressure. `Plot` instances can be transformed through rotation, and their appearance controlled via pressure and angle calculations.
+
+- **Constructor**:
+  - `brush.Plot(_type)`
+    - `_type` (String): The type of plot, either "curve" or "segments".
+
+- **Methods**:
+  - `.addSegment(_a, _length, _pres)`
+    - Adds a segment to the plot.
+    - Parameters:
+      - `_a` (Number): The angle of the segment.
+      - `_length` (Number): The length of the segment.
+      - `_pres` (Number): The pressure of the segment.
+  - `.endPlot(_a, _pres)`
+    - Finalizes the plot with the last angle and pressure.
+    - Parameters:
+      - `_a` (Number): The final angle of the plot.
+      - `_pres` (Number): The final pressure of the plot.
+  - `.rotate(_a)`
+    - Rotates the entire plot by a specified angle.
+    - Parameters:
+      - `_a` (Number): The angle for rotation.
+  - `.genPol(_x, _y)`
+    - Generates a polygon based on the plot.
+    - Parameters:
+      - `_x` (Number): The x-coordinate for the starting point.
+      - `_y` (Number): The y-coordinate for the starting point.
+    - Returns: `Polygon` - The generated polygon.
+  - `.draw(x, y)`
+    - Draws the plot on the canvas with current stroke() state.
+    - Parameters:
+      - `x` (Number): The x-coordinate to draw at.
+      - `y` (Number): The y-coordinate to draw at.
+  - `.fill(x, y)`
+    - Fills the plot on the canvas with current fill() state.
+    - Parameters:
+      - `x` (Number): The x-coordinate to fill at.
+      - `y` (Number): The y-coordinate to fill at.
+  - `.hatch(x, y)`
+    - Hatches the plot on the canvas with current hatch() state.
+    - Parameters:
+      - `x` (Number): The x-coordinate to hatch at.
+      - `y` (Number): The y-coordinate to hatch at.
+
+- **Attributes**:
+  - `.segments`: An array containing the lengths of all segments.
+  - `.angles`: An array of angles at the different control points.
+  - `.press`: An array with custom brush pressures at the various control points.
+  - `.type`: The type of the plot, either "curve" or "segments".
+  - `.pol`: Stores the generated polygon object after executing the `.genPol()` method.
+
+## Examples
+- examples here
+
+## Contributing
+We welcome contributions from the community. If you find a bug or have a feature request, please open an issue on Github.
+
+## License
+Spectral.js is released under the MIT License. See the LICENSE file for details.
+
+## Acknowledgements
+- The fill() operations followed the steps explained by Tyler Hobbs [here](https://tylerxhobbs.com/essays/2017/a-generative-approach-to-simulating-watercolor-paints)https://tylerxhobbs.com/essays/2017/a-generative-approach-to-simulating-watercolor-paints
+- The realistic color blending is calculated with [spectral.js](https://github.com/rvanwijnen/spectral.js)https://github.com/rvanwijnen/spectral.js, by Ronald van Wijnen
+- Several p5 bugs that impacted the library have been found and solved with the help of [Dave Pagurek](https://twitter.com/davepvm)https://twitter.com/davepvm
