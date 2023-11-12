@@ -838,12 +838,12 @@ Exposed Classes provide foundational elements for creating and manipulating shap
     - Parameters:
       - `line` (Object): A line object with properties `point1` and `point2`.
     - Returns: `Array` of objects, each with `x` and `y` properties, representing the intersection points.
-  - `.draw()`
-    - Draws the polygon on the canvas, following the current stroke state.
-  - `.fill()`
-    - Fills the polygon on the canvas, adhering to the current fill state.
-  - `.hatch()`
-    - Applies hatching to the polygon on the canvas, based on the current hatch state.
+  - `.draw(brush, color, weight)`
+    - Draws the polygon on the canvas, following the current stroke state or the provided params.
+  - `.fill(color, opacity, bleed, texture)`
+    - Fills the polygon on the canvas, adhering to the current fill state or to the provided params.
+  - `.hatch(distance, angle, options)`
+    - Applies hatching to the polygon on the canvas, based on the current hatch state or the provided params.
 
 - **Attributes**:
   - `.vertices`: An array of the polygon's vertices, each vertex being an object with `x` and `y` properties.
