@@ -37,7 +37,7 @@ brush.add("watercolor", {
     vibration: 2,        // Vibration of the lines, spread
     definition: 0.5,     // Between 0 and 1
     quality: 8,          // + quality = more continuous line
-    opacity: 30,         // Base opacity of the brush (this will be affected by pressure)
+    opacity: 20,         // Base opacity of the brush (this will be affected by pressure)
     spacing: 1.5,          // Spacing between the points that compose the brush stroke
     blend: true,         // Activate / Disable realistic color mixing. By default, this is active for marker-custom-image brushes 
     pressure: {
@@ -79,13 +79,13 @@ function setup () {
 
     // STANDARD PALETTE TEST
     
+    /*
     let i = 0
     for (let b of brush.box()) {
             brush.set(b,random(palette),1)
             brush.flowLine(30,30+i*10,200,0)
         i++
     }
-
     
     
     // Set your brush name, color, and weight. There are 9 standard brushes to select from.
@@ -123,8 +123,10 @@ function setup () {
     // You can also atch these polygons .hath(distance_between_lines, angle_of_lines, 0-1.0 for % precission)
     //polygon.hatch(2,45,0.05)
     // You can also hatch arrays of polygons brush.hatch(ARRAY WITH POLS, distance_between_lines, angle_of_lines, 0-1.0 for % precission)
-    brush.stroke("#080f15")
-
+    
+*/
+     
+    
     let pol_array = []
     for (let i = 0; i < 5; i++) {
         pol_array.push(new brush.Polygon([
@@ -134,18 +136,32 @@ function setup () {
             [random(width),random(height)]
         ]));
     }
-    brush.hatch(pol_array,3,0)
+
+    brush.stroke(150)
+    for (let p of pol_array) {
+        p.draw()
+    }
+
+    brush.set("marker2",random(palette),1)  
+    brush.hatch(1,30,{gradient: 0.4, random: false, continuous: true})
+    brush.hatchArray(pol_array)
     // You can draw rectangles (x,y,width,height,mode) - mode is optional, you can set it to "center"
-    brush.set("charcoal","#6b9404",1)
+    brush.set("marker2",random(palette),1)
+    brush.hatch(1,130,{gradient: 0.3, random: false, continuous: true})
+    brush.hatchArray(pol_array)
     //brush.rect(100,100,100,100,"center")
     // You can draw ricles (x,y,radius)
 
+
+    
+    /*
+
     // You can create curves/plots (here I'm creating 4 spirals). This offers full control of the brush pressure, though it's a tad more complicated
-    brush.pick("watercolor")
-    brush.field("seabed")
-    for (let j = 0; j < 5; j++) {
+    brush.pick("marker2")
+    brush.field("curved")
+    for (let j = 0; j < 1; j++) {
         let plot = new brush.Plot("curve")
-        for (let i = 0; i < Math.floor(random(40,90)); i++) {
+        for (let i = 0; i < Math.floor(random(50,110)); i++) {
             plot.addSegment(0,1+i*4,random(0.6,1.5))
             plot.addSegment(90,2+i*4,random(0.6,1.5))
             plot.addSegment(180,3+i*4,random(0.6,1.5))
@@ -154,8 +170,10 @@ function setup () {
         plot.endPlot(0,1)
         plot.rotate(Math.floor(random(0,180)))
         brush.stroke(palette[j % (palette.length)])
-        //brush.flowShape(plot,width*random(0.3,0.7),height*random(0.1,0.9),random(0.5,1))
+        brush.plot(plot,width*random(0.3,0.7),height*random(0.1,0.9),random(0.5,1))
     }
+
+    
 
     brush.noField()
     brush.pick("2B")
@@ -197,21 +215,23 @@ function setup () {
     brush.noField()
     brush.noStroke()
     
+    brush.bleed(0.3)
+    brush.fill("#002185",120)
+    brush.circle(150,100,50)
     brush.fill("#fcd300",100)
     brush.bleed(0.25)
     brush.circle(100,100,50)
-    brush.fill("#002185",120)
-    brush.circle(150,100,50)
 
+*/
     
-
+    /*
     
     brush.set("2B","#9c2128",1)
 
     
     
-    let num_cols = 5
-    let num_rows = 3
+    let num_cols = 1
+    let num_rows = 1
     let col_size = (width - 40) / num_cols
     let row_size = (height - 40) / num_rows
     //brush.noStroke()
@@ -228,8 +248,8 @@ function setup () {
             brush.rect(20 + col_size * j, 20 + row_size * i, col_size, row_size)
         }
     }
-
     */
+    
 
     
 

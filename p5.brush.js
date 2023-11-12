@@ -391,6 +391,7 @@
             this.mask = createGraphics(_r.width,_r.height)
             this.mask.pixelDensity(_r.pixelDensity())
             this.mask.clear()
+            this.mask.angleMode(DEGREES)
             exports.mask = this.mask;
 
             // Load the spectral.js shader code only once                                                        
@@ -405,6 +406,13 @@
             this.noBlend = createGraphics(_r.width,_r.height);
             this.noBlend.pixelDensity(_r.pixelDensity())
             this.noBlend.noSmooth()
+            this.noBlend.angleMode(DEGREES)
+
+            // WEBGL buffer for img brushes (image() is much quicker like this)
+            this.mask2 = createGraphics(_r.width,_r.height, WEBGL)
+            this.mask2.pixelDensity(_r.pixelDensity())
+            this.mask2.clear()
+            this.mask2.angleMode(DEGREES)
         },
 
         /**
@@ -422,17 +430,39 @@
             return colorArray;
         },
 
+        color1: new Float32Array(3),
+        color2: new Float32Array(3),
+        blending1: false,
+        blending2: false,
+
         /**
          * Applies the blend shader to the current rendering context.
          * @param {string} _c - The color used for blending, as a p5.Color object.
          * @param {boolean} _isLast - Indicates if this is the last blend after setup and draw.
+         * @param {boolean} _isLast - Indicates if this is the last blend after setup and draw.
          */
-        blend (_color = false, _isLast = false) {
+        blend (_color = false, _isLast = false, webgl_mask = false) {
+
+            // Select between the two options:
+            this.isBlending = webgl_mask ? this.blending1 : this.blending2;
+            this.currentColor = webgl_mask ? this.color1 : this.color2;
+
             // Check if blending is initialised
             if(!this.isBlending) {
                 // If color has been provided, we initialise blending
-                if (_color) this.currentColor = this.getPigment(_color), this.isBlending = true;
-                else return
+                if (_color) {
+                    this.currentColor = this.getPigment(_color);
+                    if (webgl_mask) this.blending1 = true, this.color1 = this.currentColor;
+                    else this.blending2 = true, this.color2 = this.currentColor;
+                }
+                else {
+                    _r.push();
+                    _r.translate(-_trans()[0],-_trans()[1])
+                    _r.image(this.noBlend,-_r.width/2, -_r.height/2)
+                    this.noBlend.clear()
+                    _r.pop();
+                    return;
+                }
             }
             
             // Checks if newColor is the same than the cadhedColor
@@ -448,30 +478,31 @@
                 this.noBlend.clear()
                 // Use the blend shader for rendering
                 _r.shader(this.shader);
-                
                 // Set shader uniforms: color to add, source texture, and mask texture
                 this.shader.setUniform('addColor', this.currentColor);
                 this.shader.setUniform('source', _r._renderer);
-                this.shader.setUniform('mask', this.mask);
+                let mask = webgl_mask ? this.mask2: this.mask;
+                this.shader.setUniform('mask', mask);
                 // Draw a rectangle covering the whole canvas to apply the shader
                 _r.fill(0,0,0,0);
                 _r.noStroke();
                 _r.rect(-_r.width/2, -_r.height/2, _r.width, _r.height);
                 _r.pop();
                 // Clear the mask after drawing
-                this.mask.clear()
+                mask.clear()
                 // We cache the new color here
-                if (!_isLast) this.currentColor = this.getPigment(_color)
+                if (!_isLast) {
+                    this.currentColor = this.getPigment(_color);
+                    if (webgl_mask) this.color1 = this.currentColor;
+                    else this.color2 = this.currentColor;
+                }
             }
 
-            if (this.isBlending == false && _isLast) {
-                _r.push();
-                _r.translate(-_trans()[0],-_trans()[1])
-                _r.image(this.noBlend,-_r.width/2, -_r.height/2)
-                _r.pop();
+            if (_isLast) {
+                this.isBlending = false;
+                if (webgl_mask) this.blending1 = this.isBlending
+                else this.blending2 = this.isBlending
             }
-
-            if (_isLast) this.isBlending = false;
         },
 
         // Vertex shader source code
@@ -487,7 +518,9 @@
      * Register methods after setup() and post draw() for belding last buffered color
      */
     p5.prototype.registerMethod('afterSetup', () => Mix.blend(false, true));
+    p5.prototype.registerMethod('afterSetup', () => Mix.blend(false, true, true));
     p5.prototype.registerMethod('post', () => Mix.blend(false, true));
+    p5.prototype.registerMethod('post', () => Mix.blend(false, true, true));
 
 // =============================================================================
 // Section: FlowField
@@ -1066,14 +1099,15 @@
             // Blend Mode
                 this.c = _r.color(this.c);
                 // Select mask buffer for blend mode
-                this.mask = this.p.blend ? Mix.mask : Mix.noBlend;
+                this.mask = this.p.blend ? ((this.p.type === "image") ? Mix.mask2 : Mix.mask) : Mix.noBlend;
+                _trans()
                 // Set the blender
                 this.mask.push(); 
                 this.mask.noStroke();
-                _trans()
-                this.mask.translate(_matrix[0] + _r.width/2,_matrix[1] + _r.height/2); 
+                (this.p.type === "image") ? this.mask.translate(_matrix[0],_matrix[1]) : this.mask.translate(_matrix[0] + _r.width/2,_matrix[1] + _r.height/2); 
                 if (this.p.blend) {
-                    Mix.blend(this.c);
+                    if (this.p.type !== "image") Mix.blend(this.c);
+                    else Mix.blend(this.c,false,true)
                     if (!isTip) this.markerTip()
                 }
         },
@@ -1219,7 +1253,7 @@
             let vibration = vibrate ? this.w * this.p.vibration : 0;
             let rx = vibrate ? vibration * R.random(-1,1) : 0;
             let ry = vibrate ? vibration * R.random(-1,1) : 0;
-            this.mask.translate(this.position.x + rx, this.position.y + ry), 
+            this.mask.translate(this.position.x + rx, this.position.y + ry);
             this.adjustSizeAndRotation(this.w * pressure, alpha)
             this.p.tip();
             this.mask.pop();
@@ -1245,8 +1279,10 @@
             this.mask.scale(pressure);
             if (this.p.type === "image") (this.p.blend) ? this.mask.tint(255, 0, 0, alpha / 2) : this.mask.tint(this.mask.red(this.c), this.mask.green(this.c), this.mask.blue(this.c), alpha);
             if (this.p.rotate === "random") this.mask.rotate(R.randInt(0,360));
-            if (this.p.rotate === "natural") {
-                this.mask.rotate(((this.plot) ? - this.plot.angle(this.position.plotted) : - this.dir) + (this.flow ? this.position.angle() : 0))
+            else if (this.p.rotate === "natural") {
+                let angle = ((this.plot) ? - this.plot.angle(this.position.plotted) : - this.dir) + (this.flow ? this.position.angle() : 0)
+                angle = (this.plot) ? - this.plot.angle(this.position.plotted) : - this.dir
+                this.mask.rotate(angle)
             }
         },
 
@@ -1371,7 +1407,7 @@
  */
 
     let _isHatching = false;
-    let _hatchingParams;
+    let _hatchingParams = [5,45,{}];
     let _hatchingBrush = false;
 
     /**
@@ -2106,7 +2142,7 @@
         isActive: false,
         isAnimated: false,
         b: 0.07,
-        t: 1,
+        t: 0,
         /**
          * Fills the given polygon with a watercolor effect.
          * @param {Object} polygon - The polygon to fill.
@@ -2220,7 +2256,7 @@
         fill (color, intensity, tex) {
 
             // Precalculate stuff
-            const numLayers = 18;
+            const numLayers = 20;
             const intensityThird = intensity / 3;
             const intensityQuarter = intensity / 4;
             const intensityHalf = intensity / 2;
@@ -2239,7 +2275,7 @@
             let pol4 = this.grow(0.6)
 
             for (let i = 0; i < numLayers; i ++) {
-                if (i === Math.floor(numLayers / 3) || i === Math.floor(2 * numLayers / 3)) {
+                if (i === Math.floor(numLayers / 4) || i === Math.floor(2 * numLayers / 4) || i === Math.floor(3 * numLayers / 4)) {
                     // Grow the polygon objects once per third of the process
                     pol = pol.grow();
                     pol2 = pol2.grow(0.1);
@@ -2287,7 +2323,7 @@
             const halfSize = this.size / 2;
             const minSizeFactor = 0.025 * this.size;
             const maxSizeFactor = 0.19 * this.size;
-            Mix.mask.erase(5 * texture);
+            Mix.mask.erase(4 * texture);
             for (let i = 0; i < numCircles; i++) {
                 const x = this.midP.x + randomGaussian(0, halfSize);
                 const y = this.midP.y + randomGaussian(0, halfSize);
