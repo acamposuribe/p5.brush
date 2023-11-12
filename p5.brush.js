@@ -966,7 +966,9 @@
             let params = B.list.get(s[0]).param
             params.weight *= _scale, params.vibration *= _scale, params.spacing *= _scale;
         }
+        _gScale = _scale
     }
+    let _gScale = 1;
 
     /**
      * Disables the stroke for subsequent drawing operations.
@@ -2505,7 +2507,10 @@
         ["spray", { type: "spray", weight: 0.3, vibration: 12, definition: 15, quality: 40,  opacity: 120, spacing: 0.65, pressure: {curve: [0,0.1], min_max: [0.15,1.2]} }],
         ["marker", { type: "marker", weight: 2.5, vibration: 0.08, opacity: 30, spacing: 0.4, pressure: {curve: [0.35,0.25], min_max: [1.35,1]}}],
         ["marker2", { type: "custom", weight: 2.5, vibration: 0.08, opacity: 28, spacing: 0.6, pressure: {curve: [0.35,0.25], min_max: [1.2,1]}, 
-            tip: function () { B.mask.rect(-1.5,-1.5,3,3); B.mask.rect(1,1,1,1) }, rotate: "natural"
+            tip: function () { 
+                let scale = _gScale;
+                B.mask.rect(-1.5 * scale,-1.5 * scale,3 * scale,3 * scale); B.mask.rect(1 * scale,1 * scale,1 * scale,1 * scale) 
+            }, rotate: "natural"
         }],
     ];
     /**
