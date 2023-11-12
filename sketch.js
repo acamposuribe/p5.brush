@@ -124,42 +124,10 @@ function setup () {
     //polygon.hatch(2,45,0.05)
     // You can also hatch arrays of polygons brush.hatch(ARRAY WITH POLS, distance_between_lines, angle_of_lines, 0-1.0 for % precission)
     
-*/
+
      
+    */
     
-    let pol_array = []
-    for (let i = 0; i < 5; i++) {
-        pol_array.push(new brush.Polygon([
-            [random(width),random(height)],
-            [random(width),random(height)],
-            [random(width),random(height)],
-            [random(width),random(height)]
-        ]));
-    }
-
-    brush.stroke(150)
-    
-    brush.bleed(0)
-    for (let p of pol_array) {
-        brush.fill(random(palette),35)
-        p.draw()
-
-        p.fill()
-    }
-    brush.noFill()
-
-    brush.set("marker2",random(palette),1)  
-    brush.hatch(0.5,30,{gradient: 0.4, random: false, continuous: true})
-    brush.hatchArray(pol_array)
-    // You can draw rectangles (x,y,width,height,mode) - mode is optional, you can set it to "center"
-    brush.set("marker2",random(palette),1)
-    brush.hatch(0.2,130,{gradient: 0.3, random: false, continuous: true})
-    brush.hatchArray(pol_array)
-    //brush.rect(100,100,100,100,"center")
-    // You can draw ricles (x,y,radius)
-
-
-
     
     /*
 
@@ -193,6 +161,8 @@ function setup () {
     // The curve will go from the first point to the last one, using the rest as control points
     //brush.spline(points,1)
 
+    brush.fill("#002185", 70)
+    brush.bleed(0.05)
     brush.noField()
     brush.beginShape(0.7)
     brush.vertex(20,20,1)
@@ -203,6 +173,8 @@ function setup () {
     brush.vertex(30,200,1)
     brush.vertex(70,100,1)
     brush.endShape()
+
+    
 
     brush.stroke("#002185")
     brush.pick("marker")
@@ -232,33 +204,64 @@ function setup () {
 */
     
     /*
+    */
     
-    brush.set("2B","#9c2128",1)
-
+    //randomSeed(23123123)
     
-    
-    let num_cols = 1
-    let num_rows = 1
+    let num_cols = 5
+    let num_rows = 3
     let col_size = (width - 40) / num_cols
     let row_size = (height - 40) / num_rows
-    //brush.noStroke()
     brush.field("seabed")
     let brushes = ["marker", "marker2"]
-    let pencils = ["charcoal", "HB", "HB"]
-
+    let pencils = ["2H", "HB"]
     
+    brush.noField()
+
     for (let i = 0; i < num_rows; i++) {
         for (let j = 0; j < num_cols; j++) {
-            brush.set(random(pencils),random(palette))
-            brush.setHatch(random(brushes),random(palette))
+            //brush.fill(random(palette), 140)
+            //rush.bleed(random(0.15,0.2),0.1)
+            brush.set(random(pencils),140)
+            brush.setHatch(random(pencils),140)
             brush.hatch(random(1,6), random(0,180), {rand: 0, continuous: false, gradient: false})
             brush.rect(20 + col_size * j, 20 + row_size * i, col_size, row_size)
         }
     }
-    */
-    
 
     
+
+
+    let pol_array = []
+    for (let i = 0; i < 5; i++) {
+        pol_array.push(new brush.Polygon([
+            [width * random(0.1,0.9),height * random(0.1,0.9)],
+            [width * random(0.1,0.9),height * random(0.1,0.9)],
+            [width * random(0.1,0.9),height * random(0.1,0.9)],
+            [width * random(0.1,0.9),height * random(0.1,0.9)]
+        ]));
+    }
+
+    brush.stroke(150)
+    
+    brush.bleed(0)
+    for (let p of pol_array) {
+        p.draw("HB","#9c2128",1)
+        p.fill(random(palette),85,0)
+    }
+
+    brush.setHatch("marker2",random(palette),1)  
+    brush.hatch(0.5,30,{gradient: 0.4, random: false, continuous: true})
+    brush.hatchArray(pol_array)
+    // You can draw rectangles (x,y,width,height,mode) - mode is optional, you can set it to "center"
+    brush.setHatch("marker2",random(palette),1)
+    brush.hatch(0.2,130,{gradient: 0.3, random: false, continuous: true})
+    brush.hatchArray(pol_array)
+    //brush.rect(100,100,100,100,"center")
+    // You can draw ricles (x,y,radius)
+
+    brush.noHatch()
+    brush.noFill()
 
 }
 

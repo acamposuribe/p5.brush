@@ -389,9 +389,10 @@
         load() {
             // Create a buffer to be used as a mask. We use a 2D buffer for faster geometry drawing
             this.mask = createGraphics(_r.width,_r.height)
-            this.mask.pixelDensity(_r.pixelDensity())
-            this.mask.clear()
-            this.mask.angleMode(DEGREES)
+            this.mask.pixelDensity(_r.pixelDensity());
+            this.mask.clear();
+            this.mask.noSmooth();
+            this.mask.angleMode(DEGREES);
             exports.mask = this.mask;
 
             // Load the spectral.js shader code only once                                                        
@@ -404,15 +405,16 @@
 
             // Create a buffer for noBlend brushes
             this.noBlend = createGraphics(_r.width,_r.height);
-            this.noBlend.pixelDensity(_r.pixelDensity())
-            this.noBlend.noSmooth()
-            this.noBlend.angleMode(DEGREES)
+            this.noBlend.pixelDensity(_r.pixelDensity());
+            this.noBlend.noSmooth();
+            this.noBlend.clear();
+            this.noBlend.angleMode(DEGREES);
 
             // WEBGL buffer for img brushes (image() is much quicker like this)
             this.mask2 = createGraphics(_r.width,_r.height, WEBGL)
-            this.mask2.pixelDensity(_r.pixelDensity())
-            this.mask2.clear()
-            this.mask2.angleMode(DEGREES)
+            this.mask2.pixelDensity(_r.pixelDensity());
+            this.mask2.clear();
+            this.mask2.angleMode(DEGREES);
         },
 
         /**
@@ -441,7 +443,7 @@
          * @param {boolean} _isLast - Indicates if this is the last blend after setup and draw.
          * @param {boolean} _isLast - Indicates if this is the last blend after setup and draw.
          */
-        blend (_color = false, _isLast = false, webgl_mask = false) {
+        blend (_color = false, _isLast = false, webgl_mask = false, _watercolor = false) {
 
             // Select between the two options:
             this.isBlending = webgl_mask ? this.blending1 : this.blending2;
@@ -481,6 +483,9 @@
                 // Set shader uniforms: color to add, source texture, and mask texture
                 this.shader.setUniform('addColor', this.currentColor);
                 this.shader.setUniform('source', _r._renderer);
+                this.shader.setUniform('active', _watercolor);
+                let rA = [R.random(),R.random(),R.random()]
+                this.shader.setUniform('random', rA);
                 let mask = webgl_mask ? this.mask2: this.mask;
                 this.shader.setUniform('mask', mask);
                 // Draw a rectangle covering the whole canvas to apply the shader
@@ -509,9 +514,99 @@
         vert: `precision highp float;attribute vec3 aPosition;attribute vec2 aTexCoord;uniform mat4 uModelViewMatrix,uProjectionMatrix;varying vec2 vVertTexCoord;void main(){gl_Position=uProjectionMatrix*uModelViewMatrix*vec4(aPosition,1);vVertTexCoord=aTexCoord;}`,
         
         // Fragment shader source code with blending operations
-        frag: `precision highp float;varying vec2 vVertTexCoord;uniform sampler2D source,mask;uniform vec4 addColor;
+        frag: `
+        precision highp float;varying vec2 vVertTexCoord;
+        uniform sampler2D source;
+        uniform sampler2D mask;
+        uniform vec4 addColor;
+        uniform vec3 random;
+        uniform bool active;
+
         #include "spectral.glsl"
-        float v(vec2 v,float d,float f,float s){return fract(sin(dot(v,vec2(d,f)))*s);}void main(){vec4 f=texture2D(mask,vVertTexCoord);if(f.x>0.){vec2 r=vec2(12.9898,78.233),a=vec2(7.9898,58.233),l=vec2(17.9898,3.233);float d=v(vVertTexCoord,r.x,r.y,43358.5453)*2.-1.,x=v(vVertTexCoord,a.x,a.y,43213.5453)*2.-1.,s=v(vVertTexCoord,l.x,l.y,33358.5453)*2.-1.;vec3 y=spectral_mix(texture2D(source,vVertTexCoord).xyz,addColor.xyz,f.w*.8);if(f.w>.8)y=spectral_mix(y,vec3(0),(f.w-.8)/.6);gl_FragColor=vec4(y+.02*vec3(d,x,s),1);}}`
+
+        // psrdnoise (c) Stefan Gustavson and Ian McEwan,
+        // ver. 2021-12-02, published under the MIT license:
+        // https://github.com/stegu/psrdnoise/
+        float psrdnoise(vec2 x, vec2 period, float alpha, out vec2 gradient)
+        {
+        vec2 uv = vec2(x.x+x.y*0.5, x.y);
+        vec2 i0 = floor(uv), f0 = fract(uv);
+        float cmp = step(f0.y, f0.x);
+        vec2 o1 = vec2(cmp, 1.0-cmp);
+        vec2 i1 = i0 + o1, i2 = i0 + 1.0;
+        vec2 v0 = vec2(i0.x - i0.y*0.5, i0.y);
+        vec2 v1 = vec2(v0.x + o1.x - o1.y*0.5, v0.y + o1.y);
+        vec2 v2 = vec2(v0.x + 0.5, v0.y + 1.0);
+        vec2 x0 = x - v0, x1 = x - v1, x2 = x - v2;
+        vec3 iu, iv, xw, yw;
+        if(any(greaterThan(period, vec2(0.0)))) {
+            xw = vec3(v0.x, v1.x, v2.x);
+            yw = vec3(v0.y, v1.y, v2.y);
+            if(period.x > 0.0)
+            xw = mod(vec3(v0.x, v1.x, v2.x), period.x);
+            if(period.y > 0.0)
+            yw = mod(vec3(v0.y, v1.y, v2.y), period.y);
+            iu = floor(xw + 0.5*yw + 0.5); iv = floor(yw + 0.5);
+        } else {
+            iu = vec3(i0.x, i1.x, i2.x); iv = vec3(i0.y, i1.y, i2.y);
+        }
+        vec3 hash = mod(iu, 289.0);
+        hash = mod((hash*51.0 + 2.0)*hash + iv, 289.0);
+        hash = mod((hash*34.0 + 10.0)*hash, 289.0);
+        vec3 psi = hash*0.07482 + alpha;
+        vec3 gx = cos(psi); vec3 gy = sin(psi);
+        vec2 g0 = vec2(gx.x, gy.x);
+        vec2 g1 = vec2(gx.y, gy.y);
+        vec2 g2 = vec2(gx.z, gy.z);
+        vec3 w = 0.8 - vec3(dot(x0, x0), dot(x1, x1), dot(x2, x2));
+        w = max(w, 0.0); vec3 w2 = w*w; vec3 w4 = w2*w2;
+        vec3 gdotx = vec3(dot(g0, x0), dot(g1, x1), dot(g2, x2));
+        float n = dot(w4, gdotx);
+        vec3 w3 = w2*w; vec3 dw = -8.0*w3*gdotx;
+        vec2 dn0 = w4.x*g0 + dw.x*x0;
+        vec2 dn1 = w4.y*g1 + dw.y*x1;
+        vec2 dn2 = w4.z*g2 + dw.z*x2;
+        gradient = 10.9*(dn0 + dn1 + dn2);
+        return 10.9*n;
+        }
+
+        vec4 generic_desaturate(vec3 color, float factor)
+        {
+            vec3 lum = vec3(0.299, 0.587, 0.114);
+            vec3 gray = vec3(dot(lum, color));
+            return vec4(mix(color, gray, factor), 1.0);
+        }
+
+        float rand(vec2 co, float a, float b, float c){return fract(sin(dot(co, vec2(a, b))) * c);}
+
+        void main() {
+
+            vec4 maskColor = texture2D(mask, vVertTexCoord);
+            if (maskColor.r > 0.0) {
+                vec2 r=vec2(12.9898,78.233), a=vec2(7.9898,58.233), l=vec2(17.9898,3.233);
+                float d=rand(vVertTexCoord,r.x,r.y,43358.5453)*2.-1., x=rand(vVertTexCoord,a.x,a.y,43213.5453)*2.-1., s=rand(vVertTexCoord,l.x,l.y,33358.5453)*2.-1.;
+
+                const vec2 p = vec2(0.0);
+                vec2 g;
+
+                vec3 pigment;
+                
+                if (active) {
+                    float n = psrdnoise(vVertTexCoord * 10., p, 10.0 * random.x, g);
+                    float n2 = psrdnoise(vVertTexCoord * 10., p, 10.0 * random.y, g);
+                    float n3 = psrdnoise(vVertTexCoord * 10., p, 10.0 * random.z, g);
+                    float n4 = 0.25 + 0.25 * psrdnoise(vVertTexCoord * 8., p, 3.0 * random.x, g);
+                    pigment = generic_desaturate(addColor.xyz,n4).xyz + vec3(n,n2,n3) * 0.03;
+                } else {
+                    pigment = addColor.xyz;
+                }
+
+                vec3 mixedColor = spectral_mix(texture2D(source,vVertTexCoord).xyz, pigment, maskColor.a);
+                if (maskColor.a > .8) mixedColor = spectral_mix(mixedColor,vec3(0),(maskColor.a - .8) * .4);
+                gl_FragColor = vec4(mixedColor + 0.01*vec3(d,x,s),1.);
+            }
+        }
+        `
     }
 
     /**
@@ -546,7 +641,9 @@
      * Deactivates the current vector field.
      * EXPORTED
      */
-    function disableField () {FF.isActive = false}
+    function disableField () {
+        FF.isActive = false;
+    }
 
     /**
      * Adds a new vector field to the field list with a unique name and a generator function.
@@ -555,7 +652,7 @@
      * EXPORTED
      */
     function addField(name,funct) {
-        _ensureReady(); 
+        _ensureReady();
         FF.list.set(name,{gen: funct}); // Map the field name to its generator function
         FF.current = name; // Set the newly added field as the current one to be used
         FF.refresh(); // Refresh the field values using the generator function
@@ -1406,10 +1503,6 @@
  * Hatching involves drawing closely spaced parallel lines.
  */
 
-    let _isHatching = false;
-    let _hatchingParams = [5,45,{}];
-    let _hatchingBrush = false;
-
     /**
      * Activates hatching for subsequent geometries, with the given params.
      * @param {number} dist - The distance between hatching lines.
@@ -1422,8 +1515,8 @@
      * EXPORTED
      */
     function hatch(dist = 5, angle = 45, options = {rand: false, continuous: false, gradient: false}) {
-        _isHatching = true;
-        _hatchingParams = [dist, angle, options]
+        H.isActive = true;
+        H.hatchingParams = [dist, angle, options]
     }
 
     /**
@@ -1435,7 +1528,7 @@
      * EXPORTED
      */  
     function setHatch(brush, color, weight = 1) {
-        _hatchingBrush = [brush, color, weight]
+        H.hatchingBrush = [brush, color, weight]
     }
 
     /**
@@ -1443,89 +1536,114 @@
      * EXPORTED
      */
     function noHatch() {
-        _isHatching = false;
-        _hatchingBrush = false;
+        H.isActive = false;
+        H.hatchingBrush = false;
     }
 
+
     /**
-     * Creates a hatching pattern across the given polygons.
-     * 
-     * @param {Array|Object} polygons - A single polygon or an array of polygons to apply the hatching.
-     * EXPORTED
+     * Object to hold the current hatch state and to perform hatch calculation
      */
-    B.hatch = function (polygons) {
+    const H = {
+        isActive: false,
+        hatchingParams: [5,45,{}],
+        hatchingBrush: false,
 
-        let dist = _hatchingParams[0];
-        let angle = _hatchingParams[1];
-        let options = _hatchingParams[2];
 
-        let strokeColor = this.c, strokeBrush = this.name, strokeWeight = this.w, strokeActive = this.isActive;
-        if (_hatchingBrush) this.set(_hatchingBrush[0],_hatchingBrush[1],_hatchingBrush[2])
 
-        _ensureReady();
-        angle = ((angleMode() === "radians") ? angle * 180 / Math.PI : angle) % 180
-        // Calculate the bounding area of the provided polygons
-        let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
-        let processPolygonPoints = (p) => {
-            for (let a of p.a) {
-                // (process points of a single polygon to find bounding area)
-                minX = a[0] < minX ? a[0] : minX;
-                maxX = a[0] > maxX ? a[0] : maxX;
-                minY = a[1] < minY ? a[1] : minY;
-                maxY = a[1] > maxY ? a[1] : maxY;
-            }
-        };
-        // Ensure polygons is an array and find overall bounding area
-        if (!Array.isArray(polygons)) {polygons = [polygons]}
-        for (let p of polygons) {processPolygonPoints(p);}
-        // Create a bounding polygon
-        let ventana = new Polygon([[minX,minY],[maxX,minY],[maxX,maxY],[minX,maxY]])
-        // Set initial values for line generation
-        let startY = (angle <= 90 && angle >= 0) ? minY : maxY;
-        let gradient = options.gradient ? map(options.gradient,0,1,1,1.1,true) : 1
-        let dots = [], i = 0, dist1 = dist;
-        let linea = (i) => {
-            return {
-                point1 : { x: minX + dist1 * i * R.cos(-angle+90),                   y: startY + dist1 * i * R.sin(-angle+90) },
-                point2 : { x: minX + dist1 * i * R.cos(-angle+90) + R.cos(-angle),   y: startY + dist1 * i * R.sin(-angle+90) + R.sin(-angle) }
-            }
-        }
-        // Generate lines and calculate intersections with polygons
-        // Loop through the lines based on the distance and angle to calculate intersections with the polygons
-        // The loop continues until a line does not intersect with the bounding window polygon
-        // Each iteration accounts for the gradient effect by adjusting the distance between lines
-        while (ventana.intersect(linea(i)).length > 0) {
-            let tempArray = [];
-            for (let p of polygons) {tempArray.push(p.intersect(linea(i)))};
-            dots[i] = tempArray.flat().sort((a, b) => (a.x === b.x) ? (a.y - b.y) : (a.x - b.x));
-            dist1 *= gradient
-            i++
-        }
-        // Filter out empty arrays to avoid drawing unnecessary lines
-        let gdots = []
-        for (let dd of dots) {if (typeof dd[0] !== "undefined") { gdots.push(dd)} }
-        // Draw the hatching lines using the calculated intersections
-        // If the 'rand' option is enabled, add randomness to the start and end points of the lines
-        // If the 'continuous' option is set, connect the end of one line to the start of the next
-        for (let j = 0; j < gdots.length; j++) {
-            let dd = gdots[j]
-            let r = options.rand || 0;
-            let shouldDrawContinuousLine = j > 0 && options.continuous;
-            for (let i = 0; i < dd.length-1; i += 2) {
-                if (r !== 0) {
-                    dd[i].x += r * dist * R.random(-1, 1);
-                    dd[i].y += r * dist * R.random(-1, 1);
-                    dd[i + 1].x += r * dist * R.random(-1, 1);
-                    dd[i + 1].y += r * dist * R.random(-1, 1);
+        /**
+         * Creates a hatching pattern across the given polygons.
+         * 
+         * @param {Array|Object} polygons - A single polygon or an array of polygons to apply the hatching.
+         * EXPORTED
+         */
+        hatch(polygons) {
+
+            let dist = H.hatchingParams[0];
+            let angle = H.hatchingParams[1];
+            let options = H.hatchingParams[2];
+    
+            // Save current stroke state
+            let strokeColor = B.c, strokeBrush = B.name, strokeWeight = B.w, strokeActive = B.isActive;
+            // Change state if hatch has been set to different params than stroke
+            if (H.hatchingBrush) B.set(H.hatchingBrush[0],H.hatchingBrush[1],H.hatchingBrush[2])
+            
+            // Check angleMode for calculations and transform to degrees
+            angle = ((angleMode() === "radians") ? angle * 180 / Math.PI : angle) % 180
+
+            // Calculate the bounding area of the provided polygons
+            let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+            let processPolygonPoints = (p) => {
+                for (let a of p.a) {
+                    // (process points of a single polygon to find bounding area)
+                    minX = a[0] < minX ? a[0] : minX;
+                    maxX = a[0] > maxX ? a[0] : maxX;
+                    minY = a[1] < minY ? a[1] : minY;
+                    maxY = a[1] > maxY ? a[1] : maxY;
                 }
-                B.line(dd[i].x, dd[i].y, dd[i + 1].x, dd[i + 1].y);
-                if (shouldDrawContinuousLine) {
-                    B.line(gdots[j - 1][1].x, gdots[j - 1][1].y, dd[i].x, dd[i].y);
+            };
+
+            // Ensure polygons is an array and find overall bounding area
+            if (!Array.isArray(polygons)) {polygons = [polygons]}
+            for (let p of polygons) {processPolygonPoints(p);}
+
+            // Create a bounding polygon
+            let ventana = new Polygon([[minX,minY],[maxX,minY],[maxX,maxY],[minX,maxY]])
+
+            // Set initial values for line generation
+            let startY = (angle <= 90 && angle >= 0) ? minY : maxY;
+            let gradient = options.gradient ? map(options.gradient,0,1,1,1.1,true) : 1
+            let dots = [];
+            let i = 0;
+            let dist1 = dist;
+            let linea = (i) => {
+                return {
+                    point1 : { x: minX + dist1 * i * R.cos(-angle+90),                   y: startY + dist1 * i * R.sin(-angle+90) },
+                    point2 : { x: minX + dist1 * i * R.cos(-angle+90) + R.cos(-angle),   y: startY + dist1 * i * R.sin(-angle+90) + R.sin(-angle) }
                 }
             }
+
+            // Generate lines and calculate intersections with polygons
+            // Loop through the lines based on the distance and angle to calculate intersections with the polygons
+            // The loop continues until a line does not intersect with the bounding window polygon
+            // Each iteration accounts for the gradient effect by adjusting the distance between lines
+            while (ventana.intersect(linea(i)).length > 0) {
+                let tempArray = [];
+                for (let p of polygons) {tempArray.push(p.intersect(linea(i)))};
+                dots[i] = tempArray.flat().sort((a, b) => (a.x === b.x) ? (a.y - b.y) : (a.x - b.x));
+                dist1 *= gradient
+                i++
+            }
+
+            // Filter out empty arrays to avoid drawing unnecessary lines
+            let gdots = []
+            for (let dd of dots) {if (typeof dd[0] !== "undefined") { gdots.push(dd)} }
+
+            // Draw the hatching lines using the calculated intersections
+            // If the 'rand' option is enabled, add randomness to the start and end points of the lines
+            // If the 'continuous' option is set, connect the end of one line to the start of the next
+            for (let j = 0; j < gdots.length; j++) {
+                let dd = gdots[j]
+                let r = options.rand || 0;
+                let shouldDrawContinuousLine = j > 0 && options.continuous;
+                for (let i = 0; i < dd.length-1; i += 2) {
+                    if (r !== 0) {
+                        dd[i].x += r * dist * R.random(-1, 1);
+                        dd[i].y += r * dist * R.random(-1, 1);
+                        dd[i + 1].x += r * dist * R.random(-1, 1);
+                        dd[i + 1].y += r * dist * R.random(-1, 1);
+                    }
+                    B.line(dd[i].x, dd[i].y, dd[i + 1].x, dd[i + 1].y);
+                    if (shouldDrawContinuousLine) {
+                        B.line(gdots[j - 1][1].x, gdots[j - 1][1].y, dd[i].x, dd[i].y);
+                    }
+                }
+            }
+
+            // Change state back to previous
+            B.set(strokeBrush, strokeColor, strokeWeight)
+            B.isActive = strokeActive;
         }
-        this.set(strokeBrush, strokeColor, strokeWeight)
-        this.isActive = strokeActive;
     }
 
     
@@ -1581,29 +1699,41 @@
         /**
          * Draws the polygon by iterating over its sides and drawing lines between the vertices.
          */
-        draw () {
+        draw (_brush = false, _color, _weight) {
+            let curState = B.isActive;
+            if (_brush) B.set(_brush, _color, _weight)
             if (B.isActive) {
                 _ensureReady();
                 for (let s of this.sides) {B.line(s[0].x,s[0].y,s[1].x,s[1].y)}
             }
+            B.isActive = curState;
         }
         /**
          * Fills the polygon using the current fill state.
          */
-        fill () {
+        fill (_color = false, _opacity, _bleed, _texture) {
+            let curState = F.isActive;
+            if (_color) {
+                setFill(_color, _opacity)
+                setBleed(_bleed, _texture)
+            }
             if (F.isActive) {
                 _ensureReady();
                 F.fill(this);
             }
+            F.isActive = curState;
         }
         /**
          * Creates hatch lines across the polygon based on a given distance and angle.
          */
-        hatch () {
-            if (_isHatching) {
+        hatch (_dist = false, _angle, _options) {
+            let curState = H.isActive;
+            if (_dist) hatch(_dist, _angle, _options)
+            if (H.isActive) {
                 _ensureReady();
-                B.hatch(this)
+                H.hatch(this)
             }
+            H.isActive = curState;
         }
     }
 
@@ -1623,7 +1753,7 @@
         let polygon = new Polygon(pointsArray);
         // Fill the polygon if the F state is active (the check is in the polygon class)
         polygon.fill();
-        // Hatch the polygon if _isHatching is active (the check is in the polygon class)
+        // Hatch the polygon if H.isActive is active (the check is in the polygon class)
         polygon.hatch()
         // Draw the polygon if the B state is active (the check is in the polygon class)
         polygon.draw();
@@ -1639,7 +1769,6 @@
      * @param {boolean} [mode=CORNER] - If CENTER, the rectangle is drawn centered at (x, y).
      */
     function drawRectangle(x,y,w,h,mode = CORNER) {
-        _ensureReady();
         if (mode == CENTER) x = x - w / 2, y = y - h / 2;
         if (FF.isActive) {
             _beginShape(0);
@@ -1798,11 +1927,12 @@
          * @param {number} _y - The y-coordinate for the starting point of the polygon.
          * @returns {Polygon} - The generated polygon.
          */
-        genPol (_x,_y) {
-            _ensureReady();
+        genPol (_x,_y,_scale = 1, isHatch = false) {
+            _ensureReady(); // Ensure that the drawing environment is prepared
             let max = 0;
             let min = 9999;
             for (let o of this.segments) {
+                o *= _scale;
                 if (o !== 0) {
                     max = Math.max(max, o);
                     min = Math.min(min, o);
@@ -1810,10 +1940,9 @@
             }
             let _step = B.spacing()  // get last spacing
             let vertices = []
-            let side = (max + min) * ((F.isAnimated) ? 0.25 : F.b);
-            //let side = (max + min) * 0.2;
+            let side = (max + min) * (isHatch ? 0.03 : ((F.isAnimated) ? 0.25 : F.b));
             let linepoint = new Position(_x,_y);
-            let numsteps = Math.round(this.length/_step);
+            let numsteps = Math.round(this.length/_step); 
             for (let steps = 0; steps < numsteps; steps++) {
                 if (linepoint.x) vertices[Math.floor(linepoint.plotted / side)] = [linepoint.x,linepoint.y]
                 linepoint.plotTo(this,_step,_step,1)
@@ -1828,9 +1957,9 @@
          * @param {number} y - The y-coordinate to draw at.
          * @param {number} scale - The scale to draw with.
          */
-        draw (x,y,scale) {
+        draw (x, y, scale) {
             if (B.isActive) {
-                _ensureReady();
+                _ensureReady(); // Ensure that the drawing environment is prepared
                 if (this.origin) x = this.origin[0], y = this.origin[1], scale = 1;
                 B.flowShape(this,x,y,scale)
             }
@@ -1841,10 +1970,11 @@
          * @param {number} x - The x-coordinate to draw at.
          * @param {number} y - The y-coordinate to draw at.
          */
-        fill (x,y) {
+        fill (x, y, scale) {
             if (F.isActive) {
-                _ensureReady();
-                if (!this.pol) this.pol = this.genPol(x,y)
+                _ensureReady(); // Ensure that the drawing environment is prepared
+                if (this.origin) x = this.origin[0], y = this.origin[1], scale = 1;
+                if (!this.pol) this.pol = this.genPol(x, y, scale)
                 this.pol.fill()
             }
         }
@@ -1854,10 +1984,11 @@
          * @param {number} x - The x-coordinate to draw at.
          * @param {number} y - The y-coordinate to draw at.
          */
-        hatch (x,y) {
-            if (_isHatching) {
-                _ensureReady();
-                if (!this.pol) this.pol = this.genPol(x,y)
+        hatch (x, y, scale) {
+            if (H.isActive) {
+                _ensureReady(); // Ensure that the drawing environment is prepared
+                if (this.origin) x = this.origin[0], y = this.origin[1], scale = 1;
+                if (!this.pol) this.pol = this.genPol(x, y, scale, true)
                 this.pol.hatch()
             }
         }
@@ -1872,7 +2003,7 @@
      * @param {boolean} [r=false] - If true, applies a random factor to the radius for each segment.
      */
         function drawCircle(x,y,radius,r = false) {
-            _ensureReady();
+
             // Create a new Plot instance for a curve shape
             let p = new Plot("curve")
             // Calculate the length of the arc for each quarter of the circle
@@ -1892,7 +2023,7 @@
             // Finalize the plot
             p.endPlot(angle2 + angle,1, true)
             // If the fill or hatch are active, generate a polygon from the plot and fill/hatch it
-            if (F.isActive || _isHatching) {
+            if (F.isActive || H.isActive) {
                 let pol = p.genPol(x - radius * R.sin(angle),y - radius * R.cos(-angle))
                 pol.fill()
                 pol.hatch()
@@ -1912,7 +2043,6 @@
      * EXPORTED
      */
     function _beginShape(curvature) {
-        _ensureReady(); // Ensure that the drawing context is ready
         _strokeOption = curvature; // Set the curvature option for the shape
         _strokeArray = []; // Initialize the array to store vertices
     }
@@ -1936,14 +2066,13 @@
         if (a === CLOSE) {
             _strokeArray.push(_strokeArray[0]); // Close the shape by connecting the last vertex to the first
         }
-        let sp = new Spline(_strokeArray, _strokeOption); // Create a new Spline with the recorded vertices and curvature option
-        if (F.isActive || _isHatching) {
-            let pol = sp.p.genPol(_strokeArray[0][0], _strokeArray[0][1])
-            pol.fill(); // Fill the shape if the fill state is active
-            pol.hatch(); // Hatch the shape if the hatch state is active
+        let plot = _createSpline(_strokeArray, _strokeOption); // Create a new Plot with the recorded vertices and curvature option
+        if (F.isActive || H.isActive) {
+            plot.fill(); // Fill the shape if the fill state is active
+            plot.hatch(); // Hatch the shape if the hatch state is active
         }
         if (B.isActive) {
-            sp.draw(); // Draw the shape if the brush state is active
+            plot.draw(); // Draw the shape if the brush state is active
         }
         _strokeArray = false; // Clear the array after the shape has been drawn
     }
@@ -1956,7 +2085,6 @@
      * @param {number} y - The y-coordinate of the starting point of the stroke.
      */
     function _beginStroke(type, x, y) {
-        _ensureReady(); // Ensure that the drawing environment is prepared
         _strokeOption = [x, y]; // Store the starting position for later use
         _strokeArray = new Plot(type); // Initialize a new Plot with the specified type
     }
@@ -1984,84 +2112,71 @@
     }
     
     /**
-     * Represents a spline curve, which is a type of smooth curve defined by a series of points.
-     * EXPORTED
+     * Creates a new Plot object.
+     * @param {Array<Array<number>>} array_points - An array of points defining the spline curve.
+     * @param {number} [curvature=0.5] - The curvature of the spline curve, beterrn 0 and 1. A curvature of 0 will create a series of straight segments.
      */
-    class Spline {
+    function _createSpline (array_points, curvature = 0.5) {
 
-        /**
-         * Constructs a new Spline object.
-         * @param {Array<Array<number>>} array_points - An array of points defining the spline curve.
-         * @param {number} [curvature=0.5] - The curvature of the spline curve, beterrn 0 and 1. A curvature of 0 will create a series of straight segments.
-         */
-        constructor (array_points, curvature = 0.5) {
-            // Initialize the plot type based on curvature
-            this.plotType = (curvature === 0) ? "segments" : "curve";
-            this.p = new Plot(this.plotType);
+        // Initialize the plot type based on curvature
+        let plotType = (curvature === 0) ? "segments" : "curve";
+        let p = new Plot(plotType);
 
-            // Proceed only if there are points provided
-            if (array_points && array_points.length > 0) {
-                // Set the origin point from the first point in the array
-                this.setOrigin(array_points[0]);
-                
-                // Add each segment to the plot
-                let done = 0;
-                for (let i = 0; i < array_points.length - 1; i++) {
-                    if (curvature > 0 && i < array_points.length - 2) {
-                        // Get the current and next points
-                        let p1 = array_points[i], p2 = array_points[i+1], p3 = array_points[i+2];
-                        // Calculate distances and angles between points
-                        let d1 = dist(p1[0],p1[1],p2[0],p2[1]), d2 = dist(p2[0],p2[1],p3[0],p3[1]);
-                        let a1 = _calculateAngle(p1[0],p1[1],p2[0],p2[1]), a2 = _calculateAngle(p2[0],p2[1],p3[0],p3[1]);
-                        // Calculate curvature based on the minimum distance
-                        let dd = curvature * Math.min(Math.min(d1,d2),0.5 * Math.min(d1,d2)), dmax = Math.max(d1,d2)
-                        let s1 = d1 - dd, s2 = d2 - dd;
-                        // If the angles are approximately the same, create a straight segment
-                        if (Math.floor(a1) === Math.floor(a2)) {
-                            this.p.addSegment(a1,s1,p1[2],true)
-                            this.p.addSegment(a2,d2,p2[2],true)
-                        } else {
-                        // If the angles are not the same, create curves, etc (this is a too complex...)
-                            let point1 = {x: p2[0] - dd * R.cos(-a1), y: p2[1] - dd * R.sin(-a1)}
-                            let point2 = {x: point1.x + dmax * R.cos(-a1+90), y: point1.y + dmax * R.sin(-a1+90)}
-                            let point3 = {x: p2[0] + dd * R.cos(-a2), y: p2[1] + dd * R.sin(-a2)}
-                            let point4 = {x: point3.x + dmax * R.cos(-a2+90), y: point3.y + dmax * R.sin(-a2+90)}
-                            let int = _intersectLines(point1,point2,point3,point4,true)
-                            let radius = dist(point1.x,point1.y,int.x,int.y)
-                            let disti = dist(point1.x,point1.y,point3.x,point3.y)/2
-                            let a3 = 2*asin(disti/radius)
-                            let s3 = 2 * Math.PI * radius * a3 / 360;
-                            this.p.addSegment(a1,s1-done, p1[2],true)
-                            this.p.addSegment(a1,s3, p1[2],true)
-                            this.p.addSegment(a2,i === array_points.length - 3 ? s2 : 0, p2[2],true)
-                            done = dd;
-                        }
-                        if (i == array_points.length - 3) {
-                            this.p.endPlot(a2,p2[2],true)
-                        }
-                    } else if (curvature === 0) {
-                        // If curvature is 0, simply create segments
-                        let p1 = array_points[i], p2 = array_points[i+1]
-                        let d = dist(p1[0],p1[1],p2[0],p2[1]);
-                        let a = _calculateAngle(p1[0],p1[1],p2[0],p2[1]);
-                        this.p.addSegment(a,d,1,true)
-                        if (i == array_points.length - 2) {
-                            this.p.endPlot(a,1,true)
-                        }
+        // Proceed only if there are points provided
+        if (array_points && array_points.length > 0) {
+            // Set the origin point from the first point in the array
+            p.origin = array_points[0];
+            
+            // Add each segment to the plot
+            let done = 0;
+            for (let i = 0; i < array_points.length - 1; i++) {
+                if (curvature > 0 && i < array_points.length - 2) {
+                    // Get the current and next points
+                    let p1 = array_points[i], p2 = array_points[i+1], p3 = array_points[i+2];
+                    // Calculate distances and angles between points
+                    let d1 = dist(p1[0],p1[1],p2[0],p2[1]), d2 = dist(p2[0],p2[1],p3[0],p3[1]);
+                    let a1 = _calculateAngle(p1[0],p1[1],p2[0],p2[1]), a2 = _calculateAngle(p2[0],p2[1],p3[0],p3[1]);
+                    // Calculate curvature based on the minimum distance
+                    let dd = curvature * Math.min(Math.min(d1,d2),0.5 * Math.min(d1,d2)), dmax = Math.max(d1,d2)
+                    let s1 = d1 - dd, s2 = d2 - dd;
+                    // If the angles are approximately the same, create a straight segment
+                    if (Math.floor(a1) === Math.floor(a2)) {
+                        p.addSegment(a1,s1,p1[2],true)
+                        p.addSegment(a2,d2,p2[2],true)
+                    } else {
+                    // If the angles are not the same, create curves, etc (this is a too complex...)
+                        let point1 = {x: p2[0] - dd * R.cos(-a1), y: p2[1] - dd * R.sin(-a1)}
+                        let point2 = {x: point1.x + dmax * R.cos(-a1+90), y: point1.y + dmax * R.sin(-a1+90)}
+                        let point3 = {x: p2[0] + dd * R.cos(-a2), y: p2[1] + dd * R.sin(-a2)}
+                        let point4 = {x: point3.x + dmax * R.cos(-a2+90), y: point3.y + dmax * R.sin(-a2+90)}
+                        let int = _intersectLines(point1,point2,point3,point4,true)
+                        let radius = dist(point1.x,point1.y,int.x,int.y)
+                        let disti = dist(point1.x,point1.y,point3.x,point3.y)/2
+                        let a3 = 2*asin(disti/radius)
+                        let s3 = 2 * Math.PI * radius * a3 / 360;
+                        p.addSegment(a1,s1-done, p1[2],true)
+                        p.addSegment(a1,s3, p1[2],true)
+                        p.addSegment(a2,i === array_points.length - 3 ? s2 : 0, p2[2],true)
+                        done = dd;
+                    }
+                    if (i == array_points.length - 3) {
+                        p.endPlot(a2,p2[2],true)
+                    }
+                } else if (curvature === 0) {
+                    // If curvature is 0, simply create segments
+                    let p1 = array_points[i], p2 = array_points[i+1]
+                    let d = dist(p1[0],p1[1],p2[0],p2[1]);
+                    let a = _calculateAngle(p1[0],p1[1],p2[0],p2[1]);
+                    p.addSegment(a,d,1,true)
+                    if (i == array_points.length - 2) {
+                        p.endPlot(a,1,true)
                     }
                 }
             }
         }
-        setOrigin(point) {
-            this.p.origin = [point[0], point[1]];
-        }
-        /**
-         * Draws the spline curve on the canvas.
-         */
-        draw () {
-            if (B.isActive) this.p.draw();
-        }
+        return p;
     }
+
     /**
      * Creates and draws a spline curve with the given points and curvature.
      * @param {Array<Array<number>>} array_points - An array of points defining the spline curve.
@@ -2069,9 +2184,8 @@
      * EXPORTED
      */
     function drawSpline(array_points, curvature = 0.5) {
-        _ensureReady(); // Ensure that the drawing environment is prepared
-        let p = new Spline(array_points, curvature); // Create a new Spline instance
-        p.draw(); // Draw the spline
+        let p = _createSpline(array_points, curvature); // Create a new Plot-spline instance
+        p.draw(); // Draw the Plot
     }
 
 // =============================================================================
@@ -2144,29 +2258,29 @@
         b: 0.07,
         t: 0,
         o: 80,
+
         /**
          * Fills the given polygon with a watercolor effect.
          * @param {Object} polygon - The polygon to fill.
          */
         fill (polygon) {
-            if (this.isActive) {
-                // Map polygon vertices to p5.Vector objects
-                this.v = polygon.a.map(vert => createVector(vert[0], vert[1]));
-                // Calculate fluidity once, outside the loop
-                const fluid = this.v.length * R.random(0.4);
-                // Map vertices to bleed multipliers with more intense effect on 'fluid' vertices
-                F.m = this.v.map((_, i) => {
-                    let multiplier = R.random(0.8, 1.2) * this.b;
-                    return i < fluid ? constrain(multiplier * 2, 0, 0.9) : multiplier;
-                });
-                // Shift vertices randomly to create a more natural watercolor edge
-                let shift = R.randInt(0, this.v.length);
-                this.v = [...this.v.slice(shift), ...this.v.slice(0, shift)];
-                // Create and fill the polygon with the calculated bleed effect
-                let pol = new FillPolygon (this.v, this.m, this.calcCenter())
-                pol.fill(this.c, int(map(this.o,0,255,0,30,true)), this.t)
-            }
+            // Map polygon vertices to p5.Vector objects
+            this.v = polygon.a.map(vert => createVector(vert[0], vert[1]));
+            // Calculate fluidity once, outside the loop
+            const fluid = this.v.length * R.random(0.4);
+            // Map vertices to bleed multipliers with more intense effect on 'fluid' vertices
+            F.m = this.v.map((_, i) => {
+                let multiplier = R.random(0.8, 1.2) * this.b;
+                return i < fluid ? constrain(multiplier * 2, 0, 0.9) : multiplier;
+            });
+            // Shift vertices randomly to create a more natural watercolor edge
+            let shift = R.randInt(0, this.v.length);
+            this.v = [...this.v.slice(shift), ...this.v.slice(0, shift)];
+            // Create and fill the polygon with the calculated bleed effect
+            let pol = new FillPolygon (this.v, this.m, this.calcCenter())
+            pol.fill(this.c, int(map(this.o,0,255,0,30,true)), this.t)
         },
+
         /**
          * Calculates the center point of the polygon based on the vertices.
          * @returns {p5.Vector} A vector representing the centroid of the polygon.
@@ -2257,15 +2371,15 @@
         fill (color, intensity, tex) {
 
             // Precalculate stuff
-            const numLayers = 20;
-            const intensityThird = intensity / 3;
-            const intensityQuarter = intensity / 4;
-            const intensityHalf = intensity / 2;
-            const texture = 1 + tex * 3
+            const numLayers = 24;
+            const intensityThird = intensity / 8;
+            const intensityQuarter = intensity / 10;
+            const intensityHalf = intensity / 5;
+            const texture = tex * 3
 
             // Perform initial setup only once
             _trans();
-            Mix.blend(color)
+            Mix.blend(color,false,false,true)
             Mix.mask.push();
             Mix.mask.noStroke();
             Mix.mask.translate(_matrix[0] + _r.width/2, _matrix[1] + _r.height/2);
@@ -2280,16 +2394,16 @@
                     // Grow the polygon objects once per third of the process
                     pol = pol.grow();
                     pol2 = pol2.grow(0.1);
-                    pol3 = pol3.grow(0.1);
-                    pol4 = pol4.grow(0.1);
+                    pol3 = pol3.grow(0.6);
+                    pol4 = pol4.grow(0.5);
                 }
                 // Draw layers
                 pol.grow().layer(i, intensityHalf);
-                pol4.grow(0.1, true).grow().layer(i, intensityQuarter, false);
-                pol2.grow(0.1).layer(i, intensityQuarter, false);
+                pol4.grow(0.1, true).layer(i, intensityThird, false);
+                pol2.grow(0.1).grow().layer(i, intensityQuarter, false);
                 pol3.grow(0.1).layer(i, intensityThird, false);
                 // Erase after each set of layers is drawn
-                pol.erase(texture);
+                if (texture !== 0) pol.erase(texture);
             }
             Mix.mask.pop();
         }
@@ -2305,13 +2419,15 @@
             // Set fill and stroke properties once
             Mix.mask.fill(255, 0, 0, _alpha);
             if (bool) {
-                Mix.mask.stroke(255, 0, 0, R.map(_nr, 0, 18, 2, 1));
-                Mix.mask.strokeWeight(R.map(_nr, 0, 18, 2.5, 0.5));
+                Mix.mask.stroke(255, 0, 0, 1);
+                Mix.mask.strokeWeight(R.map(_nr, 0, 24, 6, 0.5));
             } else {
                 Mix.mask.noStroke();
             }
             Mix.mask.beginShape();
-            for(let v of this.v) {Mix.mask.vertex(v.x, v.y);}
+            for(let v of this.v) {             
+                Mix.mask.vertex(v.x, v.y);
+            }
             Mix.mask.endShape(CLOSE);
         }
 
@@ -2320,11 +2436,11 @@
          * Uses random placement and sizing of circles to simulate texture.
          */
         erase (texture) {
-            const numCircles = R.random(60, 80);
+            const numCircles = R.random(80, 110);
             const halfSize = this.size / 2;
             const minSizeFactor = 0.025 * this.size;
             const maxSizeFactor = 0.19 * this.size;
-            Mix.mask.erase(4 * texture);
+            Mix.mask.erase(2 * texture);
             for (let i = 0; i < numCircles; i++) {
                 const x = this.midP.x + randomGaussian(0, halfSize);
                 const y = this.midP.y + randomGaussian(0, halfSize);
@@ -2384,7 +2500,7 @@
         ["HB", { weight: 0.3, vibration: 0.5, definition: 0.4, quality: 4,  opacity: 180, spacing: 0.25, pressure: {curve: [0.15,0.2], min_max: [1.2,0.9]} }],
         ["2H", { weight: 0.2, vibration: 0.4, definition: 0.3, quality: 2,  opacity: 150, spacing: 0.2, pressure: {curve: [0.15,0.2], min_max: [1.2,0.9]} }],
         ["cpencil", { weight: 0.4, vibration: 0.6, definition: 0.8, quality: 7,  opacity: 120, spacing: 0.15, pressure: {curve: [0.15,0.2], min_max: [0.95,1.15]} }],
-        ["charcoal", { weight: 0.5, vibration: 2, definition: 0.8, quality: 300,  opacity: 130, spacing: 0.06, pressure: {curve: [0.15,0.2], min_max: [1.3,0.95]} }],
+        ["charcoal", { weight: 0.5, vibration: 2, definition: 0.8, quality: 300,  opacity: 110, spacing: 0.06, pressure: {curve: [0.15,0.2], min_max: [1.15,0.85]} }],
         ["hatch_brush", { weight: 0.2, vibration: 0.4, definition: 0.3, quality: 2,  opacity: 150, spacing: 0.15, pressure: {curve: [0.5,0.7], min_max: [1,1.5]} }],
         ["spray", { type: "spray", weight: 0.3, vibration: 12, definition: 15, quality: 40,  opacity: 120, spacing: 0.65, pressure: {curve: [0,0.1], min_max: [0.15,1.2]} }],
         ["marker", { type: "marker", weight: 2.5, vibration: 0.08, opacity: 30, spacing: 0.4, pressure: {curve: [0.35,0.25], min_max: [1.35,1]}}],
@@ -2461,7 +2577,7 @@
     exports.endStroke = _endStroke;          // Ends a hand-drawn stroke.
 
     // HATCHING Operations
-    exports.hatchArray = B.hatch;                 // Function to create hatched patterns within polygons.
+    exports.hatchArray = H.hatch;                 // Function to create hatched patterns within polygons.
     exports.hatch = hatch;
     exports.setHatch = setHatch;
     exports.noHatch = noHatch;
