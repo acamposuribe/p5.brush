@@ -2109,7 +2109,7 @@
      * EXPORTED
      */
     function setBleed(_i, _texture = 0) {
-        F.b = R.constrain(_i,0.1,0.6);
+        F.b = R.constrain(_i,0,0.6);
         F.t = _texture > 1 ? 1 : _texture;
     }
 
@@ -2143,6 +2143,7 @@
         isAnimated: false,
         b: 0.07,
         t: 0,
+        o: 80,
         /**
          * Fills the given polygon with a watercolor effect.
          * @param {Object} polygon - The polygon to fill.

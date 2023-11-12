@@ -138,19 +138,26 @@ function setup () {
     }
 
     brush.stroke(150)
+    
+    brush.bleed(0)
     for (let p of pol_array) {
+        brush.fill(random(palette),35)
         p.draw()
+
+        p.fill()
     }
+    brush.noFill()
 
     brush.set("marker2",random(palette),1)  
-    brush.hatch(1,30,{gradient: 0.4, random: false, continuous: true})
+    brush.hatch(0.5,30,{gradient: 0.4, random: false, continuous: true})
     brush.hatchArray(pol_array)
     // You can draw rectangles (x,y,width,height,mode) - mode is optional, you can set it to "center"
     brush.set("marker2",random(palette),1)
-    brush.hatch(1,130,{gradient: 0.3, random: false, continuous: true})
+    brush.hatch(0.2,130,{gradient: 0.3, random: false, continuous: true})
     brush.hatchArray(pol_array)
     //brush.rect(100,100,100,100,"center")
     // You can draw ricles (x,y,radius)
+
 
 
     
