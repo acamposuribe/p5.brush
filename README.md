@@ -202,7 +202,7 @@ Vector Fields allow for dynamic control over brush stroke behavior, enabling the
         for (let i = 0; i < FF.num_columns; i++) {
             for (let j = 0; j < FF.num_rows; j++) {               
                 // Related functions for angle calculation here
-                field[column][row] = CalculatedAngle;
+                field[i][j] = CalculatedAngle;
             }
         }
         return field;
