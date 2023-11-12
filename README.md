@@ -12,6 +12,8 @@ Embrace the full potential of your creative coding projects with p5.brush.js, wh
 
 (And thanks ChatGPT for helping with the description)
 
+[Visit the library website here! (more examples soon)](https://p5-brush.cargo.site/)
+
 ## Table of Contents
 - [Installation](#installation)
 - [Features](#features)
