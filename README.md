@@ -10,8 +10,6 @@ Whether you're looking to simulate natural media, create patterned backgrounds, 
 
 Embrace the full potential of your creative coding projects with p5.brush.js, where every stroke is a brush with possibility.
 
-(And thanks ChatGPT for helping with the description)
-
 [Visit the library website here! (more examples soon)](https://p5-brush.cargo.site/)
 
 ## Table of Contents
