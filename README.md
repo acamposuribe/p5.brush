@@ -940,7 +940,11 @@ Exposed Classes provide foundational elements for creating and manipulating shap
 
 
 ## Examples
-- examples here
+
+- Basic examples: [collection in p5.editor (more soon)](https://editor.p5js.org/acamposuribe/collections/PmyBeAfQP)
+- GenArt project 1: [Enfantines I](https://www.fxhash.xyz/generative/20569)
+- GenArt project 2: [Enfantines II](https://www.fxhash.xyz/generative/22739)
+- GenArt project 3: [Fuga a tientas](https://verse.works/exhibitions/fugaatientas-imperfections)
 
 ## Contributing
 We welcome contributions from the community. If you find a bug or have a feature request, please open an issue on Github.
