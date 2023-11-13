@@ -945,6 +945,8 @@ Exposed Classes provide foundational elements for creating and manipulating shap
       - `_length` (Number): The length to move towards the target position.
       - `_step_length` (Number): The length of each step.
       - `_scale` (Number): The scaling factor for the plotting path.
+  - `.angle()`
+    - Returns vector-field angle for that position.
   - `.reset()`
     - Resets the `plotted` property to 0. This property tracks the distance moved since the last reset or the creation of the position. Important for consecutive different `Plot` paths.
 
