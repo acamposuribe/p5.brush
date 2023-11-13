@@ -2233,7 +2233,7 @@
      * @param {number} _texture - The texture of the watercolor effect, from 0 to 1.
      * EXPORTED
      */
-    function setBleed(_i, _texture = 0, _border) {
+    function setBleed(_i, _texture = 0, _border = 0) {
         F.b = R.constrain(_i,0,0.6);
         F.t = _texture > 1 ? 1 : _texture;
         F.border_strength = 1 + _border > 1 ? 1 : _border;
