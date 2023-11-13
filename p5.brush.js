@@ -1297,7 +1297,7 @@
          * @returns {number} The calculated alpha value.
          */
         calculateAlpha(pressure) {
-            return Math.floor(this.p.opacity * Math.pow(pressure, this.p.type === "marker" ? 1 : 1.5));
+            return Math.floor(this.p.opacity * Math.pow(pressure, this.p.type === "marker" ? 0.7 : 1.5));
         },
 
         /**
