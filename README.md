@@ -176,24 +176,39 @@ Vector Fields allow for dynamic control over brush stroke behavior, enabling the
   - **Description**: Adds a custom vector field to the list of available fields. This advanced function requires a unique name for the field and a generator function that defines the behavior of the vector field over time.
   - **Parameters**:
     - `name` (String): A unique identifier for the vector field.
-    - `generatorFunction` (Function): A function that generates the field values. It takes a time parameter `t`, loops through the vector field cells, assigns angular values based on custom logic, and returns the modified `FF.field` array.
+    - `generatorFunction` (Function): A function that generates the field values. It takes a time parameter `t`, loops through the vector field cells, assigns angular values based on custom logic, and returns the modified `field` array.
   - **Default Fields**: The library includes several pre-defined vector fields. Users can add their own to extend the functionality.
   - **Usage**: To add a vector field that creates wave-like motions:
     ```javascript
     brush.addField("waves", function(t) {
-        let sinrange = R.randInt(10,15) + 5 * R.sin(t);
-        let cosrange = R.randInt(3,6) + 3 * R.cos(t);
-        let baseAngle = R.randInt(20,35);
+        let field = FF.genField()
+        let sinrange = random(10,15) + 5 * sin(t);
+        let cosrange = random(3,6) + 3 * cos(t);
+        let baseAngle = random(20,35);
         for (let column = 0; column < FF.num_columns; column++) {
             for (let row = 0; row < FF.num_rows; row++) {               
-                let angle = R.sin(sinrange * column) * (baseAngle * R.cos(row * cosrange)) + R.randInt(-3,3);
-                FF.field[column][row] = angle;
+                let angle = sin(sinrange * column) * (baseAngle * cos(row * cosrange)) + random(-3,3);
+                field[column][row] = angle;
             }
         }
-        return FF.field;
+        return field;
     });
     ```
-    This `generatorFunction` uses sinusoidal functions to create a time-varying wave pattern within the vector field. Each cell's angle is calculated and assigned, resulting in a dynamic field that can be used to influence brush strokes.
+    - **Note**: It's important that your loops create a grid of `FF.num_columns` x `FF.num_rows`. It's necessary to fill all the cells with a numeric value. You can use the `FF.genField()` function to generate an empty array of the right size. Return this array when you've filled the values. **The angles MUST BE in Degrees**.
+    ```javascript
+    brush.addField("name_field", function(t) {
+        let field = FF.genField()
+        // Related functions for angle calculation
+        for (let i = 0; i < FF.num_columns; i++) {
+            for (let j = 0; j < FF.num_rows; j++) {               
+                // Related functions for angle calculation here
+                field[i][j] = CalculatedAngle;
+            }
+        }
+        return field;
+    });
+    ```
+    
 
 ---
 
@@ -930,6 +945,8 @@ Exposed Classes provide foundational elements for creating and manipulating shap
       - `_length` (Number): The length to move towards the target position.
       - `_step_length` (Number): The length of each step.
       - `_scale` (Number): The scaling factor for the plotting path.
+  - `.angle()`
+    - Returns vector-field angle for that position.
   - `.reset()`
     - Resets the `plotted` property to 0. This property tracks the distance moved since the last reset or the creation of the position. Important for consecutive different `Plot` paths.
 
@@ -940,7 +957,11 @@ Exposed Classes provide foundational elements for creating and manipulating shap
 
 
 ## Examples
-- examples here
+
+- Basic examples: [collection in p5.editor (more soon)](https://editor.p5js.org/acamposuribe/collections/PmyBeAfQP)
+- GenArt project 1: [Enfantines I](https://www.fxhash.xyz/generative/20569)
+- GenArt project 2: [Enfantines II](https://www.fxhash.xyz/generative/22739)
+- GenArt project 3: [Fuga a tientas](https://verse.works/exhibitions/fugaatientas-imperfections)
 
 ## Contributing
 We welcome contributions from the community. If you find a bug or have a feature request, please open an issue on Github.
