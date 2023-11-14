@@ -1,6 +1,6 @@
 /**
  * @fileoverview p5.brush - A comprehensive toolset for brush management in p5.js.
- * @version 1.0
+ * @version 1.0.1
  * @license MIT
  * @author Alejandro Campos Uribe
  * 
@@ -371,6 +371,7 @@
      * Object handling blending operations with WebGL shaders.
      * @property {boolean} loaded - Flag indicating if the blend shaders have been loaded.
      * @property {boolean} isBlending - Flag indicating if the blending has been initiated.
+     * @property {boolean} isCaching - Flag indicating if the color caching is active.
      * @property {Float32Array} currentColor - Typed array to hold color values for shaders.
      * @property {function} load - Loads resources and initializes blend operations.
      * @property {function} blend - Applies blending effects using the initialized shader.
@@ -379,9 +380,9 @@
      */
     const Mix = {
         loaded: false,
-        currentColor: new Float32Array(3),
         isBlending: false,
         isCaching: true,
+        currentColor: new Float32Array(3),
 
         /**
          * Loads necessary resources and prepares the mask buffer and shader for colour blending.
@@ -432,6 +433,12 @@
             return colorArray;
         },
 
+        // Properties for the two blend instances: one uses the 2D mask, the other the WEBGL mask
+        /**
+         * There are two parallel blender instances: one uses the 2D mask, the other the WEBGL mask
+         * 2D Canvas API mask: for basi geometry (circles, polygons, etc), which is much faster with the 2D API
+         * WEBGL mask: for image-type brushes. p5 image() is much faster in WEBGL mode
+         */
         color1: new Float32Array(3),
         color2: new Float32Array(3),
         blending1: false,
@@ -480,12 +487,16 @@
                 this.noBlend.clear()
                 // Use the blend shader for rendering
                 _r.shader(this.shader);
-                // Set shader uniforms: color to add, source texture, and mask texture
+                // Set shader uniforms
+                // Color to blend
                 this.shader.setUniform('addColor', this.currentColor);
+                // Source canvas
                 this.shader.setUniform('source', _r._renderer);
+                // Bool to active watercolor blender vs marker blender
                 this.shader.setUniform('active', _watercolor);
-                let rA = [R.random(),R.random(),R.random()]
-                this.shader.setUniform('random', rA);
+                // Random values for watercolor blender
+                this.shader.setUniform('random', [R.random(),R.random(),R.random()]);
+                // We select and apply the correct mask here
                 let mask = webgl_mask ? this.mask2: this.mask;
                 this.shader.setUniform('mask', mask);
                 // Draw a rectangle covering the whole canvas to apply the shader
@@ -1286,7 +1297,7 @@
          * @returns {number} The calculated alpha value.
          */
         calculateAlpha(pressure) {
-            return Math.floor(this.p.opacity * Math.pow(pressure, this.p.type === "marker" ? 1 : 1.5));
+            return Math.floor(this.p.opacity * Math.pow(pressure, this.p.type === "marker" ? 0.7 : 1.5));
         },
 
         /**
@@ -1551,8 +1562,6 @@
         hatchingParams: [5,45,{}],
         hatchingBrush: false,
 
-
-
         /**
          * Creates a hatching pattern across the given polygons.
          * 
@@ -1571,7 +1580,7 @@
             if (H.hatchingBrush) B.set(H.hatchingBrush[0],H.hatchingBrush[1],H.hatchingBrush[2])
             
             // Check angleMode for calculations and transform to degrees
-            angle = ((angleMode() === "radians") ? angle * 180 / Math.PI : angle) % 180
+            angle = (((angleMode() === "radians") ? angle * 180 / Math.PI : angle) + 3 * 360) % 180
 
             // Calculate the bounding area of the provided polygons
             let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
@@ -2224,9 +2233,10 @@
      * @param {number} _texture - The texture of the watercolor effect, from 0 to 1.
      * EXPORTED
      */
-    function setBleed(_i, _texture = 0) {
+    function setBleed(_i, _texture = 0, _border = 0) {
         F.b = R.constrain(_i,0,0.6);
         F.t = _texture > 1 ? 1 : _texture;
+        F.border_strength = 1 + _border > 1 ? 1 : _border;
     }
 
     /**
@@ -2260,6 +2270,7 @@
         b: 0.07,
         t: 0,
         o: 80,
+        border_strength: 1,
 
         /**
          * Fills the given polygon with a watercolor effect.
@@ -2421,7 +2432,7 @@
             // Set fill and stroke properties once
             Mix.mask.fill(255, 0, 0, _alpha);
             if (bool) {
-                Mix.mask.stroke(255, 0, 0, 1);
+                Mix.mask.stroke(255, 0, 0, 1.5 * F.border_strength);
                 Mix.mask.strokeWeight(R.map(_nr, 0, 24, 6, 0.5));
             } else {
                 Mix.mask.noStroke();
