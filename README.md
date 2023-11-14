@@ -171,7 +171,8 @@ Vector Fields allow for dynamic control over brush stroke behavior, enabling the
  #### Advanced vector-field functions
 
 ---
- 
+
+ **CURRENTLY BUGGED, WORKING ON A FIX**
 - `brush.addField(name, generatorFunction)`
   - **Description**: Adds a custom vector field to the list of available fields. This advanced function requires a unique name for the field and a generator function that defines the behavior of the vector field over time.
   - **Parameters**:
