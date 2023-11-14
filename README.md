@@ -459,15 +459,16 @@ The Fill Management section focuses on managing fill properties for shapes, enab
 
 ---
 
-- `brush.bleed(_i, _texture)`
+- `brush.bleed(_i, _texture, _borderIntensity)`
   - **Description**: Adjusts the bleed and texture levels for the fill operation, mimicking the behavior of watercolor paints. This function adds a natural and organic feel to digital artwork.
   - **Parameters**:
     - `_i` (Number): The intensity of the bleed effect, capped at 0.5.
     - `_texture` (Number): The texture level of the watercolor effect, ranging from 0 to 1.
+    - `_borderIntensity` (Number): The intensity of the border watercolor effect, ranging from 0 to 1.
   - **Usage**:
     ```javascript
     // Set the bleed intensity and texture for a watercolor effect
-    brush.bleed(0.3, 0.7);
+    brush.bleed(0.3, 0.7, 0.5);
     ```
 
 ---
@@ -945,6 +946,8 @@ Exposed Classes provide foundational elements for creating and manipulating shap
       - `_length` (Number): The length to move towards the target position.
       - `_step_length` (Number): The length of each step.
       - `_scale` (Number): The scaling factor for the plotting path.
+  - `.angle()`
+    - Returns vector-field angle for that position.
   - `.reset()`
     - Resets the `plotted` property to 0. This property tracks the distance moved since the last reset or the creation of the position. Important for consecutive different `Plot` paths.
 
