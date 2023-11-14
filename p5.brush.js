@@ -1023,9 +1023,7 @@
             const isBlendableType = b.type === "marker" || b.type === "custom" || b.type === "image";
             if (b.type === "image") {
                 T.add(b.image.src);
-                b.tip = () => {
-                    B.mask.image(T.tips.get(B.p.image.src), -B.p.weight / 2, -B.p.weight / 2, B.p.weight, B.p.weight);
-                }    
+                b.tip = () => B.mask.image(T.tips.get(B.p.image.src), -B.p.weight / 2, -B.p.weight / 2, B.p.weight, B.p.weight);
             }
             b.blend = ((isBlendableType && b.blend !== false) || b.blend) ? true : false;
             B.list.set(a, { param: b, colors: [], buffers: [] });
