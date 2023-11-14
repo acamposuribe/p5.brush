@@ -729,7 +729,7 @@
          * @param {number} [t=0] - An optional time parameter that can affect field generation.
          */
         refresh(t = 0) {
-            this.list.get(this.current).field = this.list.get(this.current).gen(t)
+            this.list.get(this.current).field = this.list.get(this.current).gen(t,this.genField())
         },
 
         /**
@@ -737,7 +737,7 @@
          * @returns {Float64Array[]} Empty vector field grid.
          */
         genField() {
-            let grid = new Array(FF.num_columns); // Initialize the field array
+            let grid = new Array(this.num_columns); // Initialize the field array
             for (let i = 0; i < this.num_columns; i++) {
                 grid[i] = new Float64Array(this.num_rows);
             }
