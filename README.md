@@ -172,7 +172,6 @@ Vector Fields allow for dynamic control over brush stroke behavior, enabling the
 
 ---
 
- **CURRENTLY BUGGED, WORKING ON A FIX**
 - `brush.addField(name, generatorFunction)`
   - **Description**: Adds a custom vector field to the list of available fields. This advanced function requires a unique name for the field and a generator function that defines the behavior of the vector field over time.
   - **Parameters**:
@@ -181,13 +180,12 @@ Vector Fields allow for dynamic control over brush stroke behavior, enabling the
   - **Default Fields**: The library includes several pre-defined vector fields. Users can add their own to extend the functionality.
   - **Usage**: To add a vector field that creates wave-like motions:
     ```javascript
-    brush.addField("waves", function(t) {
-        let field = FF.genField()
+    brush.addField("waves", function(t, field) {
         let sinrange = random(10,15) + 5 * sin(t);
         let cosrange = random(3,6) + 3 * cos(t);
         let baseAngle = random(20,35);
-        for (let column = 0; column < FF.num_columns; column++) {
-            for (let row = 0; row < FF.num_rows; row++) {               
+        for (let column = 0; column < field.length; column++) {
+            for (let row = 0; row < field[0].length; row++) {               
                 let angle = sin(sinrange * column) * (baseAngle * cos(row * cosrange)) + random(-3,3);
                 field[column][row] = angle;
             }
@@ -195,13 +193,13 @@ Vector Fields allow for dynamic control over brush stroke behavior, enabling the
         return field;
     });
     ```
-    - **Note**: It's important that your loops create a grid of `FF.num_columns` x `FF.num_rows`. It's necessary to fill all the cells with a numeric value. You can use the `FF.genField()` function to generate an empty array of the right size. Return this array when you've filled the values. **The angles MUST BE in Degrees**.
+    - **Note**: It's important that your loops create a grid of `field.length` x `field[0].length`. It's necessary to fill all the `field` cells with a numeric value. Return this array when you've filled the values. **The angles MUST BE in Degrees**.
     ```javascript
-    brush.addField("name_field", function(t) {
+    brush.addField("name_field", function(t, field) {
         let field = FF.genField()
         // Related functions for angle calculation
-        for (let i = 0; i < FF.num_columns; i++) {
-            for (let j = 0; j < FF.num_rows; j++) {               
+        for (let i = 0; i < field.length; i++) {
+            for (let j = 0; j < field[0].length; j++) {               
                 // Related functions for angle calculation here
                 field[i][j] = CalculatedAngle;
             }
