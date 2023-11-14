@@ -23,7 +23,7 @@ const C = {
 };
 // SET CANVAS SIZE: width, height, pixelDensity, html_id for the canvas
 // Here I'm working with mm units, so I want a big pixelDensity for high-res.
-C.setSize(250,280,10,'mainCanvas')
+C.setSize(250,280,5,'mainCanvas')
 
 function windowResized () {
     C.resize();
