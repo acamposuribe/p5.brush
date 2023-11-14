@@ -748,8 +748,7 @@
          * Adds standard predefined vector fields to the list with unique behaviors.
          */
         addStandard() {
-            addField("curved", function(t) {
-                let field = FF.genField()
+            addField("curved", function(t,field) {
                 let angleRange = R.randInt(-25,-15);
                 if (R.randInt(0,100)%2 == 0) {angleRange = angleRange * -1}
                 for (let column=0;column<FF.num_columns;column++){
@@ -761,8 +760,7 @@
                 }
                 return field;
             })
-            addField("truncated", function(t) {
-                let field = FF.genField()
+            addField("truncated", function(t,field) {
                 let angleRange = R.randInt(-25,-15) + 5 * R.sin(t);
                 if (R.randInt(0,100)%2 == 0) {angleRange=angleRange*-1}
                 let truncate = R.randInt(5,10);
@@ -775,8 +773,7 @@
                 }
                 return field;
             })
-            addField("zigzag", function(t) {   
-                let field = FF.genField()
+            addField("zigzag", function(t,field) {   
                 let angleRange = R.randInt(-30,-15) + Math.abs(44 * R.sin(t));
                 if (R.randInt(0,100)%2 == 0) {angleRange=angleRange*-1}
                 let dif = angleRange;
@@ -792,8 +789,7 @@
                 }
                 return field;
             })
-            addField("waves", function(t) {
-                let field = FF.genField()
+            addField("waves", function(t,field) {
                 let sinrange = R.randInt(10,15) + 5 * R.sin(t);
                 let cosrange = R.randInt(3,6) + 3 * R.cos(t);
                 let baseAngle = R.randInt(20,35);
@@ -805,8 +801,7 @@
                 }
                 return field;
             })
-            addField("seabed", function(t) {
-                let field = FF.genField()
+            addField("seabed", function(t,field) {
                 let baseSize = R.random(0.4,0.8)
                 let baseAngle = R.randInt(18,26) ;
                 for (let column=0;column<FF.num_columns;column++){
