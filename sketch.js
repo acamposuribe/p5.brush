@@ -57,7 +57,6 @@ brush.add("watercolor", {
     rotate: "natural", // "none" disables rotation | "natural" follows the direction of the stroke | "random"
 })
 
-
 //////////////////////////////////////////////////
 // P5 FUNCTIONS
 
