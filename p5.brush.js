@@ -1453,60 +1453,40 @@
          * @param {string} src - The source URL of the image to be added and processed.
          */
         add (src) {
-            // Create a new Image object
-            const myImage = new Image();
             // Initially set the source as not processed
             this.tips.set(src,false)
-            // Define the onload handler for the image
-            myImage.onload = function(){
-                // Once the image is loaded, convert it to white and update the Map
-                T.tips.set(src,(T.imageToWhite(myImage)))
-            };
-            // Set the source of the Image object, which begins the loading process
-            myImage.src = src;
         },
 
         /**
          * Converts the given image to a white tint by setting all color channels to white and adjusting the alpha channel.
          * 
          * @param {Image} image - The image to be converted.
-         * @returns {string} - The data URL of the converted canvas image.
          */
         imageToWhite (image) {
-            // Create a canvas element to manipulate the image
-            let canvas = document.createElement("canvas");
-            canvas.width = image.width, canvas.height = image.height;
-            let context = canvas.getContext("2d");
-            // Draw the image onto the canvas
-            context.drawImage(image,0,0);
-            // Get the image data from the canvas
-            let imageData=context.getImageData(0,0, image.width, image.height);
+            image.loadPixels()
             // Modify the image data to create a white tint effect
             for (let i = 0; i < 4 * image.width * image.height; i += 4) {
                 // Calculate the average for the grayscale value
-                let average = (imageData.data[i] + imageData.data[i + 1] + imageData.data[i + 2]) / 3;
+                let average = (image.pixels[i] + image.pixels[i + 1] + image.pixels[i + 2]) / 3;
                 // Set all color channels to white
-                imageData.data[i] = imageData.data[i + 1] = imageData.data[i + 2] = 255;
+                image.pixels[i] = image.pixels[i + 1] = image.pixels[i + 2] = 255;
                 // Adjust the alpha channel to the inverse of the average, creating the white tint effect
-                imageData.data[i + 3] = 255 - average;
+                image.pixels[i + 3] = 255 - average;
             }
-            // Put the modified image data back onto the canvas
-            context.putImageData(imageData,0,0);
-            // Return a data URL representing the canvas image
-            return canvas.toDataURL();
+            image.updatePixels()
         },
         /**
          * Loads all processed images into the p5.js environment.
          * If no images are in the tips Map, logs a warning message.
          */
         load() {
-            if (this.tips.size === 0) return console.log("ojo");
+            if (this.tips.size === 0) return console.log("There are no custom tips to load !");
             for (let key of this.tips.keys()){
-                this.tips.set(key,loadImage(this.tips.get(key)))
+                let image = loadImage(key, () => T.imageToWhite(image))
+                this.tips.set(key, image)
             }
         }
     }
-
 
 // =============================================================================
 // Section: Hatching
