@@ -1,6 +1,6 @@
 /**
  * @fileoverview p5.brush - A comprehensive toolset for brush management in p5.js.
- * @version 1.0.1
+ * @version 1.0.2
  * @license MIT
  * @author Alejandro Campos Uribe
  * 
@@ -591,7 +591,6 @@
         float rand(vec2 co, float a, float b, float c){return fract(sin(dot(co, vec2(a, b))) * c);}
 
         void main() {
-
             vec4 maskColor = texture2D(mask, vVertTexCoord);
             if (maskColor.r > 0.0) {
                 vec2 r=vec2(12.9898,78.233), a=vec2(7.9898,58.233), l=vec2(17.9898,3.233);
@@ -600,20 +599,25 @@
                 const vec2 p = vec2(0.0);
                 vec2 g;
 
-                vec3 pigment;
+                vec4 pigment;
                 
                 if (active) {
                     float n = psrdnoise(vVertTexCoord * 10., p, 10.0 * random.x, g);
                     float n2 = psrdnoise(vVertTexCoord * 10., p, 10.0 * random.y, g);
                     float n3 = psrdnoise(vVertTexCoord * 10., p, 10.0 * random.z, g);
                     float n4 = 0.25 + 0.25 * psrdnoise(vVertTexCoord * 8., p, 3.0 * random.x, g);
-                    pigment = generic_desaturate(addColor.xyz,n4).xyz + vec3(n,n2,n3) * 0.03;
+                    pigment = vec4(generic_desaturate(addColor.xyz,n4).xyz + vec3(n,n2,n3) * 0.03, 1.0);
                 } else {
-                    pigment = addColor.xyz;
+                    pigment = vec4(addColor.xyz,1.0);
                 }
 
-                vec3 mixedColor = spectral_mix(texture2D(source,vVertTexCoord).xyz, pigment, maskColor.a);
-                if (maskColor.a > .8) mixedColor = spectral_mix(mixedColor,vec3(0),(maskColor.a - .8) * .4);
+                float darken_above = 0.7;
+                if (maskColor.a > darken_above) {
+                    float blacken = 0.5 * (maskColor.a - darken_above);
+                    pigment = pigment * (1. - blacken) - vec4(0.5) * blacken;
+                }
+                
+                vec3 mixedColor = spectral_mix(texture2D(source,vVertTexCoord).xyz, pigment.xyz, 0.9 * maskColor.a);
                 gl_FragColor = vec4(mixedColor + 0.01*vec3(d,x,s),1.);
             }
         }
@@ -2492,7 +2496,7 @@
         ["hatch_brush", { weight: 0.2, vibration: 0.4, definition: 0.3, quality: 2,  opacity: 150, spacing: 0.15, pressure: {curve: [0.5,0.7], min_max: [1,1.5]} }],
         ["spray", { type: "spray", weight: 0.3, vibration: 12, definition: 15, quality: 40,  opacity: 120, spacing: 0.65, pressure: {curve: [0,0.1], min_max: [0.15,1.2]} }],
         ["marker", { type: "marker", weight: 2.5, vibration: 0.08, opacity: 30, spacing: 0.4, pressure: {curve: [0.35,0.25], min_max: [1.35,1]}}],
-        ["marker2", { type: "custom", weight: 2.5, vibration: 0.08, opacity: 28, spacing: 0.6, pressure: {curve: [0.35,0.25], min_max: [1.2,1]}, 
+        ["marker2", { type: "custom", weight: 2.5, vibration: 0.08, opacity: 25, spacing: 0.4, pressure: {curve: [0.35,0.25], min_max: [1.2,1]}, 
             tip: function () { 
                 let scale = _gScale;
                 B.mask.rect(-1.5 * scale,-1.5 * scale,3 * scale,3 * scale); B.mask.rect(1 * scale,1 * scale,1 * scale,1 * scale) 
