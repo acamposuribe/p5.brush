@@ -433,7 +433,18 @@
             return colorArray;
         },
 
-        // Properties for the two blend instances: one uses the 2D mask, the other the WEBGL mask
+        /**
+         * This function forces standard-brushes to be updated into the canvas
+         */
+        reDraw() {
+            _r.push();
+            // Copy info from noBlend buffer
+            _r.translate(-_trans()[0],-_trans()[1])
+            _r.image(Mix.noBlend, -_r.width/2, -_r.height/2)
+            Mix.noBlend.clear()
+            _r.pop();
+        },
+
         /**
          * There are two parallel blender instances: one uses the 2D mask, the other the WEBGL mask
          * 2D Canvas API mask: for basi geometry (circles, polygons, etc), which is much faster with the 2D API
@@ -1612,9 +1623,9 @@
             // Draw the hatching lines using the calculated intersections
             // If the 'rand' option is enabled, add randomness to the start and end points of the lines
             // If the 'continuous' option is set, connect the end of one line to the start of the next
+            let r = options.rand || 0;
             for (let j = 0; j < gdots.length; j++) {
                 let dd = gdots[j]
-                let r = options.rand || 0;
                 let shouldDrawContinuousLine = j > 0 && options.continuous;
                 for (let i = 0; i < dd.length-1; i += 2) {
                     if (r !== 0) {
@@ -1701,11 +1712,11 @@
         /**
          * Fills the polygon using the current fill state.
          */
-        fill (_color = false, _opacity, _bleed, _texture) {
+        fill (_color = false, _opacity, _bleed, _texture, _border) {
             let curState = F.isActive;
             if (_color) {
                 setFill(_color, _opacity)
-                setBleed(_bleed, _texture)
+                setBleed(_bleed, _texture, _border)
             }
             if (F.isActive) {
                 _ensureReady();
@@ -2201,8 +2212,8 @@
      * EXPORTED
      */
     function setFill(a,b,c,d) {
-        F.o = (arguments.length < 4) ? ((arguments.length < 3) ? b : 1) : d;
-        F.c = (arguments.length < 3) ? color(a) : color(a,b,c);
+        F.opacity = (arguments.length < 4) ? ((arguments.length < 3) ? b : 1) : d;
+        F.color = (arguments.length < 3) ? color(a) : color(a,b,c);
         F.isActive = true;
     }
 
@@ -2212,10 +2223,10 @@
      * @param {number} _texture - The texture of the watercolor effect, from 0 to 1.
      * EXPORTED
      */
-    function setBleed(_i, _texture = 0, _border = 0) {
-        F.b = R.constrain(_i,0,0.6);
-        F.t = _texture > 1 ? 1 : _texture;
-        F.border_strength = 1 + _border > 1 ? 1 : _border;
+    function setBleed(_i, _texture = 0.4, _border = 0.4) {
+        F.bleed_strength = R.constrain(_i,0,0.6);
+        F.texture_strength = R.constrain(_texture, 0, 1);
+        F.border_strength = R.constrain(_border, 0, 1);
     }
 
     /**
@@ -2237,19 +2248,25 @@
     /**
      * Object representing the fill state and operations for drawing.
      * @property {boolean} isActive - Indicates if the fill operation is active.
-     * @property {number} b - Base value for bleed effect.
+     * @property {boolean} isAnimated - Enable or disable animation-mode
      * @property {Array} v - Array of p5.Vector representing vertices of the polygon to fill.
      * @property {Array} m - Array of multipliers for the bleed effect on each vertex.
+     * @property {p5.Color} color - Current fill color.
+     * @property {p5.Color} opacity - Current fill opacity.
+     * @property {number} bleed_strength - Base value for bleed effect.
+     * @property {number} texture_strength - Base value for texture strength.
+     * @property {number} border_strength - Base value for border strength.
      * @property {function} fill - Method to fill a polygon with a watercolor effect.
      * @property {function} calcCenter - Method to calculate the centroid of the polygon.
      */
     const F = {
         isActive: false,
         isAnimated: false,
-        b: 0.07,
-        t: 0,
-        o: 80,
-        border_strength: 1,
+        color: "#002185",
+        opacity: 80,
+        bleed_strength: 0.07,
+        texture_strength: 0.4,
+        border_strength: 0.4,
 
         /**
          * Fills the given polygon with a watercolor effect.
@@ -2262,7 +2279,7 @@
             const fluid = this.v.length * R.random(0.4);
             // Map vertices to bleed multipliers with more intense effect on 'fluid' vertices
             F.m = this.v.map((_, i) => {
-                let multiplier = R.random(0.8, 1.2) * this.b;
+                let multiplier = R.random(0.8, 1.2) * this.bleed_strength;
                 return i < fluid ? constrain(multiplier * 2, 0, 0.9) : multiplier;
             });
             // Shift vertices randomly to create a more natural watercolor edge
@@ -2270,7 +2287,7 @@
             this.v = [...this.v.slice(shift), ...this.v.slice(0, shift)];
             // Create and fill the polygon with the calculated bleed effect
             let pol = new FillPolygon (this.v, this.m, this.calcCenter())
-            pol.fill(this.c, int(map(this.o,0,255,0,30,true)), this.t)
+            pol.fill(this.color, int(map(this.opacity,0,155,0,20,true)), this.texture_strength)
         },
 
         /**
@@ -2364,10 +2381,11 @@
 
             // Precalculate stuff
             const numLayers = 24;
-            const intensityThird = intensity / 8;
-            const intensityQuarter = intensity / 10;
-            const intensityHalf = intensity / 5;
-            const texture = tex * 3
+            const intensityThird = intensity / 5 + tex * intensity / 6;
+            const intensityQuarter = intensity / 4 + tex * intensity / 3;
+            const intensityFifth = intensity / 7 + tex * intensity / 3;
+            const intensityHalf = intensity / 5 ;
+            const texture = tex * 3;
 
             // Perform initial setup only once
             _trans();
@@ -2377,23 +2395,23 @@
             Mix.mask.translate(_matrix[0] + _r.width/2, _matrix[1] + _r.height/2);
 
             let pol = this.grow()
-            let pol2 = pol.grow().grow(0.5);
-            let pol3 = pol2.grow(0.4);
-            let pol4 = this.grow(0.6)
+            let pol2 = pol.grow().grow(0.9);
+            let pol3 = pol2.grow(0.75);
+            let pol4 = this.grow(0.85)
 
             for (let i = 0; i < numLayers; i ++) {
                 if (i === Math.floor(numLayers / 4) || i === Math.floor(2 * numLayers / 4) || i === Math.floor(3 * numLayers / 4)) {
                     // Grow the polygon objects once per third of the process
                     pol = pol.grow();
-                    pol2 = pol2.grow(0.1);
-                    pol3 = pol3.grow(0.6);
-                    pol4 = pol4.grow(0.5);
+                    pol2 = pol2.grow(0.75);
+                    pol3 = pol3.grow(0.75);
+                    pol4 = pol4.grow(0.1,true);
                 }
                 // Draw layers
                 pol.grow().layer(i, intensityHalf);
-                pol4.grow(0.1, true).layer(i, intensityThird, false);
-                pol2.grow(0.1).grow().layer(i, intensityQuarter, false);
-                pol3.grow(0.1).layer(i, intensityThird, false);
+                pol4.grow(0.1, true).grow(0.1).layer(i, intensityFifth, false);
+                pol2.grow(0.1).grow(0.1).layer(i, intensityQuarter, false);
+                pol3.grow(0.8).grow(0.1).layer(i, intensityThird, false);
                 // Erase after each set of layers is drawn
                 if (texture !== 0) pol.erase(texture);
             }
@@ -2407,11 +2425,11 @@
          * @param {number} _alpha - The opacity of the layer.
          * @param {boolean} [bool=true] - If true, adds a stroke to the layer.
          */
-        layer (_nr,_alpha,bool = true) {
+        layer (_nr, _alpha, bool = true) {
             // Set fill and stroke properties once
             Mix.mask.fill(255, 0, 0, _alpha);
             if (bool) {
-                Mix.mask.stroke(255, 0, 0, 1.5 * F.border_strength);
+                Mix.mask.stroke(255, 0, 0, 0.5 + 1.5 * F.border_strength);
                 Mix.mask.strokeWeight(R.map(_nr, 0, 24, 6, 0.5));
             } else {
                 Mix.mask.noStroke();
@@ -2432,7 +2450,7 @@
             const halfSize = this.size / 2;
             const minSizeFactor = 0.025 * this.size;
             const maxSizeFactor = 0.19 * this.size;
-            Mix.mask.erase(2 * texture);
+            Mix.mask.erase(3.5 * texture,0);
             for (let i = 0; i < numCircles; i++) {
                 const x = this.midP.x + randomGaussian(0, halfSize);
                 const y = this.midP.y + randomGaussian(0, halfSize);
@@ -2488,15 +2506,15 @@
         // The "marker2" brush has a custom tip defined by a function that draws rectangles.
         ["pen", { weight: 0.35, vibration: 0.12, definition: 0.5, quality: 8, opacity: 200, spacing: 0.3, pressure: {curve: [0.15,0.2], min_max: [1.3,1]} }],
         ["rotring", { weight: 0.2, vibration: 0.05, definition: 1, quality: 3, opacity: 250, spacing: 0.15, pressure: {curve: [0.05,0.2], min_max: [1.2,0.95]} }],
-        ["2B", { weight: 0.4, vibration: 0.45, definition: 0.1, quality: 9, opacity: 160, spacing: 0.2, pressure: {curve: [0.15,0.2], min_max: [1.2,1]} }],
+        ["2B", { weight: 0.35, vibration: 0.5, definition: 0.1, quality: 8, opacity: 180, spacing: 0.2, pressure: {curve: [0.15,0.2], min_max: [1.3,1]} }],
         ["HB", { weight: 0.3, vibration: 0.5, definition: 0.4, quality: 4,  opacity: 180, spacing: 0.25, pressure: {curve: [0.15,0.2], min_max: [1.2,0.9]} }],
         ["2H", { weight: 0.2, vibration: 0.4, definition: 0.3, quality: 2,  opacity: 150, spacing: 0.2, pressure: {curve: [0.15,0.2], min_max: [1.2,0.9]} }],
         ["cpencil", { weight: 0.4, vibration: 0.6, definition: 0.8, quality: 7,  opacity: 120, spacing: 0.15, pressure: {curve: [0.15,0.2], min_max: [0.95,1.15]} }],
         ["charcoal", { weight: 0.5, vibration: 2, definition: 0.8, quality: 300,  opacity: 110, spacing: 0.06, pressure: {curve: [0.15,0.2], min_max: [1.15,0.85]} }],
         ["hatch_brush", { weight: 0.2, vibration: 0.4, definition: 0.3, quality: 2,  opacity: 150, spacing: 0.15, pressure: {curve: [0.5,0.7], min_max: [1,1.5]} }],
         ["spray", { type: "spray", weight: 0.3, vibration: 12, definition: 15, quality: 40,  opacity: 120, spacing: 0.65, pressure: {curve: [0,0.1], min_max: [0.15,1.2]} }],
-        ["marker", { type: "marker", weight: 2.5, vibration: 0.08, opacity: 30, spacing: 0.4, pressure: {curve: [0.35,0.25], min_max: [1.35,1]}}],
-        ["marker2", { type: "custom", weight: 2.5, vibration: 0.08, opacity: 25, spacing: 0.4, pressure: {curve: [0.35,0.25], min_max: [1.2,1]}, 
+        ["marker", { type: "marker", weight: 2.5, vibration: 0.12, opacity: 30, spacing: 0.4, pressure: {curve: [0.35,0.25], min_max: [1.35,1]}}],
+        ["marker2", { type: "custom", weight: 2.5, vibration: 0.12, opacity: 25, spacing: 0.35, pressure: {curve: [0.35,0.25], min_max: [1.15,0.95]}, 
             tip: function () { 
                 let scale = _gScale;
                 B.mask.rect(-1.5 * scale,-1.5 * scale,3 * scale,3 * scale); B.mask.rect(1 * scale,1 * scale,1 * scale,1 * scale) 
@@ -2520,11 +2538,12 @@
  * and geometrical shapes drawing.
  */
 
-    // Basic Functions
+    // General Functions
     exports.config = configureSystem;                // Configures and seeds the RNG (Random Number Generator).
     exports.load = loadSystem;                    // Loads the library into the selected buffer.
     exports.preload = preloadBrushAssets;              // Preloads custom tips for the library.
     exports.colorCache = enableCacheBlending;      // Enables/disables cache color blending for improved performance
+    exports.reDraw = Mix.reDraw;
 
     // FLOWFIELD Management
     exports.addField = addField;            // Adds a new vector field.
