@@ -1,0 +1,30 @@
+{
+  "name": "p5.brush",
+  "version": "0.0.1-beta",
+  "description": "Unlock custom brushes, natural fill effects and intuitive hatching in p5.js",
+  "main": "p5.brush.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/acamposuribe/p5.brush.git"
+  },
+  "keywords": [
+    "brush",
+    "children",
+    "p5",
+    "p5js",
+    "brushes",
+    "watercolor",
+    "flowfield",
+    "p5-library",
+    "hatching"
+  ],
+  "author": "Alejandro Campos Uribe",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/acamposuribe/p5.brush/issues"
+  },
+  "homepage": "https://p5-brush.cargo.site/"
+}
