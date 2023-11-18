@@ -1941,7 +1941,8 @@
             }
             let _step = B.spacing()  // get last spacing
             let vertices = []
-            let side = (max + min) * (isHatch ? 0.03 : ((F.isAnimated) ? 0.25 : F.b));
+            let bleed = R.constrain(F.bleed_strength,0.05,1)
+            let side = (max + min) * (isHatch ? 0.03 : ((F.isAnimated) ? 0.25 : bleed));
             let linepoint = new Position(_x,_y);
             let numsteps = Math.round(this.length/_step); 
             for (let steps = 0; steps < numsteps; steps++) {
@@ -2010,7 +2011,7 @@
             // Calculate the length of the arc for each quarter of the circle
             let l = Math.PI * radius / 2;
             // Initialize the angle for the drawing segments
-            let angle = 0
+            let angle = random(0,360)
             // Define a function to optionally add randomness to the segment length
             let rr = () => (r ? R.random(-1,1) : 0)
             // Add segments for each quarter of the circle with optional randomness
@@ -2023,14 +2024,10 @@
             if (r) p.addSegment(0 + angle, angle2 * (Math.PI/180) * radius, true)
             // Finalize the plot
             p.endPlot(angle2 + angle,1, true)
-            // If the fill or hatch are active, generate a polygon from the plot and fill/hatch it
-            if (F.isActive || H.isActive) {
-                let pol = p.genPol(x - radius * R.sin(angle),y - radius * R.cos(-angle))
-                pol.fill()
-                pol.hatch()
-            }
-            // If the border is active, draw the plot
-            if (B.isActive) p.draw(x - radius * R.sin(angle),y - radius * R.cos(-angle),1)
+            // Fill / hatch / draw
+            p.fill(x - radius * R.sin(angle),y - radius * R.cos(-angle),1);
+            p.hatch(x - radius * R.sin(angle),y - radius * R.cos(-angle),1);
+            p.draw(x - radius * R.sin(angle),y - radius * R.cos(-angle),1);
         }
     
     // Holds the array of vertices for the custom shape being defined. Each vertex includes position and optional pressure.
@@ -2338,7 +2335,7 @@
             const newVerts = [];
             const newMods = [];
             // Determine the length of vertices to process based on growth factor
-            let verticesToProcess = growthFactor >= 0.2 ? Math.floor(growthFactor * this.v.length) : this.v.length;
+            let verticesToProcess = (growthFactor >= 0.2 && this.v.length >= 10) ? Math.floor(growthFactor * this.v.length) : this.v.length;
             // Function to change the modifier based on a Gaussian distribution
             const changeModifier = (modifier) => {
                 const gaussianVariation = randomGaussian(0.5, 0.1);
@@ -2351,7 +2348,7 @@
                 const currentVertex = this.v[i];
                 const nextVertex = this.v[(i + 1) % verticesToProcess];
                 // Determine the growth modifier
-                let mod = (growthFactor === 0.1) ? 0.75 : this.m[i];
+                let mod = (growthFactor === 0.1) ? (F.bleed_strength <= 0.1 ? 0.25 : 0.75) : this.m[i];
                 if (degrow) mod *= -0.5;
                 // Add the current vertex and its modified value
                 newVerts.push(currentVertex);
