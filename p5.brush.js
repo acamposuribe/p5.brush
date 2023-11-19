@@ -717,10 +717,10 @@
                 vec4 pigment;
                 
                 if (active) {
-                    float n = psrdnoise(vVertTexCoord * 10., p, 10.0 * random.x, g);
-                    float n2 = psrdnoise(vVertTexCoord * 10., p, 10.0 * random.y, g);
-                    float n3 = psrdnoise(vVertTexCoord * 10., p, 10.0 * random.z, g);
-                    float n4 = 0.25 + 0.25 * psrdnoise(vVertTexCoord * 8., p, 3.0 * random.x, g);
+                    float n = psrdnoise(vVertTexCoord * 5., p, 10.0 * random.x, g);
+                    float n2 = psrdnoise(vVertTexCoord * 5., p, 10.0 * random.y, g);
+                    float n3 = psrdnoise(vVertTexCoord * 5., p, 10.0 * random.z, g);
+                    float n4 = 0.25 + 0.25 * psrdnoise(vVertTexCoord * 4., p, 3.0 * random.x, g);
                     pigment = vec4(generic_desaturate(addColor.xyz,n4).xyz + vec3(n,n2,n3) * 0.03, 1.0);
                 } else {
                     pigment = vec4(addColor.xyz,1.0);
@@ -1479,7 +1479,7 @@
             let ry = vibrate ? vibration * R.random(-1,1) : 0;
             this.mask.translate(this.position.x + rx, this.position.y + ry);
             this.adjustSizeAndRotation(this.w * pressure, alpha)
-            this.p.tip();
+            this.p.tip(this.mask);
             this.mask.pop();
         },
 
@@ -1505,7 +1505,6 @@
             if (this.p.rotate === "random") this.mask.rotate(R.randInt(0,360));
             else if (this.p.rotate === "natural") {
                 let angle = ((this.plot) ? - this.plot.angle(this.position.plotted) : - this.dir) + (this.flow ? this.position.angle() : 0)
-                angle = (this.plot) ? - this.plot.angle(this.position.plotted) : - this.dir
                 this.mask.rotate(angle)
             }
         },
@@ -2613,9 +2612,9 @@
         ["spray", { type: "spray", weight: 0.3, vibration: 12, definition: 15, quality: 40,  opacity: 120, spacing: 0.65, pressure: {curve: [0,0.1], min_max: [0.15,1.2]} }],
         ["marker", { type: "marker", weight: 2.5, vibration: 0.12, opacity: 30, spacing: 0.4, pressure: {curve: [0.35,0.25], min_max: [1.35,1]}}],
         ["marker2", { type: "custom", weight: 2.5, vibration: 0.12, opacity: 25, spacing: 0.35, pressure: {curve: [0.35,0.25], min_max: [1.15,0.95]}, 
-            tip: function () { 
+            tip: function (t) { 
                 let scale = _gScale;
-                B.mask.rect(-1.5 * scale,-1.5 * scale,3 * scale,3 * scale); B.mask.rect(1 * scale,1 * scale,1 * scale,1 * scale) 
+                t.rect(-1.5 * scale,-1.5 * scale,3 * scale,3 * scale); t.rect(1 * scale,1 * scale,1 * scale,1 * scale) 
             }, rotate: "natural"
         }],
     ];

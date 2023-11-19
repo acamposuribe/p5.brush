@@ -334,10 +334,10 @@ Functions for managing brush behaviors and properties.
             min_max: [1.35,1],
             curve: [0.35,0.25] // Values for the bell curve
         },
-        tip: () => {
+        tip: (_m) => {
            // in this example, the tip is composed of two squares, rotated 45 degrees
-           // Always execute drawing functions within the B.mask buffer!
-           B.mask.rotate(45), B.mask.rect(-1.5,-1.5,3,3), B.mask.rect(1,1,1,1);
+           // Always execute drawing functions within the _m buffer!
+           _m.rotate(45), _m.rect(-1.5,-1.5,3,3), _m.rect(1,1,1,1);
         }
         rotate: "natural",
     })
