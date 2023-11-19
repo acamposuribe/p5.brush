@@ -72,29 +72,59 @@ p5.brush.js provides a comprehensive API for creating complex drawings and effec
 
 ### Table of Functions
 
-|      Section                            |      Functions      |   | Section                                    |      Functions      |
-|-----------------------------------------|---------------------|---|--------------------------------------------|---------------------|
-| [Vector-Fields](#vector-fields)         | brush.field()       |   | [Geometry](#geometry)                      | brush.point()       |   
-|                                         | brush.noField()     |   |                                            | brush.line()        |   
-|                                         | brush.refreshField()|   |                                            | brush.flowLine()    |   
-|                                         | brush.listFields()  |   |                                            | brush.beginStroke() |   
-|                                         | brush.addField()    |   |                                            | brush.segment()     |   
-| [Brush Management](#brush-management)   | brush.scale()       |   |                                            | brush.endStroke()   |   
-|                                         | brush.box()         |   |                                            | brush.spline()      |   
-|                                         | brush.add()         |   |                                            | brush.plot()        |   
-|                                         | brush.clip()        |   |                                            | brush.rect()        |   
-|                                         | brush.noClip()      |   |                                            | brush.circle()      |   
-| [Stroke Operations](#stroke-operations) | brush.set()         |   |                                            | brush.beginShape()  |
-|                                         | brush.pick()        |   |                                            | brush.vertex()      |
-|                                         | brush.stroke()      |   |                                            | brush.endShape()    |
-|                                         | brush.noStroke()    |   |                                            | brush.polygon()     |
-|                                         | brush.strokeWeight()|   |  [Configuration](#optional-configuration)  | brush.config()      |
-| [Fill Operations](#fill-operations)     | brush.fill()        |   |                                            | brush.load()        |
-|                                         | brush.noFill()      |   |                                            | brush.preload()     | 
-|                                         | brush.bleed()       |   |                                            | brush.colorCache()  |
-| [Hatch Operations](#hatch-operations)   | brush.hatch()       |   | [Classes](#exposed-classes)                | brush.Polygon()     |
-|                                         | brush.noHatch()     |   |                                            | brush.Plot()        |
-|                                         | brush.setHatch()    |   |                                            | brush.Position()    |
+|      Section                               |      Functions      |   | Section                                    |      Functions      |
+|--------------------------------------------|---------------------|---|--------------------------------------------|---------------------|
+| [Utility](#utility-functions)              | brush.push()        |   | [Hatch Operations](#hatch-operations)      | brush.hatch()       |
+|                                            | brush.pop()         |   |                                            | brush.noHatch()     |
+|                                            | brush.rotate()      |   |                                            | brush.setHatch()    |
+|                                            | brush.reDraw()      |   | [Geometry](#geometry)                      | brush.point()       |
+|                                            | brush.reBlend()     |   |                                            | brush.line()        |
+| [Vector-Fields](#vector-fields)            | brush.field()       |   |                                            | brush.flowLine()    |
+|                                            | brush.noField()     |   |                                            | brush.beginStroke() |
+|                                            | brush.refreshField()|   |                                            | brush.segment()     |
+|                                            | brush.listFields()  |   |                                            | brush.endStroke()   |
+|                                            | brush.addField()    |   |                                            | brush.spline()      |
+| [Brush Management](#brush-management)      | brush.scale()       |   |                                            | brush.plot()        |
+|                                            | brush.box()         |   |                                            | brush.rect()        |
+|                                            | brush.add()         |   |                                            | brush.circle()      |
+|                                            | brush.clip()        |   |                                            | brush.beginShape()  |
+|                                            | brush.noClip()      |   |                                            | brush.vertex()      |
+| [Stroke Operations](#stroke-operations)    | brush.set()         |   |                                            | brush.endShape()    |
+|                                            | brush.pick()        |   |                                            | brush.polygon()     |
+|                                            | brush.stroke()      |   | [Configuration](#optional-configuration)   | brush.config()      |
+|                                            | brush.noStroke()    |   |                                            | brush.load()        |
+|                                            | brush.strokeWeight()|   |                                            | brush.preload()     |
+| [Fill Operations](#fill-operations)        | brush.fill()        |   |                                            | brush.colorCache()  |
+|                                            | brush.noFill()      |   | [Classes](#exposed-classes)                | brush.Polygon()     |
+|                                            | brush.bleed()       |   |                                            | brush.Plot()        |
+|                                            |                     |   |                                            | brush.Position()    |
+
+---
+
+<sub>[back to table](#table-of-functions)</sub>
+### Utility Functions
+
+---
+ 
+- `brush.push()`
+  - **Description**: The push() function saves the current brush, hatch, and fill settings and transformations, while pop() restores these settings. Note that these functions are always used together.
+
+- `brush.pop()`
+  - **Description**: The push() function saves the current brush, hatch, and fill settings and transformations, while pop() restores these settings. Note that these functions are always used together.
+
+---
+
+- `brush.rotate(angle)`
+  - **Description**: Rotates following shapes by the amount specified by the angle parameter. This function accounts for angleMode(), so angles can be entered in either RADIANS or DEGREES. Objects are always rotated around their relative position to the origin and positive numbers rotate objects in an anti-clockwise direction. Transformations apply to everything that happens after and subsequent calls to the function accumulate the effect. This function can be further controlled by brush.push() and brush.pop().
+
+---
+
+- `brush.reDraw()`
+  - **Description**: p5.brush uses several buffers and caches to make the drawing operations more performant. Use the reDraw() function if you want to force noBlend brushes to be drawn into the canvas. This function is designed to help maintain the correct draw order for the different strokes and shapes.
+
+- `brush.reBlend()`
+  - **Description**: p5.brush uses several buffers and caches to make the drawing operations more performant. Use the reDraw() function if you want to force Blend brushes to be drawn into the canvas. This function is designed to help maintain the correct draw order for the different strokes and shapes.
+
 
 ---
 

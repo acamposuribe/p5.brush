@@ -266,25 +266,42 @@
                 R.s[i] = Math.sin(radians);
             }
             this.isPrecalculationDone = true;
-        }
+        },
+
+        /**
+         * Changes angles to degrees and between 0-360
+         */
+        toDegrees: (a) => (((angleMode() === "radians") ? a * 180 / Math.PI : a) % 360 + 360) % 360,
     }
     // Perform the precalculation of trigonometric values for the R object
     R.preCalculation();
 
     /**
-     * Captures the current translation values from the renderer's transformation matrix.
-     * 
-     * Assumes that the renderer's transformation matrix (`uMVMatrix`) is a 4x4 matrix
-     * where the translation components are in the 13th (index 12) and 14th (index 13) positions.
-     * 
-     * @returns {number[]} An array containing the x (horizontal) and y (vertical) translation values.
+     * Object to perform matrix translation and rotation operations
      */
-    let _matrix = [0,0];
-    const _trans = function () {
-        // Access the renderer's current model-view matrix and extract the translation components
-        _matrix = [_r._renderer.uMVMatrix.mat4[12],_r._renderer.uMVMatrix.mat4[13]]
-        // Return the translation components as a two-element array
-        return _matrix;
+    const Matrix = {
+        translation: [0, 0],
+        rotation: 0,
+        /**
+         * Captures the desired rotation.
+         */
+        rotate (a) {
+            Matrix.rotation = R.toDegrees(a)
+        },
+        /**
+         * Captures the current translation values from the renderer's transformation matrix.
+         * 
+         * Assumes that the renderer's transformation matrix (`uMVMatrix`) is a 4x4 matrix
+         * where the translation components are in the 13th (index 12) and 14th (index 13) positions.
+         * 
+         * @returns {number[]} An array containing the x (horizontal) and y (vertical) translation values.
+         */
+        trans () {
+            // Access the renderer's current model-view matrix and extract the translation components
+            this.translation = [_r._renderer.uMVMatrix.mat4[12],_r._renderer.uMVMatrix.mat4[13]];
+            // Return the translation components as a two-element array
+            return this.translation
+        }
     }
 
     /**
@@ -343,6 +360,83 @@
         // Convert radians to degrees and normalize the angle between 0 and 360
         let angleDegrees = angleRadians * (180 / Math.PI);
         return (angleDegrees % 360 + 360) % 360;
+    }
+
+    /**
+     * Object that saves the current p5.brush state for push and pop operations
+     */
+    const _saveState = {
+        field: {},
+        stroke: {},
+        hatch: {},
+        fill: {},
+        others: {},
+    }
+
+    /**
+     * Saves current state to object
+     */
+    function _push () {
+        // Field
+        _saveState.field.isActive = FF.isActive;
+        _saveState.field.current = FF.current;
+        
+        // Stroke
+        _saveState.stroke.isActive = B.isActive;
+        _saveState.stroke.brush = B.name;
+        _saveState.stroke.color = B.c;
+        _saveState.stroke.weight = B.w;
+        _saveState.stroke.globalScale = _gScale;
+        _saveState.stroke.clip = B.cr;
+
+        // Hatch
+        _saveState.hatch.isActive = H.isActive;
+        _saveState.hatch.hatchingParams = H.hatchingParams;
+        _saveState.hatch.hatchingBrush = H.hatchingBrush;
+
+        // Fill
+        _saveState.fill.isActive = F.isActive;
+        _saveState.fill.color = F.color;
+        _saveState.fill.opacity = F.opacity;
+        _saveState.fill.bleed_strength = F.bleed_strength;
+        _saveState.fill.texture_strength = F.texture_strength;
+        _saveState.fill.border_strength = F.border_strength;
+
+        // Rotate
+        _saveState.others.rotate = Matrix.rotation;
+    }
+
+    /**
+     * Restores previous state from object
+     */
+    function _pop() {
+        // Field
+        FF.isActive = _saveState.field.isActive;
+        FF.current = _saveState.field.current;
+        
+        // Stroke
+        B.isActive = _saveState.stroke.isActive;
+        B.name = _saveState.stroke.brush;
+        B.c = _saveState.stroke.color;
+        B.w = _saveState.stroke.weight;
+        _gScale = _saveState.stroke.globalScale;
+        B.cr = _saveState.stroke.clip;
+
+        // Hatch
+        H.isActive = _saveState.hatch.isActive;
+        H.hatchingParams = _saveState.hatch.hatchingParams;
+        H.hatchingBrush = _saveState.hatch.hatchingBrush;
+
+        // Fill
+        F.isActive = _saveState.fill.isActive;
+        F.color = _saveState.fill.color;
+        F.opacity = _saveState.fill.opacity;
+        F.bleed_strength = _saveState.fill.bleed_strength;
+        F.texture_strength = _saveState.fill.texture_strength;
+        F.border_strength = _saveState.fill.border_strength;
+
+        // Rotate
+        Matrix.rotation = _saveState.others.rotate;
     }
     
 
@@ -439,10 +533,20 @@
         reDraw() {
             _r.push();
             // Copy info from noBlend buffer
-            _r.translate(-_trans()[0],-_trans()[1])
+            _r.translate(-Matrix.trans()[0],-Matrix.trans()[1])
             _r.image(Mix.noBlend, -_r.width/2, -_r.height/2)
             Mix.noBlend.clear()
             _r.pop();
+        },
+
+        /**
+         * This function forces marker-brushes and fills to be updated into the canvas
+         */
+        reBlend() {
+            _push()
+            B.set("marker","white",1)
+            B.line(-10,-10,-5,-5)
+            _pop();
         },
 
         /**
@@ -477,7 +581,7 @@
                 }
                 else {
                     _r.push();
-                    _r.translate(-_trans()[0],-_trans()[1])
+                    _r.translate(-Matrix.trans()[0],-Matrix.trans()[1])
                     _r.image(this.noBlend,-_r.width/2, -_r.height/2)
                     this.noBlend.clear()
                     _r.pop();
@@ -493,7 +597,7 @@
             if (newColor.toString() !== this.currentColor.toString() || _isLast || !this.isCaching) {
                 _r.push();
                 // Copy info from noBlend buffer
-                _r.translate(-_trans()[0],-_trans()[1])
+                _r.translate(-Matrix.trans()[0],-Matrix.trans()[1])
                 _r.image(this.noBlend,-_r.width/2, -_r.height/2)
                 this.noBlend.clear()
                 // Use the blend shader for rendering
@@ -857,8 +961,8 @@
         update (x,y) {
             this.x = x , this.y = y;
             if (FF.isActive) {
-                this.x_offset = this.x - FF.left_x + _trans()[0];
-                this.y_offset = this.y - FF.top_y + _trans()[1];
+                this.x_offset = this.x - FF.left_x + Matrix.trans()[0];
+                this.y_offset = this.y - FF.top_y + Matrix.trans()[1];
                 this.column_index = Math.round(this.x_offset / FF.R);
                 this.row_index = Math.round(this.y_offset / FF.R);
             }
@@ -885,7 +989,7 @@
          */
         isInCanvas() {
             let w = 0.55 * _r.width, h = 0.55 * _r.height;
-            return (this.x >= -w - _trans()[0] && this.x <= w - _trans()[0]) && (this.y >= -h - _trans()[1] && this.y <= h - _trans()[1])
+            return (this.x >= -w - Matrix.trans()[0] && this.x <= w - Matrix.trans()[0]) && (this.y >= -h - Matrix.trans()[1] && this.y <= h - Matrix.trans()[1])
         }
 
         /**
@@ -1127,9 +1231,8 @@
          */
         flowLine(x,y,length,dir) {
             _ensureReady();
-            if (angleMode() === "radians") dir = dir * 180 / Math.PI;
             B.initializeDrawingState(x, y, length, true, false);
-            B.draw(dir, false);
+            B.draw(R.toDegrees(dir), false);
         },
 
         /**
@@ -1220,11 +1323,12 @@
                 this.c = _r.color(this.c);
                 // Select mask buffer for blend mode
                 this.mask = this.p.blend ? ((this.p.type === "image") ? Mix.mask2 : Mix.mask) : Mix.noBlend;
-                _trans()
+                Matrix.trans()
                 // Set the blender
                 this.mask.push(); 
                 this.mask.noStroke();
-                (this.p.type === "image") ? this.mask.translate(_matrix[0],_matrix[1]) : this.mask.translate(_matrix[0] + _r.width/2,_matrix[1] + _r.height/2); 
+                (this.p.type === "image") ? this.mask.translate(Matrix.translation[0],Matrix.translation[1]) : this.mask.translate(Matrix.translation[0] + _r.width/2,Matrix.translation[1] + _r.height/2); 
+                this.mask.rotate(-Matrix.rotation)
                 if (this.p.blend) {
                     if (this.p.type !== "image") Mix.blend(this.c);
                     else Mix.blend(this.c,false,true)
@@ -1530,7 +1634,7 @@
      * @param {number} weight - The weight (size) to set for the brush.
      * EXPORTED
      */  
-    function setHatch(brush, color, weight = 1) {
+    function setHatch(brush, color = "black", weight = 1) {
         H.hatchingBrush = [brush, color, weight]
     }
 
@@ -1569,8 +1673,8 @@
             // Change state if hatch has been set to different params than stroke
             if (H.hatchingBrush) B.set(H.hatchingBrush[0],H.hatchingBrush[1],H.hatchingBrush[2])
             
-            // Check angleMode for calculations and transform to degrees
-            angle = (((angleMode() === "radians") ? angle * 180 / Math.PI : angle) + 3 * 360) % 180
+            // Transform to degrees and between 0-180
+            angle = R.toDegrees(angle) % 180;
 
             // Calculate the bounding area of the provided polygons
             let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
@@ -1827,14 +1931,12 @@
          * @param {boolean} _degrees - Whether the angle is in degrees.
          */
         addSegment (_a = 0,_length = 0,_pres = 1,_degrees = false) {
-            // Convert angle to degrees if necessary
-            if (angleMode() === "radians" && !_degrees) _a = _a * 180 / Math.PI
             // Remove the last angle if the angles array is not empty
             if (this.angles.length > 0) {
                 this.angles.splice(-1)
             }
-            // Normalize the angle between 0 and 360 degrees
-            _a = (_a + 360) % 360;
+            // Convert to degrees and normalize between 0 and 360 degrees
+            _a = R.toDegrees(_a);
             // Store the angle, pressure, and segment length
             this.angles.push(_a);
             this.pres.push(_pres);
@@ -1853,10 +1955,9 @@
          */
         endPlot (_a = 0, _pres = 1, _degrees = false) {
             // Convert angle to degrees if necessary
-            if (angleMode() === "radians" && !_degrees) _a = _a * 180 / Math.PI
             // Replace the last angle with the final angle
             this.angles.splice(-1)
-            this.angles.push(_a);
+            this.angles.push(R.toDegrees(_a));
             // Store the final pressure
             this.pres.push(_pres);
         }
@@ -1866,8 +1967,7 @@
          * @param {number} _a - The angle to rotate the plot.
          */
         rotate (_a) {
-            if (angleMode() === "radians") _a = _a * 180 / Math.PI; 
-            this.dir = _a;
+            this.dir = R.toDegrees(_a);
         }
 
         /**
@@ -2385,11 +2485,12 @@
             const texture = tex * 3;
 
             // Perform initial setup only once
-            _trans();
+            Matrix.trans();
             Mix.blend(color,false,false,true)
             Mix.mask.push();
             Mix.mask.noStroke();
-            Mix.mask.translate(_matrix[0] + _r.width/2, _matrix[1] + _r.height/2);
+            Mix.mask.translate(Matrix.translation[0] + _r.width/2, Matrix.translation[1] + _r.height/2);
+            Mix.mask.rotate(Matrix.rotation)
 
             let pol = this.grow()
             let pol2 = pol.grow().grow(0.9);
@@ -2541,6 +2642,10 @@
     exports.preload = preloadBrushAssets;              // Preloads custom tips for the library.
     exports.colorCache = enableCacheBlending;      // Enables/disables cache color blending for improved performance
     exports.reDraw = Mix.reDraw;
+    exports.reBlend = Mix.reBlend;
+    exports.push = _push;
+    exports.pop = _pop;
+    exports.rotate = Matrix.rotate;
 
     // FLOWFIELD Management
     exports.addField = addField;            // Adds a new vector field.
@@ -2557,7 +2662,7 @@
     exports.pick = B.setBrush;               // Selects a brush to use.
     exports.clip = B.clip;                   // Clips brushes with a rectangle.
     exports.noClip = B.noClip; 
-    exports.tip = drawTip;                   // Draw tip of the brush with a custom pressure
+    exports.point = drawTip;                   // Draw tip of the brush with a custom pressure
 
     // STROKE Properties
     exports.stroke = B.setColor;          // Activates and sets the stroke color.
