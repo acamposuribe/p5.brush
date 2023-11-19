@@ -458,6 +458,8 @@ Stroke Operations encompass methods for manipulating and applying brushes to str
 
 The Fill Management section focuses on managing fill properties for shapes, enabling complex fill operations with effects like bleeding to simulate watercolor-like textures. These methods set fill colors with opacity, control bleed intensity, and manage fill operations. The watercolor fill effect is inspired by Tyler Hobbs' generative art techniques.
 
+** IMPORTANT: ** At the moment, fill operations expect an array of vertices in the clockwise direction. Otherwise, the fill will "bleed" to the inside, destroying the effect. I'll try to fix this on a forthcoming update.
+
 ---
 
 - `brush.fill(a, b, c, d)` or `brush.fill(color, opacity)`
