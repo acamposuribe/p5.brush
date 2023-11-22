@@ -4,7 +4,8 @@
   "description": "Unlock custom brushes, natural fill effects and intuitive hatching in p5.js",
   "main": "p5.brush.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "build:types": "tsc --project tsconfig.build.json"
   },
   "repository": {
     "type": "git",
@@ -26,5 +27,9 @@
   "bugs": {
     "url": "https://github.com/acamposuribe/p5.brush/issues"
   },
-  "homepage": "https://p5-brush.cargo.site/"
+  "homepage": "https://p5-brush.cargo.site/",
+  "devDependencies": {
+    "@types/p5": "^1.7.3",
+    "typescript": "^5.3.2"
+  }
 }
