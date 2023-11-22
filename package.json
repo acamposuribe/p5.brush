@@ -11,6 +11,15 @@
     "type": "git",
     "url": "git+https://github.com/acamposuribe/p5.brush.git"
   },
+  "typings": "dist/p5.brush.d.ts",
+  "exports": {
+    ".": {
+      "import": "./p5.brush.js",
+      "require": "./p5.brush.js",
+      "types": "./dist/p5.brush.d.ts"
+    },
+    "./minified": "./p5.brush.min.js"
+  },
   "keywords": [
     "brush",
     "children",
