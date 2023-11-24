@@ -23,7 +23,7 @@ const C = {
 };
 // SET CANVAS SIZE: width, height, pixelDensity, html_id for the canvas
 // Here I'm working with mm units, so I want a big pixelDensity for high-res.
-C.setSize(250,250,8,'mainCanvas')
+C.setSize(250,250,4,'mainCanvas')
 
 function windowResized () {
     C.resize();
@@ -63,9 +63,11 @@ brush.add("watercolor", {
 function preload() {
     // If you are going to use custom image brush tips, include this in preload!
     brush.preload();
+    bg_image = loadImage("./paper.jpg")
 }
 
-let palette = ["#7b4800", "#002185", "#003c32", "#fcd300", "#ff2702", "#6b9404"]
+let palette = ["#002185", "#fcd300", "#ff2702", "#6b9404"]
+
 
 function setup () {
 
@@ -75,15 +77,7 @@ function setup () {
 
     translate(-width/2,-height/2)
 
-    brush.fill("#ff2702", 40)
-    brush.bleed(0.2,"out")
-    brush.fillTexture(0.6)
-    brush.beginShape(0)
-
-        for (let i = 0; i < 5; i++) {
-            brush.vertex(random(width),random(height))
-        }
-    brush.endShape(CLOSE)
+    randomNumber = random() * 1213213
 
     brush.reBlend()
 
@@ -96,8 +90,27 @@ function setup () {
             brush.flowLine(30,60+i*10,195,0)
         i++
     }
-    
 }
 
 function draw() {
+    
+    /*
+    background("#e2e7dc")
+    brush.noStroke()
+    translate(-width/2,-height/2)
+    randomSeed(randomNumber)
+    brush.fillAnimatedMode(true)
+
+    frameRate(20)
+
+    for (let i = 0; i < frameCount * 0.02; i++ ) {
+        if (i < 3) {
+            brush.fill(palette[i%palette.length], 40)
+            brush.bleed(0.1 + frameCount * 0.01 - i * 0.4,"out")
+            brush.fillTexture(0.6)
+            brush.circle(width * random(0.25,0.75),width * random(0.25,0.75),random(30,40))
+            brush.reBlend()
+        }
+    }
+    */
 }
