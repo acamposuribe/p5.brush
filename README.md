@@ -77,15 +77,15 @@ p5.brush.js provides a comprehensive API for creating complex drawings and effec
 | [Utility](#utility-functions)              | brush.push()        |   | [Hatch Operations](#hatch-operations)      | brush.hatch()       |
 |                                            | brush.pop()         |   |                                            | brush.noHatch()     |
 |                                            | brush.rotate()      |   |                                            | brush.setHatch()    |
-|                                            | brush.reDraw()      |   | [Geometry](#geometry)                      | brush.point()       |
-|                                            | brush.reBlend()     |   |                                            | brush.line()        |
-| [Vector-Fields](#vector-fields)            | brush.field()       |   |                                            | brush.flowLine()    |
-|                                            | brush.noField()     |   |                                            | brush.beginStroke() |
-|                                            | brush.refreshField()|   |                                            | brush.segment()     |
-|                                            | brush.listFields()  |   |                                            | brush.endStroke()   |
-|                                            | brush.addField()    |   |                                            | brush.spline()      |
-| [Brush Management](#brush-management)      | brush.scale()       |   |                                            | brush.plot()        |
-|                                            | brush.box()         |   |                                            | brush.rect()        |
+|                                            | brush.scale()       |   | [Geometry](#geometry)                      | brush.point()       |
+|                                            | brush.reDraw()      |   |                                            | brush.line()        |
+|                                            | brush.reBlend()     |   |                                            | brush.flowLine()    |
+| [Vector-Fields](#vector-fields)            | brush.field()       |   |                                            | brush.beginStroke() |
+|                                            | brush.noField()     |   |                                            | brush.segment()     |
+|                                            | brush.refreshField()|   |                                            | brush.endStroke()   |
+|                                            | brush.listFields()  |   |                                            | brush.spline()      |
+|                                            | brush.addField()    |   |                                            | brush.plot()        |
+| [Brush Management](#brush-management)      | brush.box()         |   |                                            | brush.rect()        |
 |                                            | brush.add()         |   |                                            | brush.circle()      |
 |                                            | brush.clip()        |   |                                            | brush.beginShape()  |
 |                                            | brush.noClip()      |   |                                            | brush.vertex()      |
@@ -95,8 +95,9 @@ p5.brush.js provides a comprehensive API for creating complex drawings and effec
 |                                            | brush.noStroke()    |   |                                            | brush.load()        |
 |                                            | brush.strokeWeight()|   |                                            | brush.preload()     |
 | [Fill Operations](#fill-operations)        | brush.fill()        |   |                                            | brush.colorCache()  |
-|                                            | brush.noFill()      |   | [Classes](#exposed-classes)                | brush.Polygon()     |
-|                                            | brush.bleed()       |   |                                            | brush.Plot()        |
+|                                            | brush.noFill()      |   |                                            | brush.scaleBrushes()|
+|                                            | brush.bleed()       |   | [Classes](#exposed-classes)                | brush.Polygon()     |
+|                                            | brush.fillTexture() |   |                                            | brush.Plot()        |
 |                                            |                     |   |                                            | brush.Position()    |
 
 ---
@@ -116,6 +117,11 @@ p5.brush.js provides a comprehensive API for creating complex drawings and effec
 
 - `brush.rotate(angle)`
   - **Description**: Rotates following shapes by the amount specified by the angle parameter. This function accounts for angleMode(), so angles can be entered in either RADIANS or DEGREES. Objects are always rotated around their relative position to the origin and positive numbers rotate objects in an anti-clockwise direction. Transformations apply to everything that happens after and subsequent calls to the function accumulate the effect. This function can be further controlled by brush.push() and brush.pop().
+
+---
+
+- `brush.scale(scale)`
+  - **Description**: Increases or decreases the size of shapes and strokes by expanding or contracting vertices. Objects always scale from their relative origin to the coordinate system. Scale values are specified as decimal percentages. For example, the function call scale(2.0) increases the dimension of a shape by 200%. Transformations apply to everything that happens after and subsequent calls to the function multiply the effect. For example, calling scale(2.0) and then scale(1.5) is the same as scale(3.0).
 
 ---
 
@@ -245,20 +251,6 @@ Vector Fields allow for dynamic control over brush stroke behavior, enabling the
 ### Brush Management
 
 Functions for managing brush behaviors and properties.
-
----
-
-- `brush.scale(scale)`
-  - **Description**: Adjusts the global scale of all standard brush parameters, including weight, vibration, and spacing, based on the given scaling factor. This function is specifically designed to affect dafault brushes, allowing for uniform scaling across various brush types.
-  - **Parameters**:
-    - `scale` (Number): The scaling factor to be applied to the brush parameters.
-  - **Note**: This function only impacts the default brushes. Custom brushes may not be affected by this scaling, since they are defined per case basis.
-  - **Usage**:
-    ```javascript
-    // Scale all standard brushes by a factor of 1.5
-    brush.scale(1.5);
-    ```
-    Using `brush.scale()`, you can easily adjust the size and spacing characteristics of standard brushes in your project, providing a convenient way to adapt to different canvas sizes or artistic styles.
 
 ---
 
@@ -490,16 +482,29 @@ The Fill Management section focuses on managing fill properties for shapes, enab
 
 ---
 
-- `brush.bleed(_i, _texture, _borderIntensity)`
+- `brush.bleed(strength, direction)`
   - **Description**: Adjusts the bleed and texture levels for the fill operation, mimicking the behavior of watercolor paints. This function adds a natural and organic feel to digital artwork.
   - **Parameters**:
-    - `_i` (Number): The intensity of the bleed effect, capped at 0.5.
-    - `_texture` (Number): The texture level of the watercolor effect, ranging from 0 to 1.
+    - `strength` (Number): The intensity of the bleed effect, capped at 0.5.
+    - `direction` (String): Optional. "out" or "in". Defines the direction of the bleed effect
     - `_borderIntensity` (Number): The intensity of the border watercolor effect, ranging from 0 to 1.
   - **Usage**:
     ```javascript
-    // Set the bleed intensity and texture for a watercolor effect
-    brush.bleed(0.3, 0.7, 0.5);
+    // Set the bleed intensity and direction for a watercolor effect
+    brush.bleed(0.3, "out");
+    ```
+
+---
+
+- `brush.fillTexture(textureStrength, borderIntensity)`
+  - **Description**: Adjusts the texture levels for the fill operation, mimicking the behavior of watercolor paints. This function adds a natural and organic feel to digital artwork.
+  - **Parameters**:
+    - `textureStrength` (Number): The texture of the fill effect, ranging from 0 to 1.
+    - `borderIntensity` (Number): The intensity of the border watercolor effect, ranging from 0 to 1.
+  - **Usage**:
+    ```javascript
+    // Set the fill texture and border intensity
+    brush.fillTexture(0.6, 0.4);
     ```
 
 ---
@@ -862,6 +867,20 @@ This section covers functions for initializing the drawing system, preloading re
   - **Parameters**: 
     - `bool` (boolean): Set to true to enable caching, or false to disable it.
 
+---
+
+- `brush.scale(scale)`
+  - **Description**: Adjusts the global scale of all standard brush parameters, including weight, vibration, and spacing, based on the given scaling factor. This function is specifically designed to affect default brushes only, allowing for uniform scaling across various brush types.
+  - **Parameters**:
+    - `scale` (Number): The scaling factor to be applied to the brush parameters.
+  - **Note**: This function only impacts the default brushes. Custom brushes may not be affected by this scaling, since they are defined per case basis.
+  - **Usage**:
+    ```javascript
+    // Scale all standard brushes by a factor of 1.5
+    brush.scale(1.5);
+    ```
+    Using `brush.scale()`, you can easily adjust the size and spacing characteristics of standard brushes in your project, providing a convenient way to adapt to different canvas sizes or artistic styles.
+    
 ---
 
 <sub>[back to table](#table-of-functions)</sub>

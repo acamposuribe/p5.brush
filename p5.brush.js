@@ -1,6 +1,6 @@
 /**
  * @fileoverview p5.brush - A comprehensive toolset for brush management in p5.js.
- * @version 1.0.3
+ * @version 1.0.4
  * @license MIT
  * @author Alejandro Campos Uribe
  * 
@@ -269,40 +269,17 @@
         },
 
         /**
+         * Checks if value is numeric
+         */
+        isNumber: (a) => !isNaN(a),
+
+        /**
          * Changes angles to degrees and between 0-360
          */
         toDegrees: (a) => (((angleMode() === "radians") ? a * 180 / Math.PI : a) % 360 + 360) % 360,
     }
     // Perform the precalculation of trigonometric values for the R object
     R.preCalculation();
-
-    /**
-     * Object to perform matrix translation and rotation operations
-     */
-    const Matrix = {
-        translation: [0, 0],
-        rotation: 0,
-        /**
-         * Captures the desired rotation.
-         */
-        rotate (a) {
-            Matrix.rotation = R.toDegrees(a)
-        },
-        /**
-         * Captures the current translation values from the renderer's transformation matrix.
-         * 
-         * Assumes that the renderer's transformation matrix (`uMVMatrix`) is a 4x4 matrix
-         * where the translation components are in the 13th (index 12) and 14th (index 13) positions.
-         * 
-         * @returns {number[]} An array containing the x (horizontal) and y (vertical) translation values.
-         */
-        trans () {
-            // Access the renderer's current model-view matrix and extract the translation components
-            this.translation = [_r._renderer.uMVMatrix.mat4[12],_r._renderer.uMVMatrix.mat4[13]];
-            // Return the translation components as a two-element array
-            return this.translation
-        }
-    }
 
     /**
      * Calculates the intersection point between two line segments if it exists.
@@ -386,7 +363,6 @@
         _saveState.stroke.brush = B.name;
         _saveState.stroke.color = B.c;
         _saveState.stroke.weight = B.w;
-        _saveState.stroke.globalScale = _gScale;
         _saveState.stroke.clip = B.cr;
 
         // Hatch
@@ -419,7 +395,6 @@
         B.name = _saveState.stroke.brush;
         B.c = _saveState.stroke.color;
         B.w = _saveState.stroke.weight;
-        _gScale = _saveState.stroke.globalScale;
         B.cr = _saveState.stroke.clip;
 
         // Hatch
@@ -437,6 +412,46 @@
 
         // Rotate
         Matrix.rotation = _saveState.others.rotate;
+    }
+
+    /**
+     * Object to perform matrix translation and rotation operations
+     */
+    const Matrix = {
+        translation: [0, 0],
+        rotation: 0,
+        /**
+         * Captures the desired rotation.
+         */
+        rotate (a = 0) {
+            if (!R.isNumber(a)) {
+                console.log("ERROR rotate(): Value must be numeric");
+                return null;
+            }
+            Matrix.rotation = R.toDegrees(a)
+        },
+        /**
+         * Captures the current translation values from the renderer's transformation matrix.
+         * 
+         * Assumes that the renderer's transformation matrix (`uMVMatrix`) is a 4x4 matrix
+         * where the translation components are in the 13th (index 12) and 14th (index 13) positions.
+         * 
+         * @returns {number[]} An array containing the x (horizontal) and y (vertical) translation values.
+         */
+        trans () {
+            // Access the renderer's current model-view matrix and extract the translation components
+            this.translation = [_r._renderer.uMVMatrix.mat4[12],_r._renderer.uMVMatrix.mat4[13]];
+            // Return the translation components as a two-element array
+            return this.translation
+        }
+    }
+
+    /**
+     * Object to perform scale operations
+     */
+    const Scale = {
+        current: 1,
+        update: (a) => Scale.current *= a
     }
     
 
@@ -763,6 +778,11 @@
      */
     function selectField (a) {
         _ensureReady();
+        // Check if field exists
+        if (!FF.list.has(a)) {
+            console.log("ERROR field(): No VectorField with that name");
+            return null;
+        }
         FF.isActive = true; // Mark the field framework as active
         FF.current = a; // Update the current field
     }
@@ -794,6 +814,10 @@
      * EXPORTED
      */
     function refreshField(t) {
+        if (!R.isNumber(t)) {
+            console.log("ERROR refreshField(): Value for refreshField must be numeric");
+            return null
+        }
         FF.refresh(t)
     }
 
@@ -984,11 +1008,11 @@
         }
 
         /**
-         * Checks if the position is within the canvas bounds.
-         * @returns {boolean} - True if the position is within the canvas, false otherwise.
+         * Checks if the position is within reasonable bounds (+ half canvas on each side). 
+         * @returns {boolean} - True if the position is within bounds, false otherwise.
          */
         isInCanvas() {
-            let w = 0.55 * _r.width, h = 0.55 * _r.height;
+            let w = _r.width, h = _r.height;
             return (this.x >= -w - Matrix.trans()[0] && this.x <= w - Matrix.trans()[0]) && (this.y >= -h - Matrix.trans()[1] && this.y <= h - Matrix.trans()[1])
         }
 
@@ -1135,6 +1159,7 @@
          */
         add: (a, b) => {
             const isBlendableType = b.type === "marker" || b.type === "custom" || b.type === "image";
+            if (!isBlendableType  && b.type !== "spray") b.type = "default";
             if (b.type === "image") {
                 T.add(b.image.src);
                 b.tip = () => B.mask.image(T.tips.get(B.p.image.src), -B.p.weight / 2, -B.p.weight / 2, B.p.weight, B.p.weight);
@@ -1151,7 +1176,7 @@
          * EXPORTED
          */  
         set(brushName, color, weight = 1) {
-            B.name = brushName; 
+            B.setBrush(brushName);
             B.c = color;
             B.w = weight;
             B.isActive = true;
@@ -1163,6 +1188,10 @@
          * EXPORTED
          */
         setBrush(brushName) {
+            if (!B.list.has(brushName)) {
+                console.log("ERROR set() / setBrush() / setHatch():\n No brush with that name");
+                return null;
+            }
             B.name = brushName;
         },
 
@@ -1255,7 +1284,8 @@
          */
         spacing() {
             this.p = this.list.get(this.name).param
-            return this.p.spacing * this.w;
+            if (this.p.type === "default" || this.p.type === "spray") return this.p.spacing / this.w;
+            return this.p.spacing;
         },
 
         /**
@@ -1329,6 +1359,7 @@
                 this.mask.noStroke();
                 (this.p.type === "image") ? this.mask.translate(Matrix.translation[0],Matrix.translation[1]) : this.mask.translate(Matrix.translation[0] + _r.width/2,Matrix.translation[1] + _r.height/2); 
                 this.mask.rotate(-Matrix.rotation)
+                this.mask.scale(Scale.current)
                 if (this.p.blend) {
                     if (this.p.type !== "image") Mix.blend(this.c);
                     else Mix.blend(this.c,false,true)
@@ -1411,7 +1442,10 @@
          * @returns {number} The calculated alpha value.
          */
         calculateAlpha(pressure) {
-            return Math.floor(this.p.opacity * Math.pow(pressure, this.p.type === "marker" ? 0.7 : 1.5));
+            let opacity = (this.p.type !== "default" && this.p.type !== "spray") ? 
+                this.p.opacity / this.w :
+                this.p.opacity;
+            return Math.floor(opacity * Math.pow(pressure, this.p.type === "marker" ? 0.7 : 1.5));
         },
 
         /**
@@ -1433,7 +1467,10 @@
          */
         isInsideClippingArea() {
             if (B.cr) return this.position.x >= B.cr[0] && this.position.x <= B.cr[2] && this.position.y >= B.cr[1] && this.position.y <= B.cr[3];
-            else return true;
+            else {
+                let w = 0.55 * _r.width, h = 0.55 * _r.height;
+                return (this.position.x >= -w - Matrix.trans()[0] && this.position.x <= w - Matrix.trans()[0]) && (this.position.y >= -h - Matrix.trans()[1] && this.position.y <= h - Matrix.trans()[1])
+            }
         },
 
         /**
@@ -1490,7 +1527,7 @@
         drawDefault(pressure) {
             let vibration = this.w * this.p.vibration * (this.p.definition + (1-this.p.definition) * randomGaussian() * this.gauss(0.5,0.9,5,0.2,1.2) / pressure);
             if (R.random(0, this.p.quality) > 0.4) {
-                this.mask.circle(this.position.x + 0.7 * vibration * R.random(-1,1),this.position.y + vibration * R.random(-1,1), pressure * this.p.weight * this.w * R.random(0.85,1.15));
+                this.mask.circle(this.position.x + 0.7 * vibration * R.random(-1,1),this.position.y + vibration * R.random(-1,1), pressure * this.p.weight * R.random(0.85,1.15));
             }
         },
 
@@ -1726,16 +1763,16 @@
             // Draw the hatching lines using the calculated intersections
             // If the 'rand' option is enabled, add randomness to the start and end points of the lines
             // If the 'continuous' option is set, connect the end of one line to the start of the next
-            let r = options.rand || 0;
+            let r = options.rand ? options.rand : 0;
             for (let j = 0; j < gdots.length; j++) {
                 let dd = gdots[j]
                 let shouldDrawContinuousLine = j > 0 && options.continuous;
                 for (let i = 0; i < dd.length-1; i += 2) {
                     if (r !== 0) {
-                        dd[i].x += r * dist * R.random(-1, 1);
-                        dd[i].y += r * dist * R.random(-1, 1);
-                        dd[i + 1].x += r * dist * R.random(-1, 1);
-                        dd[i + 1].y += r * dist * R.random(-1, 1);
+                        dd[i].x += r * dist * R.random(-10, 10);
+                        dd[i].y += r * dist * R.random(-10, 10);
+                        dd[i + 1].x += r * dist * R.random(-10, 10);
+                        dd[i + 1].y += r * dist * R.random(-10, 10);
                     }
                     B.line(dd[i].x, dd[i].y, dd[i + 1].x, dd[i + 1].y);
                     if (shouldDrawContinuousLine) {
@@ -1772,9 +1809,10 @@
          * 
          * @param {Array} pointsArray - An array of points, where each point is an array of two numbers [x, y].
          */
-        constructor (array) {
+        constructor (array , bool = false) {
             this.a = array;
             this.vertices = array.map(a => ({ x: a[0], y: a[1] }));
+            if (bool) this.vertices = array;
             this.sides = this.vertices.map((v, i, arr) => [v, arr[(i + 1) % arr.length]]);
         }
         /**
@@ -1815,11 +1853,12 @@
         /**
          * Fills the polygon using the current fill state.
          */
-        fill (_color = false, _opacity, _bleed, _texture, _border) {
+        fill (_color = false, _opacity, _bleed, _texture, _border, _direction) {
             let curState = F.isActive;
             if (_color) {
                 setFill(_color, _opacity)
-                setBleed(_bleed, _texture, _border)
+                setBleed(_bleed, _direction)
+                setTexture(_texture, _border)
             }
             if (F.isActive) {
                 _ensureReady();
@@ -2042,6 +2081,7 @@
             let vertices = []
             let bleed = R.constrain(F.bleed_strength,0.05,1)
             let side = (max + min) * (isHatch ? 0.03 : ((F.isAnimated) ? 0.25 : bleed));
+            this.calcIndex(0);
             let linepoint = new Position(_x,_y);
             let numsteps = Math.round(this.length/_step); 
             for (let steps = 0; steps < numsteps; steps++) {
@@ -2319,8 +2359,12 @@
      * @param {number} _texture - The texture of the watercolor effect, from 0 to 1.
      * EXPORTED
      */
-    function setBleed(_i, _texture = 0.4, _border = 0.4) {
+    function setBleed(_i, _direction = "out") {
         F.bleed_strength = R.constrain(_i,0,0.6);
+        F.direction = _direction
+    }
+
+    function setTexture(_texture = 0.4, _border = 0.4) {
         F.texture_strength = R.constrain(_texture, 0, 1);
         F.border_strength = R.constrain(_border, 0, 1);
     }
@@ -2369,6 +2413,8 @@
          * @param {Object} polygon - The polygon to fill.
          */
         fill (polygon) {
+            // Store polygon
+            this.polygon = polygon;
             // Map polygon vertices to p5.Vector objects
             this.v = polygon.a.map(vert => createVector(vert[0], vert[1]));
             // Calculate fluidity once, outside the loop
@@ -2382,7 +2428,7 @@
             let shift = R.randInt(0, this.v.length);
             this.v = [...this.v.slice(shift), ...this.v.slice(0, shift)];
             // Create and fill the polygon with the calculated bleed effect
-            let pol = new FillPolygon (this.v, this.m, this.calcCenter())
+            let pol = new FillPolygon (this.v, this.m, this.calcCenter(),[],true)
             pol.fill(this.color, int(map(this.opacity,0,155,0,20,true)), this.texture_strength)
         },
 
@@ -2415,12 +2461,37 @@
          * @param {p5.Vector[]} _v - An array of p5.Vector objects representing the vertices of the polygon.
          * @param {number[]} _m - An array of numbers representing the multipliers for the bleed effect at each vertex.
          * @param {p5.Vector} _center - A p5.Vector representing the calculated center point of the polygon.
+         * @param {boolean[]} dir - An array of booleans representing the bleed direction.
+         * @param {boolean} isFirst - Boolean = true for initial fill polygon
          */
-        constructor (_v,_m,_center) {
+        constructor (_v,_m,_center,dir,isFirst = false) {
+            this.pol = new Polygon(_v, true)
             this.v = _v;
+            this.dir = dir;
             this.m = _m;
             this.midP = _center;
             this.size = p5.Vector.sub(this.midP,this.v[0]).mag();
+            // This calculates the bleed direction for the initial shape, for each of the vertices.
+            if (isFirst) {
+                const rotationFactor = (angleMode() === "radians") ? Math.PI / 180 : 1;
+                for (let i = 0; i < this.v.length; i++) {
+                    const currentVertex = this.v[i]
+                    const nextVertex = this.v[(i + 1) % this.v.length];
+                    let side = p5.Vector.sub(nextVertex, currentVertex)
+                    let direction1 = side.copy();
+                    direction1.rotate(90 * rotationFactor);
+                    let linea = {
+                        point1 : {x: currentVertex.x + side.x / 2, y: currentVertex.y + side.y / 2},
+                        point2 : {x: currentVertex.x + side.x / 2 + direction1.x, y: currentVertex.y + side.y / 2 + direction1.y},
+                    }
+                    const isLeft = (a, b, c) => {
+                        return (b.x - a.x)*(c.y - a.y) - (b.y - a.y)*(c.x - a.x) > 0.01;
+                    }
+                    let d1 = 0;
+                    for (let int of F.polygon.intersect(linea)) {if (isLeft(currentVertex,nextVertex,int)) d1++;}
+                    this.dir[i] = (d1 % 2 === 0) ? true : false;
+                }
+            }
         }
 
         /**
@@ -2433,6 +2504,7 @@
         grow (growthFactor, degrow = false) {
             const newVerts = [];
             const newMods = [];
+            const newDirs = [];
             // Determine the length of vertices to process based on growth factor
             let verticesToProcess = (growthFactor >= 0.2 && this.v.length >= 10) ? Math.floor(growthFactor * this.v.length) : this.v.length;
             // Function to change the modifier based on a Gaussian distribution
@@ -2456,15 +2528,20 @@
                 let newVertex = p5.Vector.lerp(currentVertex, nextVertex, constrain(randomGaussian(0.5,0.2),0.1,0.9));
                 let side = p5.Vector.sub(nextVertex, currentVertex)
                 let direction = side.copy().normalize();
-                let rotationDegrees = -90 + (randomGaussian(0,0.4)) * 45;
+                // Make sure that we always bleed in the selected direction
+                let dir = this.dir[i];
+                let bleed = (F.direction == "out") ? 90 : -90;
+                let rotationDegrees = ((dir) ? bleed : -bleed) + (randomGaussian(0,0.4)) * 45;
+
                 direction.rotate(rotationDegrees * rotationFactor);
                 direction.mult(randomGaussian(0.5, 0.2) * random(0.6, 1.4) * side.mag() * mod);
                 newVertex.add(direction);
                 // Add the new vertex and its modifier
                 newVerts.push(newVertex);
                 newMods.push(changeModifier(mod));
+                newDirs.push(dir,dir)
             }
-            return new FillPolygon (newVerts, newMods, this.midP);
+            return new FillPolygon (newVerts, newMods, this.midP, newDirs);
         }
 
         /**
@@ -2490,6 +2567,7 @@
             Mix.mask.noStroke();
             Mix.mask.translate(Matrix.translation[0] + _r.width/2, Matrix.translation[1] + _r.height/2);
             Mix.mask.rotate(Matrix.rotation)
+            Mix.mask.scale(Scale.current)
 
             let pol = this.grow()
             let pol2 = pol.grow().grow(0.9);
@@ -2635,16 +2713,20 @@
  * and geometrical shapes drawing.
  */
 
-    // General Functions
+    // Config Functions
     exports.config = configureSystem;                // Configures and seeds the RNG (Random Number Generator).
     exports.load = loadSystem;                    // Loads the library into the selected buffer.
     exports.preload = preloadBrushAssets;              // Preloads custom tips for the library.
     exports.colorCache = enableCacheBlending;      // Enables/disables cache color blending for improved performance
-    exports.reDraw = Mix.reDraw;
-    exports.reBlend = Mix.reBlend;
+    exports.scaleBrushes = globalScale;      // Rescales all standard brushes.
+
+    // Utility Functions
     exports.push = _push;
     exports.pop = _pop;
+    exports.reDraw = Mix.reDraw;
+    exports.reBlend = Mix.reBlend;
     exports.rotate = Matrix.rotate;
+    exports.scale = Scale.update;
 
     // FLOWFIELD Management
     exports.addField = addField;            // Adds a new vector field.
@@ -2654,7 +2736,6 @@
     exports.listFields = listFields;        // Lists all the available fields.
 
     // BRUSH Management
-    exports.scale = globalScale;            // Rescales all standard brushes.
     exports.add = B.add;                     // Adds a new brush definition.
     exports.box = listOfBrushes;             // Retrieves an array with existing brushes.
     exports.set = B.set;                     // Sets values for all properties of a brush.
@@ -2671,7 +2752,8 @@
     // FILL Operations (affects rect, circle, and beginShape)
     exports.fill = setFill;                    // Sets the fill color.
     exports.bleed = setBleed;                  // Sets the bleed property for fills.
-    exports.noFill = disableFill;                // Disables the fill.
+    exports.fillTexture = setTexture;          // Sets the fill texture.
+    exports.noFill = disableFill;              // Disables the fill.
     exports.fillAnimatedMode = fillAnimatedMode;
 
     // GEOMETRY Drawing Functions
@@ -2701,5 +2783,4 @@
     exports.Polygon = Polygon;               // The Polygon class, used for creating and manipulating polygons.
     exports.Plot = Plot;                     // The Plot class, for plotting curves.
     exports.Position = Position;             // The Position class, for managing positions on the canvas.
-
 })));

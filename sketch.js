@@ -75,13 +75,28 @@ function setup () {
 
     translate(-width/2,-height/2)
 
+    brush.fill("#ff2702", 40)
+    brush.bleed(0.2,"out")
+    brush.fillTexture(0.6)
+    brush.beginShape(0)
+
+        for (let i = 0; i < 5; i++) {
+            brush.vertex(random(width),random(height))
+        }
+    brush.endShape(CLOSE)
+
+    brush.reBlend()
+
+    brush.field("seabed")
+
     // STANDARD PALETTE TEST
     let i = 0
     for (let b of brush.box()) {
             brush.set(b,random(palette),1)
-            brush.flowLine(30,30+i*10,200,0)
+            brush.flowLine(30,60+i*10,195,0)
         i++
     }
+    
 }
 
 function draw() {
