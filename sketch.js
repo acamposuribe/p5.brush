@@ -65,19 +65,25 @@ function preload() {
     brush.preload();
 }
 
-let palette = ["#002185", "#fcd300", "#ff2702", "#6b9404"]
+let palette = ["#002185", "#fcd300", "#ff2702", "#6b9404", "#000000"]
 
+let x_values = []
+let y_values = []
 
 function setup () {
 
     C.createCanvas()
     background("#e2e7dc")
-    angleMode(DEGREES)
+    angleMode(RADIANS)
 
     translate(-width/2,-height/2)
+    
+    for (let i = 0; i < 5; i++) {
+        x_values[i] = random(width)
+        y_values[i] = random(width)
+    }
 
-    //randomNumber = random() * 1213213
-
+    /*
     brush.field("seabed")
     // STANDARD PALETTE TEST
     let i = 0
@@ -86,26 +92,31 @@ function setup () {
             brush.flowLine(30,60+i*10,195,0)
         i++
     }
+    */
 }
 
 function draw() {
-    /*
+
     background("#e2e7dc")
-    brush.noStroke()
     translate(-width/2,-height/2)
-    randomSeed(randomNumber)
-    brush.fillAnimatedMode(true)
-
-    frameRate(20)
-
-    for (let i = 0; i < frameCount * 0.02; i++ ) {
-        if (i < 3) {
-            brush.fill(palette[i%palette.length], 40)
-            brush.bleed(0.1 + frameCount * 0.01 - i * 0.4,"out")
-            brush.fillTexture(0.6)
-            brush.circle(width * random(0.25,0.75),width * random(0.25,0.75),random(30,40))
-            brush.reBlend()
+    strokeWeight(2)
+    brush.fill("#ff2702",70)
+    brush.bleed(0.2)
+    brush.beginShape(0 + frameCount * 0.01)
+        for (let i = 0; i < 5; i++) {
+            stroke(palette[i])
+            point(x_values[i],y_values[i])
+            brush.vertex(x_values[i],y_values[i])
         }
-    }
-    */
+    randomSeed(12133)
+    brush.endShape(CLOSE)
+
+    noLoop()
+}
+
+function mouseDragged() {
+    loop()
+    frameRate(10)
+    x_values[0] = mouseX
+    y_values[0] = mouseY
 }

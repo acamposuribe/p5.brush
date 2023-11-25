@@ -1994,7 +1994,7 @@
             _a = (_degrees) ? (_a % 360 + 360) % 360 : R.toDegrees(_a);
             // Replace the last angle with the final angle
             this.angles.splice(-1)
-            this.angles.push(R.toDegrees(_a));
+            this.angles.push(_a);
             // Store the final pressure
             this.pres.push(_pres);
         }
@@ -2178,8 +2178,8 @@
      * @param {number} [curvature] - From 0 to 1. Defines the curvature for the vertices being recorded (optional).
      * EXPORTED
      */
-    function _beginShape(curvature) {
-        _strokeOption = curvature; // Set the curvature option for the shape
+    function _beginShape(curvature = 0) {
+        _strokeOption = R.constrain(curvature,0,1); // Set the curvature option for the shape
         _strokeArray = []; // Initialize the array to store vertices
     }
 
@@ -2201,8 +2201,9 @@
     function _endShape(a) {
         if (a === CLOSE) {
             _strokeArray.push(_strokeArray[0]); // Close the shape by connecting the last vertex to the first
+            _strokeArray.push(_strokeArray[1]);
         }
-        let plot = _createSpline(_strokeArray, _strokeOption); // Create a new Plot with the recorded vertices and curvature option
+        let plot = _createSpline(_strokeArray, _strokeOption, a === CLOSE ? true : false); // Create a new Plot with the recorded vertices and curvature option
         if (F.isActive || H.isActive) {
             plot.fill(); // Fill the shape if the fill state is active
             plot.hatch(); // Hatch the shape if the hatch state is active
@@ -2252,7 +2253,7 @@
      * @param {Array<Array<number>>} array_points - An array of points defining the spline curve.
      * @param {number} [curvature=0.5] - The curvature of the spline curve, beterrn 0 and 1. A curvature of 0 will create a series of straight segments.
      */
-    function _createSpline (array_points, curvature = 0.5) {
+    function _createSpline (array_points, curvature = 0.5, _close = false) {
 
         // Initialize the plot type based on curvature
         let plotType = (curvature === 0) ? "segments" : "curve";
@@ -2260,11 +2261,9 @@
 
         // Proceed only if there are points provided
         if (array_points && array_points.length > 0) {
-            // Set the origin point from the first point in the array
-            p.origin = array_points[0];
-            
             // Add each segment to the plot
             let done = 0;
+            let pep, tep, pep2;
             for (let i = 0; i < array_points.length - 1; i++) {
                 if (curvature > 0 && i < array_points.length - 2) {
                     // Get the current and next points
@@ -2277,8 +2276,12 @@
                     let s1 = d1 - dd, s2 = d2 - dd;
                     // If the angles are approximately the same, create a straight segment
                     if (Math.floor(a1) === Math.floor(a2)) {
-                        p.addSegment(a1,s1,p1[2],true)
-                        p.addSegment(a2,d2,p2[2],true)
+                        let temp = _close ? (i === 0 ? 0 : d1 - done) : d1 - done;
+                        let temp2 = _close ? (i === 0 ? 0 : d2 - pep2) : d2;
+                        p.addSegment(a1,temp,p1[2],true)
+                        if (i === array_points.length - 3) p.addSegment(a2,temp2,p2[2],true);
+                        done = 0;
+                        if (i === 0) pep = d1, pep2 = dd, tep = array_points[1], done = 0;
                     } else {
                     // If the angles are not the same, create curves, etc (this is a too complex...)
                         let point1 = {x: p2[0] - dd * R.cos(-a1), y: p2[1] - dd * R.sin(-a1)}
@@ -2288,18 +2291,22 @@
                         let int = _intersectLines(point1,point2,point3,point4,true)
                         let radius = dist(point1.x,point1.y,int.x,int.y)
                         let disti = dist(point1.x,point1.y,point3.x,point3.y)/2
-                        let a3 = 2*asin(disti/radius)
+                        let a3 = 2 * Math.asin( disti/radius ) * (180 / Math.PI);
                         let s3 = 2 * Math.PI * radius * a3 / 360;
-                        p.addSegment(a1,s1-done, p1[2],true)
+                        let temp = _close ? (i === 0 ? 0 : s1-done) : s1-done;
+                        let temp2 = (i === array_points.length - 3) ? (_close ? pep - dd : s2) : 0;
+                        p.addSegment(a1,temp, p1[2],true)
                         p.addSegment(a1,s3, p1[2],true)
-                        p.addSegment(a2,i === array_points.length - 3 ? s2 : 0, p2[2],true)
+                        p.addSegment(a2,temp2, p2[2],true)
                         done = dd;
+                        if (i === 0) pep = s1, pep2 = dd, tep = [point1.x,point1.y];
                     }
                     if (i == array_points.length - 3) {
                         p.endPlot(a2,p2[2],true)
                     }
                 } else if (curvature === 0) {
                     // If curvature is 0, simply create segments
+                    if (i === 0 && _close) array_points.pop()
                     let p1 = array_points[i], p2 = array_points[i+1]
                     let d = dist(p1[0],p1[1],p2[0],p2[1]);
                     let a = _calculateAngle(p1[0],p1[1],p2[0],p2[1]);
@@ -2309,8 +2316,11 @@
                     }
                 }
             }
+            // Set the origin point from the first point in the array
+            p.origin = (_close && curvature !== 0) ? tep : array_points[0]
         }
         return p;
+        
     }
 
     /**
