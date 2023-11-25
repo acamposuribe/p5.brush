@@ -23,7 +23,7 @@ const C = {
 };
 // SET CANVAS SIZE: width, height, pixelDensity, html_id for the canvas
 // Here I'm working with mm units, so I want a big pixelDensity for high-res.
-C.setSize(250,250,4,'mainCanvas')
+C.setSize(250,250,8,'mainCanvas')
 
 function windowResized () {
     C.resize();
@@ -63,7 +63,6 @@ brush.add("watercolor", {
 function preload() {
     // If you are going to use custom image brush tips, include this in preload!
     brush.preload();
-    bg_image = loadImage("./paper.jpg")
 }
 
 let palette = ["#002185", "#fcd300", "#ff2702", "#6b9404"]
@@ -77,12 +76,9 @@ function setup () {
 
     translate(-width/2,-height/2)
 
-    randomNumber = random() * 1213213
-
-    brush.reBlend()
+    //randomNumber = random() * 1213213
 
     brush.field("seabed")
-
     // STANDARD PALETTE TEST
     let i = 0
     for (let b of brush.box()) {
@@ -93,7 +89,6 @@ function setup () {
 }
 
 function draw() {
-    
     /*
     background("#e2e7dc")
     brush.noStroke()

@@ -333,7 +333,6 @@
     function _calculateAngle(x1,y1,x2,y2) {
         // Calculate the angle based on the quadrant in which the second point lies
         let angleRadians = Math.atan2(-(y2 - y1), (x2 - x1));
-        
         // Convert radians to degrees and normalize the angle between 0 and 360
         let angleDegrees = angleRadians * (180 / Math.PI);
         return (angleDegrees % 360 + 360) % 360;
@@ -425,7 +424,7 @@
          */
         rotate (a = 0) {
             if (!R.isNumber(a)) {
-                console.log("ERROR rotate(): Value must be numeric");
+                console.error("rotate(): Value must be numeric");
                 return null;
             }
             Matrix.rotation = R.toDegrees(a)
@@ -780,7 +779,7 @@
         _ensureReady();
         // Check if field exists
         if (!FF.list.has(a)) {
-            console.log("ERROR field(): No VectorField with that name");
+            console.error("field(): No VectorField with that name");
             return null;
         }
         FF.isActive = true; // Mark the field framework as active
@@ -815,7 +814,7 @@
      */
     function refreshField(t) {
         if (!R.isNumber(t)) {
-            console.log("ERROR refreshField(): Value for refreshField must be numeric");
+            console.error("refreshField(): Value for refreshField must be numeric");
             return null
         }
         FF.refresh(t)
@@ -1189,7 +1188,7 @@
          */
         setBrush(brushName) {
             if (!B.list.has(brushName)) {
-                console.log("ERROR set() / setBrush() / setHatch():\n No brush with that name");
+                console.error("set() / setBrush() / setHatch():\n No brush with that name");
                 return null;
             }
             B.name = brushName;
@@ -1630,7 +1629,6 @@
          * If no images are in the tips Map, logs a warning message.
          */
         load() {
-            if (this.tips.size === 0) return console.log("There are no custom tips to load !");
             for (let key of this.tips.keys()){
                 let image = loadImage(key, () => T.imageToWhite(image))
                 this.tips.set(key, image)
@@ -1974,7 +1972,7 @@
                 this.angles.splice(-1)
             }
             // Convert to degrees and normalize between 0 and 360 degrees
-            _a = R.toDegrees(_a);
+            _a = (_degrees) ? (_a % 360 + 360) % 360 : R.toDegrees(_a);
             // Store the angle, pressure, and segment length
             this.angles.push(_a);
             this.pres.push(_pres);
@@ -1993,6 +1991,7 @@
          */
         endPlot (_a = 0, _pres = 1, _degrees = false) {
             // Convert angle to degrees if necessary
+            _a = (_degrees) ? (_a % 360 + 360) % 360 : R.toDegrees(_a);
             // Replace the last angle with the final angle
             this.angles.splice(-1)
             this.angles.push(R.toDegrees(_a));
@@ -2675,33 +2674,36 @@
      * with properties such as weight, vibration, definition, quality, opacity, spacing, and
      * pressure sensitivity. Some brushes have additional properties like type, tip, and rotate.
      */
+    const _vals = ["weight", "vibration", "definition", "quality", "opacity", "spacing", "pressure", "type", "tip", "rotate"]
     const _standard_brushes = [
         // Define each brush with a name and a set of parameters
         // For example, the "pen" brush has a weight of 0.35, a vibration of 0.12, etc.
         // The "marker2" brush has a custom tip defined by a function that draws rectangles.
-        ["pen", { weight: 0.35, vibration: 0.12, definition: 0.5, quality: 8, opacity: 200, spacing: 0.3, pressure: {curve: [0.15,0.2], min_max: [1.3,1]} }],
-        ["rotring", { weight: 0.2, vibration: 0.05, definition: 1, quality: 3, opacity: 250, spacing: 0.15, pressure: {curve: [0.05,0.2], min_max: [1.2,0.95]} }],
-        ["2B", { weight: 0.35, vibration: 0.5, definition: 0.1, quality: 8, opacity: 180, spacing: 0.2, pressure: {curve: [0.15,0.2], min_max: [1.3,1]} }],
-        ["HB", { weight: 0.3, vibration: 0.5, definition: 0.4, quality: 4,  opacity: 180, spacing: 0.25, pressure: {curve: [0.15,0.2], min_max: [1.2,0.9]} }],
-        ["2H", { weight: 0.2, vibration: 0.4, definition: 0.3, quality: 2,  opacity: 150, spacing: 0.2, pressure: {curve: [0.15,0.2], min_max: [1.2,0.9]} }],
-        ["cpencil", { weight: 0.4, vibration: 0.6, definition: 0.8, quality: 7,  opacity: 120, spacing: 0.15, pressure: {curve: [0.15,0.2], min_max: [0.95,1.15]} }],
-        ["charcoal", { weight: 0.5, vibration: 2, definition: 0.8, quality: 300,  opacity: 110, spacing: 0.06, pressure: {curve: [0.15,0.2], min_max: [1.15,0.85]} }],
-        ["hatch_brush", { weight: 0.2, vibration: 0.4, definition: 0.3, quality: 2,  opacity: 150, spacing: 0.15, pressure: {curve: [0.5,0.7], min_max: [1,1.5]} }],
-        ["spray", { type: "spray", weight: 0.3, vibration: 12, definition: 15, quality: 40,  opacity: 120, spacing: 0.65, pressure: {curve: [0,0.1], min_max: [0.15,1.2]} }],
-        ["marker", { type: "marker", weight: 2.5, vibration: 0.12, opacity: 30, spacing: 0.4, pressure: {curve: [0.35,0.25], min_max: [1.35,1]}}],
-        ["marker2", { type: "custom", weight: 2.5, vibration: 0.12, opacity: 25, spacing: 0.35, pressure: {curve: [0.35,0.25], min_max: [1.15,0.95]}, 
-            tip: function (t) { 
+        ["pen", [ 0.35, 0.12, 0.5, 8, 200, 0.3, {curve: [0.15,0.2], min_max: [1.3,1]} ] ],
+        ["rotring", [ 0.2, 0.05, 1, 3, 250, 0.15, {curve: [0.05,0.2], min_max: [1.2,0.95]} ]],
+        ["2B", [ 0.35, 0.5, 0.1, 8, 180, 0.2, {curve: [0.15,0.2], min_max: [1.3,1]} ]],
+        ["HB", [ 0.3, 0.5, 0.4, 4,  180, 0.25, {curve: [0.15,0.2], min_max: [1.2,0.9]} ]],
+        ["2H", [ 0.2, 0.4, 0.3, 2,  150, 0.2, {curve: [0.15,0.2], min_max: [1.2,0.9]} ]],
+        ["cpencil", [ 0.4, 0.6, 0.8, 7,  120, 0.15, {curve: [0.15,0.2], min_max: [0.95,1.15]} ]],
+        ["charcoal", [ 0.5, 2, 0.8, 300,  110, 0.06, {curve: [0.15,0.2], min_max: [1.15,0.85]} ]],
+        ["hatch_brush", [ 0.2, 0.4, 0.3, 2,  150, 0.15, {curve: [0.5,0.7], min_max: [1,1.5]} ]],
+        ["spray", [ 0.3, 12, 15, 40, 120, 0.65, {curve: [0,0.1], min_max: [0.15,1.2]}, "spray" ]],
+        ["marker", [ 2.5, 0.12, null, null, 30, 0.4, {curve: [0.35,0.25], min_max: [1.35,1]}, "marker" ]],
+        ["marker2", [ 2.5, 0.12, null, null, 25, 0.35, {curve: [0.35,0.25], min_max: [1.15,0.95]}, "custom",  
+            function (t) { 
                 let scale = _gScale;
                 t.rect(-1.5 * scale,-1.5 * scale,3 * scale,3 * scale); t.rect(1 * scale,1 * scale,1 * scale,1 * scale) 
-            }, rotate: "natural"
-        }],
+            }, "natural"
+        ]],
     ];
     /**
      * Iterates through the list of standard brushes and adds each one to the brush manager.
      * The brush manager is assumed to be a global object `B` that has an `add` method.
      */
     for (let s of _standard_brushes) {
-        B.add(s[0],s[1])
+        let obj = {}
+        for (let i = 0; i < s[1].length; i++) obj[_vals[i]] = s[1][i]
+        B.add(s[0],obj)
     }
 
 // =============================================================================
