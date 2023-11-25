@@ -666,7 +666,7 @@ These functions allow for the creation of strokes with varied pressures and dire
     brush.beginStroke("curve", 15, 30);
     ```
 
-- `brush.stroke(angle, length, pressure)`
+- `brush.segment(angle, length, pressure)`
   - **Description**: Adds a segment to the stroke, defining its path by specifying the angle, length, and pressure. This function is used after `brush.beginStroke()` and before `brush.endStroke()` to outline the stroke's trajectory and characteristics.
   - **Parameters**:
     - `angle` (Number): The initial angle of the segment, relative to the canvas, measured anticlockwise from the x-axis.
@@ -675,8 +675,8 @@ These functions allow for the creation of strokes with varied pressures and dire
   - **Usage**:
     ```javascript
     // Add two segments to the stroke
-    brush.stroke(30, 150, 0.6);
-    brush.stroke(75, 40, 1.1);
+    brush.segment(30, 150, 0.6);
+    brush.segment(75, 40, 1.1);
     ```
 
 - `brush.endStroke(angle, pressure)`
