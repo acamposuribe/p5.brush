@@ -834,10 +834,32 @@ This section covers functions for initializing the drawing system, preloading re
 
 ---
 
-- `brush.load(canvasID)`
+- `brush.load(canvasID, isInstanced)`
   - **Description**: Initializes the drawing system and sets up the environment. If `canvasID` is not provided, the current window is used as the rendering context. If you want to load the library on a custom p5.Graphics element (or instanced canvas), you can do it by executing this function.
   - **Parameters**: 
     - `canvasID` (string): Optional ID of the buffer/canvas element. If false, uses the window's rendering context.
+    - `isInstanced` (boolean): Use true if you want to use the p5 instance mode, and read below.
+  - **Note for Instance Mode**: If you want to use the p5 instance mode, you need to pass the proper variable as canvasID.
+      ```javascript
+      let sketch = function(p) {
+        let x = 100;
+        let y = 100;
+
+        p.setup = function() {
+          p.createCanvas(700, 410);
+          // Pass the p variable as canvasID like this
+          brush.load(p, true)
+        };
+
+        p.draw = function() {
+          p.background(0);
+          brush.fill("red", 75);
+          brush.rect(x, y, 50, 50);
+        };
+      };
+      ```
+
+let myp5 = new p5(sketch);
 
 ---
 
