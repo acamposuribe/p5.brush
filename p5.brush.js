@@ -1,6 +1,6 @@
 /**
  * @fileoverview p5.brush - A comprehensive toolset for brush management in p5.js.
- * @version 1.0.4c
+ * @version 1.0.5
  * @license MIT
  * @author Alejandro Campos Uribe
  * 
@@ -101,16 +101,31 @@
      *                                            If false, it uses the current window as the rendering context.
      * EXPORTED
      */
-    function loadSystem (canvasID = false) {
-        _isReady = true;
+    function loadSystem (canvasID = false, instanced = false) {
+        if (_isReady) _remove(false)
         // Set the renderer to the specified canvas or to the window if no ID is given
         _r = (!canvasID) ? window.self : canvasID;
-        // Load realistic color blending
-        Mix.load();
         // Load flowfield system
-        FF.create();
+        if (!_isReady) {
+            _isReady = true;
+            FF.create();
+        }
+        // Load realistic color blending
+        Mix.load(instanced);
         // Adjust standard brushes to match canvas size
         globalScale(_r.width / 250) // Adjust standard brushes to match canvas
+    }
+
+    /**
+     * Removes brush buffers
+     */
+    function _remove (a = true) {
+        if (_isReady) {
+            Mix.mask.remove()
+            Mix.mask2.remove()
+            Mix.noBlend.remove()
+            if (a) brush.load()
+        }
     }
 
     /**
@@ -166,7 +181,7 @@
          * The basic source of randomness, can be replaced with a deterministic alternative for testing.
          * @returns {number} A random number between 0 and 1.
          */
-        source: () => random(),
+        source: () => _r.random(),
 
         /**
          * Generates a random number within a specified range.
@@ -276,7 +291,7 @@
         /**
          * Changes angles to degrees and between 0-360
          */
-        toDegrees: (a) => (((angleMode() === "radians") ? a * 180 / Math.PI : a) % 360 + 360) % 360,
+        toDegrees: (a) => (((_r.angleMode() === "radians") ? a * 180 / Math.PI : a) % 360 + 360) % 360,
     }
     // Perform the precalculation of trigonometric values for the R object
     R.preCalculation();
@@ -495,13 +510,14 @@
         /**
          * Loads necessary resources and prepares the mask buffer and shader for colour blending.
          */
-        load() {
+        load(instanced) {
             // Create a buffer to be used as a mask. We use a 2D buffer for faster geometry drawing
-            this.mask = createGraphics(_r.width,_r.height)
+
+            this.mask = instanced ? _r.createGraphics(_r.width,_r.height) : createGraphics(_r.width,_r.height)
             this.mask.pixelDensity(_r.pixelDensity());
             this.mask.clear();
             this.mask.noSmooth();
-            this.mask.angleMode(DEGREES);
+            this.mask.angleMode(_r.DEGREES);
             exports.mask = this.mask;
 
             // Load the spectral.js shader code only once                                                        
@@ -513,17 +529,17 @@
             Mix.loaded = true;
 
             // Create a buffer for noBlend brushes
-            this.noBlend = createGraphics(_r.width,_r.height);
+            this.noBlend = instanced ? _r.createGraphics(_r.width,_r.height) : createGraphics(_r.width,_r.height)
             this.noBlend.pixelDensity(_r.pixelDensity());
             this.noBlend.noSmooth();
             this.noBlend.clear();
-            this.noBlend.angleMode(DEGREES);
+            this.noBlend.angleMode(_r.DEGREES);
 
             // WEBGL buffer for img brushes (image() is much quicker like this)
-            this.mask2 = createGraphics(_r.width,_r.height, WEBGL)
+            this.mask2 = instanced ? _r.createGraphics(_r.width,_r.height, _r.WEBGL) : createGraphics(_r.width,_r.height, _r.WEBGL)
             this.mask2.pixelDensity(_r.pixelDensity());
             this.mask2.clear();
-            this.mask2.angleMode(DEGREES);
+            this.mask2.angleMode(_r.DEGREES);
         },
 
         /**
@@ -721,7 +737,7 @@
 
         void main() {
             vec4 maskColor = texture2D(mask, vVertTexCoord);
-            if (maskColor.r > 0.0) {
+            if (maskColor.r > 0.0 && maskColor.a > 0.0) {
                 vec2 r=vec2(12.9898,78.233), a=vec2(7.9898,58.233), l=vec2(17.9898,3.233);
                 float d=rand(vVertTexCoord,r.x,r.y,43358.5453)*2.-1., x=rand(vVertTexCoord,a.x,a.y,43213.5453)*2.-1., s=rand(vVertTexCoord,l.x,l.y,33358.5453)*2.-1.;
 
@@ -745,9 +761,11 @@
                     float blacken = 0.5 * (maskColor.a - darken_above);
                     pigment = pigment * (1. - blacken) - vec4(0.5) * blacken;
                 }
-                
+              
                 vec3 mixedColor = spectral_mix(texture2D(source,vVertTexCoord).xyz, pigment.xyz, 0.9 * maskColor.a);
                 gl_FragColor = vec4(mixedColor + 0.01*vec3(d,x,s),1.);
+            } else {
+                gl_FragColor = vec4(0);
             }
         }
         `
@@ -895,7 +913,7 @@
                 if (R.randInt(0,100)%2 == 0) {angleRange = angleRange * -1}
                 for (let column=0;column<FF.num_columns;column++){
                     for (let row=0;row<FF.num_rows;row++) {               
-                        let noise_val = noise(column * 0.02 + t * 0.03, row * 0.02 + t * 0.03)
+                        let noise_val = _r.noise(column * 0.02 + t * 0.03, row * 0.02 + t * 0.03)
                         let angle = R.map(noise_val, 0.0, 1.0, -angleRange, angleRange)
                         field[column][row] = 3 * angle;
                     }
@@ -908,7 +926,7 @@
                 let truncate = R.randInt(5,10);
                 for (let column=0;column<FF.num_columns;column++){
                     for (let row=0;row<FF.num_rows;row++) {               
-                        let noise_val = noise(column * 0.02, row * 0.02)
+                        let noise_val = _r.noise(column * 0.02, row * 0.02)
                         let angle = Math.round(R.map(noise_val, 0.0, 1.0, -angleRange, angleRange)/truncate)*truncate;
                         field[column][row] = 4 * angle;
                     }
@@ -1242,7 +1260,7 @@
          */        
         line(x1,y1,x2,y2) {
             _ensureReady();
-            let d = dist(x1,y1,x2,y2)
+            let d = _r.dist(x1,y1,x2,y2)
             if (d == 0) return;
             B.initializeDrawingState(x1, y1, d, false, false);
             let angle = _calculateAngle(x1,y1,x2,y2);
@@ -1364,6 +1382,8 @@
                     else Mix.blend(this.c,false,true)
                     if (!isTip) this.markerTip()
                 }
+                this.alpha = this.calculateAlpha(); // Calcula Alpha
+                this.applyColor(this.alpha); // Apply Color
         },
 
         /**
@@ -1380,8 +1400,6 @@
          */
         tip(custom_pressure = false) {
             let pressure = custom_pressure ? custom_pressure : this.calculatePressure(); // Calculate Pressure
-            let alpha = this.calculateAlpha(pressure); // Calcula Alpha
-            this.applyColor(alpha); // Apply Color
             if (this.isInsideClippingArea()) { // Check if it's inside clipping area
                 switch (this.p.type) { // Draw different tip types
                     case "spray":
@@ -1392,7 +1410,7 @@
                         break;
                     case "custom":
                     case "image":
-                        this.drawCustomOrImage(pressure, alpha);
+                        this.drawCustomOrImage(pressure, this.alpha);
                         break;
                     default:
                         this.drawDefault(pressure);
@@ -1441,10 +1459,9 @@
          * @returns {number} The calculated alpha value.
          */
         calculateAlpha(pressure) {
-            let opacity = (this.p.type !== "default" && this.p.type !== "spray") ? 
-                this.p.opacity / this.w :
-                this.p.opacity;
-            return Math.floor(opacity * Math.pow(pressure, this.p.type === "marker" ? 0.7 : 1.5));
+            let opacity = (this.p.type !== "default" && this.p.type !== "spray") ? this.p.opacity / this.w : this.p.opacity;
+            //let pow = R.constrain(Math.pow(pressure, this.p.type === "marker" ? 0.7 : 1.5),0.75,1.3)
+            return opacity;
         },
 
         /**
@@ -1524,8 +1541,8 @@
          * @param {number} pressure - The current pressure value.
          */
         drawDefault(pressure) {
-            let vibration = this.w * this.p.vibration * (this.p.definition + (1-this.p.definition) * randomGaussian() * this.gauss(0.5,0.9,5,0.2,1.2) / pressure);
-            if (R.random(0, this.p.quality) > 0.4) {
+            let vibration = this.w * this.p.vibration * (this.p.definition + (1-this.p.definition) * _r.randomGaussian() * this.gauss(0.5,0.9,5,0.2,1.2) / pressure);
+            if (R.random(0, this.p.quality * pressure) > 0.4) {
                 this.mask.circle(this.position.x + 0.7 * vibration * R.random(-1,1),this.position.y + vibration * R.random(-1,1), pressure * this.p.weight * R.random(0.85,1.15));
             }
         },
@@ -1565,20 +1582,6 @@
             }
         },
     }
-
-    /**
-     * Draws the tip of the selected brush
-     * @param {number} x - x coordinate for the tip.
-     * @param {number} y - y coordinate for the tip.
-     * @param {number} pressure - The desired pressure value.
-     * EXPORTED
-     */
-    function drawTip(x, y, pressure) {
-        _ensureReady();
-        B.position = new Position(x, y)
-        B.drawTip(pressure)
-    }
-
 
 // =============================================================================
 // Section: Loading Custom Image Tips
@@ -1731,7 +1734,7 @@
 
             // Set initial values for line generation
             let startY = (angle <= 90 && angle >= 0) ? minY : maxY;
-            let gradient = options.gradient ? map(options.gradient,0,1,1,1.1,true) : 1
+            let gradient = options.gradient ? R.map(options.gradient,0,1,1,1.1,true) : 1
             let dots = [];
             let i = 0;
             let dist1 = dist;
@@ -1909,8 +1912,8 @@
      * @param {number} h - The height of the rectangle.
      * @param {boolean} [mode=CORNER] - If CENTER, the rectangle is drawn centered at (x, y).
      */
-    function drawRectangle(x,y,w,h,mode = CORNER) {
-        if (mode == CENTER) x = x - w / 2, y = y - h / 2;
+    function drawRectangle(x,y,w,h,mode = _r.CORNER) {
+        if (mode == _r.CENTER) x = x - w / 2, y = y - h / 2;
         if (FF.isActive) {
             _beginShape(0);
             _vertex(x,y);
@@ -2078,14 +2081,19 @@
             }
             let _step = B.spacing()  // get last spacing
             let vertices = []
-            let bleed = R.constrain(F.bleed_strength,0.05,1)
+            let bleed = R.constrain(F.bleed_strength,0.075,1)
             let side = (max + min) * (isHatch ? 0.03 : ((F.isAnimated) ? 0.25 : bleed));
-            this.calcIndex(0);
             let linepoint = new Position(_x,_y);
-            let numsteps = Math.round(this.length/_step); 
+            let numsteps = Math.round(this.length/_step);
+            let pside = 0, i = 0;
+            let side1 = side * R.random(0.7,1.3)
             for (let steps = 0; steps < numsteps; steps++) {
-                if (linepoint.x) vertices[Math.floor(linepoint.plotted / side)] = [linepoint.x,linepoint.y]
                 linepoint.plotTo(this,_step,_step,1)
+                pside += _step;
+                if (pside >= side1 && linepoint.x) {
+                    vertices[i] = [linepoint.x,linepoint.y]
+                    side1 = side * R.random(0.7,1.3), i++, pside = 0
+                }
             }
             this.calcIndex(0);
             return new Polygon(vertices);
@@ -2114,7 +2122,7 @@
             if (F.isActive) {
                 _ensureReady(); // Ensure that the drawing environment is prepared
                 if (this.origin) x = this.origin[0], y = this.origin[1], scale = 1;
-                if (!this.pol) this.pol = this.genPol(x, y, scale)
+                this.pol = this.genPol(x, y, scale)
                 this.pol.fill()
             }
         }
@@ -2128,7 +2136,7 @@
             if (H.isActive) {
                 _ensureReady(); // Ensure that the drawing environment is prepared
                 if (this.origin) x = this.origin[0], y = this.origin[1], scale = 1;
-                if (!this.pol) this.pol = this.genPol(x, y, scale, true)
+                this.pol = this.genPol(x, y, scale, true)
                 this.pol.hatch()
             }
         }
@@ -2149,7 +2157,7 @@
             // Calculate the length of the arc for each quarter of the circle
             let l = Math.PI * radius / 2;
             // Initialize the angle for the drawing segments
-            let angle = random(0,360)
+            let angle = R.random(0,360)
             // Define a function to optionally add randomness to the segment length
             let rr = () => (r ? R.random(-1,1) : 0)
             // Add segments for each quarter of the circle with optional randomness
@@ -2289,8 +2297,8 @@
                         let point3 = {x: p2[0] + dd * R.cos(-a2), y: p2[1] + dd * R.sin(-a2)}
                         let point4 = {x: point3.x + dmax * R.cos(-a2+90), y: point3.y + dmax * R.sin(-a2+90)}
                         let int = _intersectLines(point1,point2,point3,point4,true)
-                        let radius = dist(point1.x,point1.y,int.x,int.y)
-                        let disti = dist(point1.x,point1.y,point3.x,point3.y)/2
+                        let radius = _r.dist(point1.x,point1.y,int.x,int.y)
+                        let disti = _r.dist(point1.x,point1.y,point3.x,point3.y)/2
                         let a3 = 2 * Math.asin( disti/radius ) * (180 / Math.PI);
                         let s3 = 2 * Math.PI * radius * a3 / 360;
                         let temp = _close ? (i === 0 ? 0 : s1-done) : s1-done;
@@ -2308,7 +2316,7 @@
                     // If curvature is 0, simply create segments
                     if (i === 0 && _close) array_points.pop()
                     let p1 = array_points[i], p2 = array_points[i+1]
-                    let d = dist(p1[0],p1[1],p2[0],p2[1]);
+                    let d = _r.dist(p1[0],p1[1],p2[0],p2[1]);
                     let a = _calculateAngle(p1[0],p1[1],p2[0],p2[1]);
                     p.addSegment(a,d,1,true)
                     if (i == array_points.length - 2) {
@@ -2358,7 +2366,7 @@
      */
     function setFill(a,b,c,d) {
         F.opacity = (arguments.length < 4) ? ((arguments.length < 3) ? b : 1) : d;
-        F.color = (arguments.length < 3) ? color(a) : color(a,b,c);
+        F.color = (arguments.length < 3) ? _r.color(a) : _r.color(a,b,c);
         F.isActive = true;
     }
 
@@ -2425,20 +2433,20 @@
             // Store polygon
             this.polygon = polygon;
             // Map polygon vertices to p5.Vector objects
-            this.v = polygon.a.map(vert => createVector(vert[0], vert[1]));
+            this.v = polygon.a.map(vert => _r.createVector(vert[0], vert[1]));
             // Calculate fluidity once, outside the loop
             const fluid = this.v.length * R.random(0.4);
             // Map vertices to bleed multipliers with more intense effect on 'fluid' vertices
             F.m = this.v.map((_, i) => {
                 let multiplier = R.random(0.8, 1.2) * this.bleed_strength;
-                return i < fluid ? constrain(multiplier * 2, 0, 0.9) : multiplier;
+                return i < fluid ? R.constrain(multiplier * 2, 0, 0.9) : multiplier;
             });
             // Shift vertices randomly to create a more natural watercolor edge
             let shift = R.randInt(0, this.v.length);
             this.v = [...this.v.slice(shift), ...this.v.slice(0, shift)];
             // Create and fill the polygon with the calculated bleed effect
             let pol = new FillPolygon (this.v, this.m, this.calcCenter(),[],true)
-            pol.fill(this.color, int(map(this.opacity,0,155,0,20,true)), this.texture_strength)
+            pol.fill(this.color, Math.floor(R.map(this.opacity,0,155,0,20,true)), this.texture_strength)
         },
 
         /**
@@ -2452,7 +2460,7 @@
                 midy += this.v[i].y;
             }
             midx /= this.v.length, midy /= this.v.length; 
-            return createVector(midx,midy)
+            return _r.createVector(midx,midy)
         }
     }
 
@@ -2479,10 +2487,14 @@
             this.dir = dir;
             this.m = _m;
             this.midP = _center;
-            this.size = p5.Vector.sub(this.midP,this.v[0]).mag();
+            this.size = -Infinity;
+            for (let v of this.v) {
+                let temp_size = _r.dist(this.midP.x,this.midP.y,v.x,v.y)
+                if (temp_size > this.size) this.size = temp_size;
+            }
             // This calculates the bleed direction for the initial shape, for each of the vertices.
             if (isFirst) {
-                const rotationFactor = (angleMode() === "radians") ? Math.PI / 180 : 1;
+                const rotationFactor = (_r.angleMode() === "radians") ? Math.PI / 180 : 1;
                 for (let i = 0; i < this.v.length; i++) {
                     const currentVertex = this.v[i]
                     const nextVertex = this.v[(i + 1) % this.v.length];
@@ -2516,40 +2528,46 @@
             const newDirs = [];
             // Determine the length of vertices to process based on growth factor
             let verticesToProcess = (growthFactor >= 0.2 && this.v.length >= 10) ? Math.floor(growthFactor * this.v.length) : this.v.length;
-            // Function to change the modifier based on a Gaussian distribution
+            // Pre-compute values that do not change within the loop
+            const angleM = _r.angleMode()
+            _r.angleMode(_r.RADIANS)
+            const modAdjustment = degrow ? -0.5 : 1;
+            // Inline changeModifier to reduce function calls
             const changeModifier = (modifier) => {
-                const gaussianVariation = randomGaussian(0.5, 0.1);
+                const gaussianVariation = _r.randomGaussian(0.5, 0.1);
                 return modifier + (gaussianVariation - 0.5) * 0.1;
             };
-            // Pre-calculate rotation factor if angleMode is constant
-            const rotationFactor = (angleMode() === "radians") ? Math.PI / 180 : 1;
+            // Reusable vector objects
+            let direction = new p5.Vector();
             // Loop through each vertex to calculate the new position based on growth
             for (let i = 0; i < verticesToProcess; i++) {
                 const currentVertex = this.v[i];
                 const nextVertex = this.v[(i + 1) % verticesToProcess];
                 // Determine the growth modifier
                 let mod = (growthFactor === 0.1) ? (F.bleed_strength <= 0.1 ? 0.25 : 0.75) : this.m[i];
-                if (degrow) mod *= -0.5;
+                mod *= modAdjustment;
                 // Add the current vertex and its modified value
                 newVerts.push(currentVertex);
                 newMods.push(changeModifier(mod));
-                // Calculate the new vertex position
-                let newVertex = p5.Vector.lerp(currentVertex, nextVertex, constrain(randomGaussian(0.5,0.2),0.1,0.9));
-                let side = p5.Vector.sub(nextVertex, currentVertex)
-                let direction = side.copy().normalize();
+                // Calculate vertex bleed
+                let sidex = nextVertex.x - currentVertex.x, sidey = nextVertex.y - currentVertex.y;
+                let sideMagnitude = Math.sqrt(sidex * sidex + sidey * sidey);
+                direction.set(sidex,sidey).normalize();
                 // Make sure that we always bleed in the selected direction
                 let dir = this.dir[i];
                 let bleed = (F.direction == "out") ? 90 : -90;
-                let rotationDegrees = ((dir) ? bleed : -bleed) + (randomGaussian(0,0.4)) * 45;
-
-                direction.rotate(rotationDegrees * rotationFactor);
-                direction.mult(randomGaussian(0.5, 0.2) * random(0.6, 1.4) * side.mag() * mod);
+                let rotationDegrees = ((dir) ? bleed : -bleed) + (_r.randomGaussian(0,0.4)) * 45;
+                direction.rotate(rotationDegrees * Math.PI / 180);
+                direction.mult(_r.randomGaussian(0.5, 0.2) * R.random(0.6, 1.4) * sideMagnitude * mod);
+                // Calculate the new vertex position
+                let newVertex = p5.Vector.lerp(currentVertex, nextVertex, R.constrain(_r.randomGaussian(0.5,0.2),0.1,0.9));
                 newVertex.add(direction);
                 // Add the new vertex and its modifier
                 newVerts.push(newVertex);
                 newMods.push(changeModifier(mod));
                 newDirs.push(dir,dir)
             }
+            _r.angleMode(angleM)
             return new FillPolygon (newVerts, newMods, this.midP, newDirs);
         }
 
@@ -2560,9 +2578,9 @@
          * @param {number} intensity - The opacity of the color layers.
          */
         fill (color, intensity, tex) {
-
+            let bleed = R.map(F.bleed_strength,0,0.15,0.6,1,true)
             // Precalculate stuff
-            const numLayers = 24;
+            const numLayers = 24 * bleed;
             const intensityThird = intensity / 5 + tex * intensity / 6;
             const intensityQuarter = intensity / 4 + tex * intensity / 3;
             const intensityFifth = intensity / 7 + tex * intensity / 3;
@@ -2578,18 +2596,22 @@
             Mix.mask.rotate(Matrix.rotation)
             Mix.mask.scale(Scale.current)
 
+            // Set the different polygons for texture
             let pol = this.grow()
             let pol2 = pol.grow().grow(0.9);
             let pol3 = pol2.grow(0.75);
-            let pol4 = this.grow(0.85)
+            let pol4 = this.grow(0.6)
 
             for (let i = 0; i < numLayers; i ++) {
-                if (i === Math.floor(numLayers / 4) || i === Math.floor(2 * numLayers / 4) || i === Math.floor(3 * numLayers / 4)) {
-                    // Grow the polygon objects once per third of the process
+                if (i === Math.floor(numLayers / 4) || i === Math.floor(numLayers / 2) || i === Math.floor(3 * numLayers / 4)) {
+                    // Grow the polygon objects once per fourth of the process
                     pol = pol.grow();
-                    pol2 = pol2.grow(0.75);
-                    pol3 = pol3.grow(0.75);
-                    pol4 = pol4.grow(0.1,true);
+                    // Grow the texture polygons if conditions are met
+                    if (bleed === 1 || i === Math.floor(numLayers / 2)) {
+                        pol2 = pol2.grow(0.75);
+                        pol3 = pol3.grow(0.75);
+                        pol4 = pol4.grow(0.1,true);
+                    }
                 }
                 // Draw layers
                 pol.grow().layer(i, intensityHalf);
@@ -2597,7 +2619,7 @@
                 pol2.grow(0.1).grow(0.1).layer(i, intensityQuarter, false);
                 pol3.grow(0.8).grow(0.1).layer(i, intensityThird, false);
                 // Erase after each set of layers is drawn
-                if (texture !== 0) pol.erase(texture);
+                if (texture !== 0) pol.erase(texture, intensity);
             }
             Mix.mask.pop();
         }
@@ -2622,22 +2644,22 @@
             for(let v of this.v) {             
                 Mix.mask.vertex(v.x, v.y);
             }
-            Mix.mask.endShape(CLOSE);
+            Mix.mask.endShape(_r.CLOSE);
         }
 
         /**
          * Erases parts of the polygon to create a more natural, uneven watercolor texture.
          * Uses random placement and sizing of circles to simulate texture.
          */
-        erase (texture) {
-            const numCircles = R.random(80, 110);
+        erase (texture, intensity) {
+            const numCircles = R.random(130, 200);
             const halfSize = this.size / 2;
             const minSizeFactor = 0.025 * this.size;
             const maxSizeFactor = 0.19 * this.size;
-            Mix.mask.erase(3.5 * texture,0);
+            Mix.mask.erase(3.5 * texture - R.map(intensity, 80, 120, 0.3, 1, true),0);
             for (let i = 0; i < numCircles; i++) {
-                const x = this.midP.x + randomGaussian(0, halfSize);
-                const y = this.midP.y + randomGaussian(0, halfSize);
+                const x = this.midP.x + _r.randomGaussian(0, halfSize);
+                const y = this.midP.y + _r.randomGaussian(0, halfSize);
                 const size = R.random(minSizeFactor, maxSizeFactor);
                 Mix.mask.circle(x, y, size);
             }
@@ -2689,17 +2711,17 @@
         // Define each brush with a name and a set of parameters
         // For example, the "pen" brush has a weight of 0.35, a vibration of 0.12, etc.
         // The "marker2" brush has a custom tip defined by a function that draws rectangles.
-        ["pen", [ 0.35, 0.12, 0.5, 8, 200, 0.3, {curve: [0.15,0.2], min_max: [1.3,1]} ] ],
-        ["rotring", [ 0.2, 0.05, 1, 3, 250, 0.15, {curve: [0.05,0.2], min_max: [1.2,0.95]} ]],
+        ["pen", [ 0.35, 0.12, 0.5, 8, 200, 0.3, {curve: [0.15,0.2], min_max: [1.4,0.9]} ] ],
+        ["rotring", [ 0.2, 0.05, 1, 3, 250, 0.15, {curve: [0.05,0.2], min_max: [1.7,0.8]} ]],
         ["2B", [ 0.35, 0.5, 0.1, 8, 180, 0.2, {curve: [0.15,0.2], min_max: [1.3,1]} ]],
         ["HB", [ 0.3, 0.5, 0.4, 4,  180, 0.25, {curve: [0.15,0.2], min_max: [1.2,0.9]} ]],
         ["2H", [ 0.2, 0.4, 0.3, 2,  150, 0.2, {curve: [0.15,0.2], min_max: [1.2,0.9]} ]],
-        ["cpencil", [ 0.4, 0.6, 0.8, 7,  120, 0.15, {curve: [0.15,0.2], min_max: [0.95,1.15]} ]],
-        ["charcoal", [ 0.5, 2, 0.8, 300,  110, 0.06, {curve: [0.15,0.2], min_max: [1.15,0.85]} ]],
+        ["cpencil", [ 0.4, 0.6, 0.8, 7,  120, 0.15, {curve: [0.15,0.2], min_max: [0.95,1.2]} ]],
+        ["charcoal", [ 0.5, 2, 0.8, 300,  110, 0.06, {curve: [0.15,0.2], min_max: [1.3,0.8]} ]],
         ["hatch_brush", [ 0.2, 0.4, 0.3, 2,  150, 0.15, {curve: [0.5,0.7], min_max: [1,1.5]} ]],
-        ["spray", [ 0.3, 12, 15, 40, 120, 0.65, {curve: [0,0.1], min_max: [0.15,1.2]}, "spray" ]],
-        ["marker", [ 2.5, 0.12, null, null, 30, 0.4, {curve: [0.35,0.25], min_max: [1.35,1]}, "marker" ]],
-        ["marker2", [ 2.5, 0.12, null, null, 25, 0.35, {curve: [0.35,0.25], min_max: [1.15,0.95]}, "custom",  
+        ["spray", [ 0.3, 12, 15, 40, 80, 0.65, {curve: [0,0.1], min_max: [0.15,1.2]}, "spray" ]],
+        ["marker", [ 2.5, 0.12, null, null, 25, 0.4, {curve: [0.35,0.25], min_max: [1.5,1]}, "marker" ]],
+        ["marker2", [ 2.5, 0.12, null, null, 25, 0.35, {curve: [0.35,0.25], min_max: [1.3,0.95]}, "custom",  
             function (t) { 
                 let scale = _gScale;
                 t.rect(-1.5 * scale,-1.5 * scale,3 * scale,3 * scale); t.rect(1 * scale,1 * scale,1 * scale,1 * scale) 
@@ -2731,6 +2753,7 @@
     exports.preload = preloadBrushAssets;              // Preloads custom tips for the library.
     exports.colorCache = enableCacheBlending;      // Enables/disables cache color blending for improved performance
     exports.scaleBrushes = globalScale;      // Rescales all standard brushes.
+    exports.remove = _remove;
 
     // Utility Functions
     exports.push = _push;
@@ -2754,7 +2777,6 @@
     exports.pick = B.setBrush;               // Selects a brush to use.
     exports.clip = B.clip;                   // Clips brushes with a rectangle.
     exports.noClip = B.noClip; 
-    exports.point = drawTip;                   // Draw tip of the brush with a custom pressure
 
     // STROKE Properties
     exports.stroke = B.setColor;          // Activates and sets the stroke color.

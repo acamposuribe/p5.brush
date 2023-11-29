@@ -77,7 +77,7 @@ p5.brush.js provides a comprehensive API for creating complex drawings and effec
 | [Utility](#utility-functions)              | brush.push()        |   | [Hatch Operations](#hatch-operations)      | brush.hatch()       |
 |                                            | brush.pop()         |   |                                            | brush.noHatch()     |
 |                                            | brush.rotate()      |   |                                            | brush.setHatch()    |
-|                                            | brush.scale()       |   | [Geometry](#geometry)                      | brush.point()       |
+|                                            | brush.scale()       |   | [Geometry](#geometry)                      | ~~brush.point()~~   |
 |                                            | brush.reDraw()      |   |                                            | brush.line()        |
 |                                            | brush.reBlend()     |   |                                            | brush.flowLine()    |
 | [Vector-Fields](#vector-fields)            | brush.field()       |   |                                            | brush.beginStroke() |
@@ -607,14 +607,6 @@ This section details the functions for creating various shapes and strokes with 
 #### Lines, Strokes, Splines, and Plots
 
 The following functions are only affected by stroke() operations, completely ignoring fill() and hatch().
-
----
-
-- `brush.point(x,y)`
-  - **Description**: Tips the brush into the canvas, with current stroke() state. This might be useful for creating textures or particle systems, but at that point you rather create your own set of functions, since you won't be using 99% of the library
-  - **Parameters**:
-    - `x` (Number): The x-coordinate of the point.
-    - `y` (Number): The y-coordinate of the point.
 
 ---
 

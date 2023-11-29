@@ -82,8 +82,7 @@ function setup () {
         x_values[i] = random(width)
         y_values[i] = random(width)
     }
-
-    /*
+    
     brush.field("seabed")
     // STANDARD PALETTE TEST
     let i = 0
@@ -92,11 +91,12 @@ function setup () {
             brush.flowLine(30,60+i*10,195,0)
         i++
     }
-    */
+    
 }
 
 function draw() {
 
+    /*
     background("#e2e7dc")
     translate(-width/2,-height/2)
     strokeWeight(2)
@@ -112,6 +112,7 @@ function draw() {
     brush.endShape(CLOSE)
 
     noLoop()
+    */
 }
 
 function mouseDragged() {
