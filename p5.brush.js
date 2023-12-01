@@ -105,15 +105,13 @@
         if (_isReady) _remove(false)
         // Set the renderer to the specified canvas or to the window if no ID is given
         _r = (!canvasID) ? window.self : canvasID;
-        // Load flowfield system
         if (!_isReady) {
             _isReady = true;
-            FF.create();
+            FF.create(); // Load flowfield system
+            globalScale(_r.width / 250) // Adjust standard brushes to match canvas
         }
-        // Load realistic color blending
-        Mix.load(instanced);
-        // Adjust standard brushes to match canvas size
-        globalScale(_r.width / 250) // Adjust standard brushes to match canvas
+        // Load color blending
+        Mix.load(instanced);        
     }
 
     /**
@@ -122,8 +120,11 @@
     function _remove (a = true) {
         if (_isReady) {
             Mix.mask.remove()
+            Mix.mask = null;
             Mix.mask2.remove()
+            Mix.mask2 = null;
             Mix.noBlend.remove()
+            Mix.noBlend = null;
             if (a) brush.load()
         }
     }
@@ -202,6 +203,19 @@
          */
         randInt(e, r) {
             return Math.floor(this.random(e,r))
+        },
+
+        /**
+         * Generates a random gaussian.
+         * @param {number} mean - Mean.
+         * @param {number} stdev - Standard deviation.
+         * @returns {number} A random number following a normal distribution.
+         */
+        gaussian(mean = 0, stdev = 1) {
+            const u = 1 - R.random();
+            const v = R.random();
+            const z = Math.sqrt( -2.0 * Math.log( u ) ) * Math.cos( 2.0 * Math.PI * v );
+            return z * stdev + mean;
         },
 
         /**
@@ -562,7 +576,6 @@
          */
         reDraw() {
             _r.push();
-            // Copy info from noBlend buffer
             _r.translate(-Matrix.trans()[0],-Matrix.trans()[1])
             _r.image(Mix.noBlend, -_r.width/2, -_r.height/2)
             Mix.noBlend.clear()
@@ -608,14 +621,9 @@
                     this.currentColor = this.getPigment(_color);
                     if (webgl_mask) this.blending1 = true, this.color1 = this.currentColor;
                     else this.blending2 = true, this.color2 = this.currentColor;
-                }
-                else {
-                    _r.push();
-                    _r.translate(-Matrix.trans()[0],-Matrix.trans()[1])
-                    _r.image(this.noBlend,-_r.width/2, -_r.height/2)
-                    this.noBlend.clear()
-                    _r.pop();
-                    return;
+                } else if (_isLast) {
+                    if (!webgl_mask) this.reDraw()
+                    return
                 }
             }
             
@@ -625,32 +633,35 @@
             let newColor = !_color ? this.currentColor : this.getPigment(_color);
 
             if (newColor.toString() !== this.currentColor.toString() || _isLast || !this.isCaching) {
-                _r.push();
-                // Copy info from noBlend buffer
-                _r.translate(-Matrix.trans()[0],-Matrix.trans()[1])
-                _r.image(this.noBlend,-_r.width/2, -_r.height/2)
-                this.noBlend.clear()
-                // Use the blend shader for rendering
-                _r.shader(this.shader);
-                // Set shader uniforms
-                // Color to blend
-                this.shader.setUniform('addColor', this.currentColor);
-                // Source canvas
-                this.shader.setUniform('source', _r._renderer);
-                // Bool to active watercolor blender vs marker blender
-                this.shader.setUniform('active', _watercolor);
-                // Random values for watercolor blender
-                this.shader.setUniform('random', [R.random(),R.random(),R.random()]);
-                // We select and apply the correct mask here
-                let mask = webgl_mask ? this.mask2: this.mask;
-                this.shader.setUniform('mask', mask);
-                // Draw a rectangle covering the whole canvas to apply the shader
-                _r.fill(0,0,0,0);
-                _r.noStroke();
-                _r.rect(-_r.width/2, -_r.height/2, _r.width, _r.height);
-                _r.pop();
-                // Clear the mask after drawing
-                mask.clear()
+                // Paste info from noBlend buffer
+                this.reDraw()
+
+                if (this.isBlending) {
+                    _r.push();
+                    _r.translate(-Matrix.trans()[0],-Matrix.trans()[1])
+                    // Use the blend shader for rendering
+                    _r.shader(this.shader);
+                    // Set shader uniforms
+                    // Color to blend
+                    this.shader.setUniform('addColor', this.currentColor);
+                    // Source canvas
+                    this.shader.setUniform('source', _r._renderer);
+                    // Bool to active watercolor blender vs marker blender
+                    this.shader.setUniform('active', _watercolor);
+                    // Random values for watercolor blender
+                    this.shader.setUniform('random', [R.random(),R.random(),R.random()]);
+                    // We select and apply the correct mask here
+                    let mask = webgl_mask ? this.mask2 : this.mask;
+                    this.shader.setUniform('mask', mask);
+                    // Draw a rectangle covering the whole canvas to apply the shader
+                    _r.fill(0,0,0,0);
+                    _r.noStroke();
+                    _r.rect(-_r.width/2, -_r.height/2, _r.width, _r.height);
+                    _r.pop();
+                    // Clear the mask after drawing
+                    mask.clear()
+                    mask.reset()
+                }
                 // We cache the new color here
                 if (!_isLast) {
                     this.currentColor = this.getPigment(_color);
@@ -681,8 +692,6 @@
         #include "spectral.glsl"
 
         // psrdnoise (c) Stefan Gustavson and Ian McEwan,
-        // ver. 2021-12-02, published under the MIT license:
-        // https://github.com/stegu/psrdnoise/
         float psrdnoise(vec2 x, vec2 period, float alpha, out vec2 gradient)
         {
         vec2 uv = vec2(x.x+x.y*0.5, x.y);
@@ -737,7 +746,7 @@
 
         void main() {
             vec4 maskColor = texture2D(mask, vVertTexCoord);
-            if (maskColor.r > 0.0 && maskColor.a > 0.0) {
+            if (maskColor.r > 0.0) {
                 vec2 r=vec2(12.9898,78.233), a=vec2(7.9898,58.233), l=vec2(17.9898,3.233);
                 float d=rand(vVertTexCoord,r.x,r.y,43358.5453)*2.-1., x=rand(vVertTexCoord,a.x,a.y,43213.5453)*2.-1., s=rand(vVertTexCoord,l.x,l.y,33358.5453)*2.-1.;
 
@@ -761,11 +770,9 @@
                     float blacken = 0.5 * (maskColor.a - darken_above);
                     pigment = pigment * (1. - blacken) - vec4(0.5) * blacken;
                 }
-              
+
                 vec3 mixedColor = spectral_mix(texture2D(source,vVertTexCoord).xyz, pigment.xyz, 0.9 * maskColor.a);
                 gl_FragColor = vec4(mixedColor + 0.01*vec3(d,x,s),1.);
-            } else {
-                gl_FragColor = vec4(0);
             }
         }
         `
@@ -1494,7 +1501,7 @@
          * @param {number} pressure - The current pressure value.
          */
         drawSpray(pressure) {
-            let vibration = (this.w * this.p.vibration * pressure) + this.w * randomGaussian() * this.p.vibration / 3;
+            let vibration = (this.w * this.p.vibration * pressure) + this.w * R.gaussian() * this.p.vibration / 3;
             let sw = this.p.weight * R.random(0.9,1.1);
             const iterations = this.p.quality / pressure;
             for (let j = 0; j < iterations; j++) {
@@ -1541,7 +1548,7 @@
          * @param {number} pressure - The current pressure value.
          */
         drawDefault(pressure) {
-            let vibration = this.w * this.p.vibration * (this.p.definition + (1-this.p.definition) * _r.randomGaussian() * this.gauss(0.5,0.9,5,0.2,1.2) / pressure);
+            let vibration = this.w * this.p.vibration * (this.p.definition + (1-this.p.definition) * R.gaussian() * this.gauss(0.5,0.9,5,0.2,1.2) / pressure);
             if (R.random(0, this.p.quality * pressure) > 0.4) {
                 this.mask.circle(this.position.x + 0.7 * vibration * R.random(-1,1),this.position.y + vibration * R.random(-1,1), pressure * this.p.weight * R.random(0.85,1.15));
             }
@@ -2534,7 +2541,7 @@
             const modAdjustment = degrow ? -0.5 : 1;
             // Inline changeModifier to reduce function calls
             const changeModifier = (modifier) => {
-                const gaussianVariation = _r.randomGaussian(0.5, 0.1);
+                const gaussianVariation = R.gaussian(0.5, 0.1);
                 return modifier + (gaussianVariation - 0.5) * 0.1;
             };
             // Reusable vector objects
@@ -2556,11 +2563,11 @@
                 // Make sure that we always bleed in the selected direction
                 let dir = this.dir[i];
                 let bleed = (F.direction == "out") ? 90 : -90;
-                let rotationDegrees = ((dir) ? bleed : -bleed) + (_r.randomGaussian(0,0.4)) * 45;
+                let rotationDegrees = ((dir) ? bleed : -bleed) + (R.gaussian(0,0.4)) * 45;
                 direction.rotate(rotationDegrees * Math.PI / 180);
-                direction.mult(_r.randomGaussian(0.5, 0.2) * R.random(0.6, 1.4) * sideMagnitude * mod);
+                direction.mult(R.gaussian(0.5, 0.2) * R.random(0.6, 1.4) * sideMagnitude * mod);
                 // Calculate the new vertex position
-                let newVertex = p5.Vector.lerp(currentVertex, nextVertex, R.constrain(_r.randomGaussian(0.5,0.2),0.1,0.9));
+                let newVertex = p5.Vector.lerp(currentVertex, nextVertex, R.constrain(R.gaussian(0.5,0.2),0.1,0.9));
                 newVertex.add(direction);
                 // Add the new vertex and its modifier
                 newVerts.push(newVertex);
@@ -2658,8 +2665,8 @@
             const maxSizeFactor = 0.19 * this.size;
             Mix.mask.erase(3.5 * texture - R.map(intensity, 80, 120, 0.3, 1, true),0);
             for (let i = 0; i < numCircles; i++) {
-                const x = this.midP.x + _r.randomGaussian(0, halfSize);
-                const y = this.midP.y + _r.randomGaussian(0, halfSize);
+                const x = this.midP.x + R.gaussian(0, halfSize);
+                const y = this.midP.y + R.gaussian(0, halfSize);
                 const size = R.random(minSizeFactor, maxSizeFactor);
                 Mix.mask.circle(x, y, size);
             }
@@ -2777,7 +2784,7 @@
     exports.pick = B.setBrush;               // Selects a brush to use.
     exports.clip = B.clip;                   // Clips brushes with a rectangle.
     exports.noClip = B.noClip; 
-
+    
     // STROKE Properties
     exports.stroke = B.setColor;          // Activates and sets the stroke color.
     exports.strokeWeight = B.setWeight;      // Sets the weight (thickness) of the stroke.

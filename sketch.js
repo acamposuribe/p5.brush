@@ -65,7 +65,7 @@ function preload() {
     brush.preload();
 }
 
-let palette = ["#002185", "#fcd300", "#ff2702", "#6b9404", "#000000"]
+let palette = ["#002185", "#fcd300", "#ff2702", "#6b9404"]
 
 let x_values = []
 let y_values = []
