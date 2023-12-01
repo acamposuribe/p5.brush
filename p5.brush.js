@@ -660,7 +660,6 @@
                     _r.pop();
                     // Clear the mask after drawing
                     mask.clear()
-                    mask.reset()
                 }
                 // We cache the new color here
                 if (!_isLast) {
@@ -2671,36 +2670,6 @@
                 Mix.mask.circle(x, y, size);
             }
             Mix.mask.noErase();
-        }
-    }
-
-
-    /**
-     * Extension of the p5.RendererGL prototype to fix the erase function for the WebGL renderer.
-     */
-    p5.RendererGL.prototype.erase = function(opacityFill, opacityStroke) {
-        if (!this._isErasing) {
-            this._cachedBlendMode = this.curBlendMode;
-            this._isErasing = true;
-            this.blendMode('destination-out');
-            this._cachedFillStyle = this.curFillColor.slice();
-            this.curFillColor = [1, 1, 1, opacityFill / 255];
-            this._cachedStrokeStyle = this.curStrokeColor.slice();
-            this.curStrokeColor = [1, 1, 1, opacityStroke / 255];
-        }
-    }
-    /**
-     * Extension of the p5.RendererGL prototype to fix the noErase function for the WebGL renderer.
-     */
-    p5.RendererGL.prototype.noErase = function() {
-        if (this._isErasing) {
-            this.curFillColor = this._cachedFillStyle.slice();
-            this.curStrokeColor = this._cachedStrokeStyle.slice();
-            let temp = this.curBlendMode;
-            this.blendMode(this._cachedBlendMode);
-            this._cachedBlendMode = temp;
-            this._isErasing = false;
-            this._applyBlendMode();
         }
     }
 
