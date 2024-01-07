@@ -1,6 +1,6 @@
 /**
  * @fileoverview p5.brush - A comprehensive toolset for brush management in p5.js.
- * @version 1.0.5
+ * @version 1.0.6
  * @license MIT
  * @author Alejandro Campos Uribe
  * 
