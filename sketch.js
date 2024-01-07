@@ -83,6 +83,7 @@ function setup () {
         y_values[i] = random(width)
     }
     
+    /*
     brush.field("seabed")
     // STANDARD PALETTE TEST
     let i = 0
@@ -91,6 +92,25 @@ function setup () {
             brush.flowLine(30,60+i*10,195,0)
         i++
     }
+    */
+
+    brush.noStroke()
+    brush.fill("black", 60)
+    brush.bleed(0.3)
+    brush.beginShape(0.5)
+    brush.vertex(50,50)
+    brush.vertex(150,50)
+    brush.vertex(150,150)
+    brush.vertex(50,150)
+    brush.endShape(CLOSE)
+
+    brush.fill("blue", 60)
+    brush.beginShape(0.5)
+    brush.vertex(100,50)
+    brush.vertex(200,50)
+    brush.vertex(200,150)
+    brush.vertex(100,150)
+    brush.endShape(CLOSE)
     
 }
 

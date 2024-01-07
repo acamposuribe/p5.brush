@@ -46,6 +46,37 @@ For improved performance, use the minified version of `p5.brush.js` which bundle
 ```
 Replace path_to with the actual path to the minified script in your project directory or the URL if you are using a CDN.
 
+### Note for p5 instance mode
+
+By default, all p5.js functions are in the global namespace (i.e. bound to the window object), meaning you can call them simply ellipse(), fill(), etc. However, this might be inconvenient if you are mixing with other JS libraries (synchronously or asynchronously) or writing long programs of your own. p5.js currently supports a way around this problem called "instance mode". In instance mode, all p5 functions are bound up in a single variable instead of polluting your global namespace. 
+
+If you plan to use p5 instance mode, you need to load p5.brush in a specific way:
+    
+    - Use `brush.instance()` before the setup and draw functions, pointing to your sketch id and the p5 function argument
+    Example:
+    ```javascript
+      let sketch = function(p) {
+        let x = 100;
+        let y = 100;
+
+        // Register instance method here, sending your function arg p
+        brush.instance(p)
+
+        p.setup = function() {
+          p.createCanvas(700, 410);
+        };
+
+        p.draw = function() {
+          p.background(0);
+          brush.fill("red", 75);
+          brush.rect(x, y, 50, 50);
+        };
+      };
+
+      let myp5 = new p5(sketch);
+      ```
+
+---
 
 ## Features
 
@@ -96,8 +127,9 @@ p5.brush.js provides a comprehensive API for creating complex drawings and effec
 |                                            | brush.strokeWeight()|   |                                            | brush.colorCache()  |
 | [Fill Operations](#fill-operations)        | brush.fill()        |   |                                            | brush.scaleBrushes()|
 |                                            | brush.noFill()      |   |                                            | brush.remove()      |
-|                                            | brush.bleed()       |   | [Classes](#exposed-classes)                | brush.Polygon()     |
-|                                            | brush.fillTexture() |   |                                            | brush.Plot()        |
+|                                            | brush.bleed()       |   |                                            | brush.instance()    |
+|                                            | brush.fillTexture() |   | [Classes](#exposed-classes)                | brush.Polygon()     |
+|                                            |                     |   |                                            | brush.Plot()        |
 |                                            |                     |   |                                            | brush.Position()    |
 
 ---
@@ -834,21 +866,45 @@ This section covers functions for initializing the drawing system, preloading re
 
 ---
 
-- `brush.load(canvasID, isInstanced)`
-  - **Description**: Initializes the drawing system and sets up the environment. If `canvasID` is not provided, the current window is used as the rendering context. If you want to load the library on a custom p5.Graphics element (or instanced canvas), you can do it by executing this function.
+- `brush.load(canvasID)`
+  - **Description**: Initializes the drawing system and sets up the environment. If `canvasID` is not provided, the current window is used as the rendering context. If you want to load the library on a custom p5.Graphics element, you can do it by executing this function.
   - **Parameters**: 
     - `canvasID` (string): Optional ID of the buffer/canvas element. If false, uses the window's rendering context.
-    - `isInstanced` (boolean): Use true if you want to use the p5 instance mode, and read below.
+  - **Example (load p5.brush on buffer)**: 
+    ```javascript
+      function setup() {
+        createCanvas(400,400,WEBGL)
+        // Draw stuff to global canvas
+        brush.set("HB","black",1)
+        brush.rect(40,40,150,100)
+        // Force draw stuff to canvas
+        brush.reDraw()
+
+        // Create buffer
+        let buffer = createGraphics(200,300)
+        brush.load(buffer)
+        brush.set("HB","black",1)
+        brush.rect(40,40,150,100)
+        // Force draw stuff to buffer
+        brush.reDraw()
+
+        image(buffer,20,40)
+
+        // Load p5.brush again on global canvas
+        brush.load()
+      }
+      ```
   - **Note for Instance Mode**: If you want to use the p5 instance mode, you need to pass the proper variable as canvasID.
       ```javascript
       let sketch = function(p) {
         let x = 100;
         let y = 100;
 
+        // Register instance method here, sending your function arg p
+        brush.instance(p)
+
         p.setup = function() {
           p.createCanvas(700, 410);
-          // Pass the p variable as canvasID like this
-          brush.load(p, true)
         };
 
         p.draw = function() {
@@ -857,9 +913,9 @@ This section covers functions for initializing the drawing system, preloading re
           brush.rect(x, y, 50, 50);
         };
       };
-      ```
 
-let myp5 = new p5(sketch);
+      let myp5 = new p5(sketch);
+      ```
 
 ---
 
@@ -902,6 +958,35 @@ let myp5 = new p5(sketch);
 - `brush.remove()`
   - **Description**: Removes brush library brushes and unloads the library. This can be useful if you only used the library to draw into a buffer, and you want to perform only normal p5 operations after that.
     
+---
+
+- `brush.instance(p)`
+  - **Description**: Execute before the setup() and draw() functions if you need to use p5 in instance mode
+  - **Parameters**: 
+    - `p` (variable): Variable used as the function argument. See below
+  - **Example**:
+      ```javascript
+      let sketch = function(p) {
+        let x = 100;
+        let y = 100;
+
+        // Register instance method here, sending your function arg p
+        brush.instance(p)
+
+        p.setup = function() {
+          p.createCanvas(700, 410);
+        };
+
+        p.draw = function() {
+          p.background(0);
+          brush.fill("red", 75);
+          brush.rect(x, y, 50, 50);
+        };
+      };
+
+      let myp5 = new p5(sketch);
+      ```
+
 ---
 
 <sub>[back to table](#table-of-functions)</sub>

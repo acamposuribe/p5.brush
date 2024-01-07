@@ -87,6 +87,13 @@
     let _isReady = false;
 
     /**
+     * Flag to indicate if p5 is instanced or global mode.
+     * @type {boolean}
+     */
+    let _isInstanced = false;
+    let _inst = false;
+
+    /**
      * Configures the drawing system with custom options.
      * @param {Object} [objct={}] - Optional configuration object.
      * EXPORTED
@@ -101,9 +108,11 @@
      *                                            If false, it uses the current window as the rendering context.
      * EXPORTED
      */
-    function loadSystem (canvasID = false, instanced = false) {
+    function loadSystem (canvasID = false) {
+        let inst = (_isInstanced && canvasID) ? _inst : false;
         if (_isReady) _remove(false)
         // Set the renderer to the specified canvas or to the window if no ID is given
+        if (!canvasID && _isInstanced) canvasID = _inst;
         _r = (!canvasID) ? window.self : canvasID;
         if (!_isReady) {
             _isReady = true;
@@ -111,7 +120,7 @@
             globalScale(_r.width / 250) // Adjust standard brushes to match canvas
         }
         // Load color blending
-        Mix.load(instanced);        
+        Mix.load(inst);
     }
 
     /**
@@ -119,12 +128,12 @@
      */
     function _remove (a = true) {
         if (_isReady) {
-            Mix.mask.remove()
-            Mix.mask = null;
-            Mix.mask2.remove()
-            Mix.mask2 = null;
-            Mix.noBlend.remove()
-            Mix.noBlend = null;
+            Mix.masks[0].remove()
+            Mix.masks[0] = null;
+            Mix.masks[1].remove()
+            Mix.masks[1] = null;
+            Mix.masks[2].remove()
+            Mix.masks[2] = null;
             if (a) brush.load()
         }
     }
@@ -146,11 +155,6 @@
     function _ensureReady () {
         if (!_isReady) loadSystem();
     }
-
-    /**
-     * Automatically load the library before draw()
-     */
-    p5.prototype.registerMethod('afterSetup', () => _ensureReady());
 
 // =============================================================================
 // Section: Randomness and other auxiliary functions
@@ -306,6 +310,11 @@
          * Changes angles to degrees and between 0-360
          */
         toDegrees: (a) => (((_r.angleMode() === "radians") ? a * 180 / Math.PI : a) % 360 + 360) % 360,
+
+        /**
+         * Calculates distance between two 2D points
+         */
+        dist: (x1,y1,x2,y2) => Math.hypot(x2-x1, y2-y1)
     }
     // Perform the precalculation of trigonometric values for the R object
     R.preCalculation();
@@ -524,15 +533,36 @@
         /**
          * Loads necessary resources and prepares the mask buffer and shader for colour blending.
          */
-        load(instanced) {
-            // Create a buffer to be used as a mask. We use a 2D buffer for faster geometry drawing
+        load(inst) {
+            this.type = (_isInstanced && !inst) ? 0 : (!inst ? 1 : 2)
+            this.masks = []
+            switch(this.type) {
+                case 0:
+                    // Create a buffer to be used as a mask for blending
+                    this.masks[0] = _r.createGraphics(_r.width,_r.height)
+                    // WEBGL buffer for img brushes (image() is much quicker like this)
+                    this.masks[1] = _r.createGraphics(_r.width,_r.height, _r.WEBGL)
+                    // Create a buffer for noBlend brushes
+                    this.masks[2] = _r.createGraphics(_r.width,_r.height)
+                    break;
+                case 1:
+                    this.masks[0] = createGraphics(_r.width,_r.height)
+                    this.masks[1] = createGraphics(_r.width,_r.height, WEBGL)
+                    this.masks[2] = createGraphics(_r.width,_r.height)
+                    break;
+                case 2:
+                    this.masks[0] = inst.createGraphics(inst.width, inst.height)
+                    this.masks[1] = inst.createGraphics(inst.width, inst.height, inst.WEBGL)
+                    this.masks[2] = inst.createGraphics(inst.width, inst.height)
+                    break;
+            }
 
-            this.mask = instanced ? _r.createGraphics(_r.width,_r.height) : createGraphics(_r.width,_r.height)
-            this.mask.pixelDensity(_r.pixelDensity());
-            this.mask.clear();
-            this.mask.noSmooth();
-            this.mask.angleMode(_r.DEGREES);
-            exports.mask = this.mask;
+            for (let mask of this.masks) {
+                mask.pixelDensity(_r.pixelDensity());
+                mask.clear();
+                mask.angleMode(_r.DEGREES);
+                mask.noSmooth();
+            }
 
             // Load the spectral.js shader code only once                                                        
             if (!Mix.loaded) {
@@ -541,19 +571,6 @@
             // Create the shader program from the vertex and fragment shaders
             this.shader = _r.createShader(this.vert, this.frag);
             Mix.loaded = true;
-
-            // Create a buffer for noBlend brushes
-            this.noBlend = instanced ? _r.createGraphics(_r.width,_r.height) : createGraphics(_r.width,_r.height)
-            this.noBlend.pixelDensity(_r.pixelDensity());
-            this.noBlend.noSmooth();
-            this.noBlend.clear();
-            this.noBlend.angleMode(_r.DEGREES);
-
-            // WEBGL buffer for img brushes (image() is much quicker like this)
-            this.mask2 = instanced ? _r.createGraphics(_r.width,_r.height, _r.WEBGL) : createGraphics(_r.width,_r.height, _r.WEBGL)
-            this.mask2.pixelDensity(_r.pixelDensity());
-            this.mask2.clear();
-            this.mask2.angleMode(_r.DEGREES);
         },
 
         /**
@@ -577,8 +594,8 @@
         reDraw() {
             _r.push();
             _r.translate(-Matrix.trans()[0],-Matrix.trans()[1])
-            _r.image(Mix.noBlend, -_r.width/2, -_r.height/2)
-            Mix.noBlend.clear()
+            _r.image(Mix.masks[2], -_r.width/2, -_r.height/2)
+            Mix.masks[2].clear()
             _r.pop();
         },
 
@@ -608,7 +625,7 @@
          * @param {boolean} _isLast - Indicates if this is the last blend after setup and draw.
          * @param {boolean} _isLast - Indicates if this is the last blend after setup and draw.
          */
-        blend (_color = false, _isLast = false, webgl_mask = false, _watercolor = false) {
+        blend (_color = false, _isLast = false, webgl_mask = false) {
 
             // Select between the two options:
             this.isBlending = webgl_mask ? this.blending1 : this.blending2;
@@ -646,12 +663,12 @@
                     this.shader.setUniform('addColor', this.currentColor);
                     // Source canvas
                     this.shader.setUniform('source', _r._renderer);
-                    // Bool to active watercolor blender vs marker blender
-                    this.shader.setUniform('active', _watercolor);
+                    // Bool to active watercolor blender vs marker blenderd
+                    this.shader.setUniform('active', Mix.watercolor);
                     // Random values for watercolor blender
                     this.shader.setUniform('random', [R.random(),R.random(),R.random()]);
                     // We select and apply the correct mask here
-                    let mask = webgl_mask ? this.mask2 : this.mask;
+                    let mask = webgl_mask ? this.masks[1] : this.masks[0];
                     this.shader.setUniform('mask', mask);
                     // Draw a rectangle covering the whole canvas to apply the shader
                     _r.fill(0,0,0,0);
@@ -758,8 +775,9 @@
                     float n = psrdnoise(vVertTexCoord * 5., p, 10.0 * random.x, g);
                     float n2 = psrdnoise(vVertTexCoord * 5., p, 10.0 * random.y, g);
                     float n3 = psrdnoise(vVertTexCoord * 5., p, 10.0 * random.z, g);
+                    float tt = abs(addColor.x - addColor.y - addColor.z);
                     float n4 = 0.25 + 0.25 * psrdnoise(vVertTexCoord * 4., p, 3.0 * random.x, g);
-                    pigment = vec4(generic_desaturate(addColor.xyz,n4).xyz + vec3(n,n2,n3) * 0.03, 1.0);
+                    pigment = vec4(generic_desaturate(addColor.xyz,n4).xyz + vec3(n,n2,n3) * 0.03 * tt, 1.0);
                 } else {
                     pigment = vec4(addColor.xyz,1.0);
                 }
@@ -780,10 +798,19 @@
     /**
      * Register methods after setup() and post draw() for belding last buffered color
      */
-    p5.prototype.registerMethod('afterSetup', () => Mix.blend(false, true));
-    p5.prototype.registerMethod('afterSetup', () => Mix.blend(false, true, true));
-    p5.prototype.registerMethod('post', () => Mix.blend(false, true));
-    p5.prototype.registerMethod('post', () => Mix.blend(false, true, true));
+    function _registerMethods (p5p) {
+        p5p.registerMethod('afterSetup', () => Mix.blend(false, true));
+        p5p.registerMethod('afterSetup', () => Mix.blend(false, true, true));
+        p5p.registerMethod('post', () => Mix.blend(false, true));
+        p5p.registerMethod('post', () => Mix.blend(false, true, true));
+    }
+    if (typeof p5 !== "undefined") _registerMethods(p5.prototype);
+    function _instance (inst) {
+        _isInstanced = true;
+        _inst = inst;
+        _registerMethods(inst)
+    }
+    exports.instance = _instance
 
 // =============================================================================
 // Section: FlowField
@@ -1266,7 +1293,7 @@
          */        
         line(x1,y1,x2,y2) {
             _ensureReady();
-            let d = _r.dist(x1,y1,x2,y2)
+            let d = R.dist(x1,y1,x2,y2)
             if (d == 0) return;
             B.initializeDrawingState(x1, y1, d, false, false);
             let angle = _calculateAngle(x1,y1,x2,y2);
@@ -1375,7 +1402,7 @@
             // Blend Mode
                 this.c = _r.color(this.c);
                 // Select mask buffer for blend mode
-                this.mask = this.p.blend ? ((this.p.type === "image") ? Mix.mask2 : Mix.mask) : Mix.noBlend;
+                this.mask = this.p.blend ? ((this.p.type === "image") ? Mix.masks[1] : Mix.masks[0]) : Mix.masks[2];
                 Matrix.trans()
                 // Set the blender
                 this.mask.push(); 
@@ -1384,6 +1411,7 @@
                 this.mask.rotate(-Matrix.rotation)
                 this.mask.scale(Scale.current)
                 if (this.p.blend) {
+                    Mix.watercolor = false;
                     if (this.p.type !== "image") Mix.blend(this.c);
                     else Mix.blend(this.c,false,true)
                     if (!isTip) this.markerTip()
@@ -1464,9 +1492,8 @@
          * @param {number} pressure - The current pressure value.
          * @returns {number} The calculated alpha value.
          */
-        calculateAlpha(pressure) {
+        calculateAlpha() {
             let opacity = (this.p.type !== "default" && this.p.type !== "spray") ? this.p.opacity / this.w : this.p.opacity;
-            //let pow = R.constrain(Math.pow(pressure, this.p.type === "marker" ? 0.7 : 1.5),0.75,1.3)
             return opacity;
         },
 
@@ -1885,6 +1912,22 @@
             }
             H.isActive = curState;
         }
+
+        erase (c = false, a = E.a) {
+            if (E.isActive || c) {
+                Mix.masks[2].push()
+                Mix.masks[2].noStroke()
+                let ccc = _r.color(c ? c : E.c)
+                ccc.setAlpha(a)
+                Mix.masks[2].fill(ccc)
+                Mix.masks[2].beginShape()
+                for (let p of this.vertices) {
+                    Mix.masks[2].vertex(p.x,p.y)
+                }
+                Mix.masks[2].endShape(_r.CLOSE)
+                Mix.masks[2].pop()
+            }
+        }
     }
 
     /**
@@ -1926,12 +1969,13 @@
             _vertex(x+w,y);
             _vertex(x+w,y+h);
             _vertex(x,y+h);
-            _endShape(CLOSE)
+            _endShape(_r.CLOSE)
         } else {
             let p = new Polygon([[x,y],[x+w,y],[x+w,y+h],[x,y+h]])
             p.fill();
             p.hatch();
             p.draw();
+            p.erase();
         }
     }
 
@@ -2091,13 +2135,18 @@
             let side = (max + min) * (isHatch ? 0.03 : ((F.isAnimated) ? 0.25 : bleed));
             let linepoint = new Position(_x,_y);
             let numsteps = Math.round(this.length/_step);
-            let pside = 0, i = 0;
-            let side1 = side * R.random(0.7,1.3)
+            let pside = 0, i = 0, j = 0;
+            let side1 = side * R.random(0.6,1.5)
             for (let steps = 0; steps < numsteps; steps++) {
                 linepoint.plotTo(this,_step,_step,1)
                 pside += _step;
+                this.calcIndex(linepoint.plotted)
+                if (this.index >= j && linepoint.x) {
+                    vertices.push([linepoint.x,linepoint.y])
+                    j++
+                }
                 if (pside >= side1 && linepoint.x) {
-                    vertices[i] = [linepoint.x,linepoint.y]
+                    vertices.push([linepoint.x,linepoint.y])
                     side1 = side * R.random(0.7,1.3), i++, pside = 0
                 }
             }
@@ -2146,6 +2195,22 @@
                 this.pol.hatch()
             }
         }
+
+        erase(x, y, scale) {
+            if (this.origin) x = this.origin[0], y = this.origin[1], scale = 1;
+            this.pol = this.genPol(x, y, scale, true)
+            Mix.masks[2].push()
+            Mix.masks[2].noStroke()
+            let ccc = _r.color(E.c)
+            ccc.setAlpha(E.a)
+            Mix.masks[2].fill(ccc)
+            Mix.masks[2].beginShape()
+            for (let p of this.pol.vertices) {
+                Mix.masks[2].vertex(p.x,p.y)
+            }
+            Mix.masks[2].endShape(_r.CLOSE)
+            Mix.masks[2].pop()
+        }
     }
 
     /**
@@ -2177,9 +2242,11 @@
             // Finalize the plot
             p.endPlot(angle2 + angle,1, true)
             // Fill / hatch / draw
-            p.fill(x - radius * R.sin(angle),y - radius * R.cos(-angle),1);
-            p.hatch(x - radius * R.sin(angle),y - radius * R.cos(-angle),1);
-            p.draw(x - radius * R.sin(angle),y - radius * R.cos(-angle),1);
+            let o = [x - radius * R.sin(angle),y - radius * R.cos(-angle),1]
+            p.fill(o[0],o[1])
+            p.hatch(o[0],o[1])
+            p.draw(o[0],o[1])
+            p.erase(o[0],o[1])
         }
     
     // Holds the array of vertices for the custom shape being defined. Each vertex includes position and optional pressure.
@@ -2210,20 +2277,24 @@
     /**
      * Finishes recording vertices for a custom shape and either closes it or leaves it open.
      * It also triggers the drawing of the shape with the active stroke(), fill() and hatch() states.
-     * @param {string} [a] - An optional argument to close the shape if set to CLOSE.
+     * @param {string} [a] - An optional argument to close the shape if set to _r.CLOSE.
      */
     function _endShape(a) {
-        if (a === CLOSE) {
+        if (a === _r.CLOSE) {
             _strokeArray.push(_strokeArray[0]); // Close the shape by connecting the last vertex to the first
             _strokeArray.push(_strokeArray[1]);
         }
-        let plot = _createSpline(_strokeArray, _strokeOption, a === CLOSE ? true : false); // Create a new Plot with the recorded vertices and curvature option
+        // Create a new Plot with the recorded vertices and curvature option
+        let plot = (_strokeOption == 0 && !FF.isActive) ? new Polygon(_strokeArray) : _createSpline(_strokeArray, _strokeOption, a === _r.CLOSE ? true : false);
         if (F.isActive || H.isActive) {
             plot.fill(); // Fill the shape if the fill state is active
             plot.hatch(); // Hatch the shape if the hatch state is active
         }
         if (B.isActive) {
             plot.draw(); // Draw the shape if the brush state is active
+        }
+        if (E.isActive) {
+            plot.erase()
         }
         _strokeArray = false; // Clear the array after the shape has been drawn
     }
@@ -2282,8 +2353,8 @@
                 if (curvature > 0 && i < array_points.length - 2) {
                     // Get the current and next points
                     let p1 = array_points[i], p2 = array_points[i+1], p3 = array_points[i+2];
-                    // Calculate distances and angles between points
-                    let d1 = dist(p1[0],p1[1],p2[0],p2[1]), d2 = dist(p2[0],p2[1],p3[0],p3[1]);
+                    // Calculate distances and angles between points 
+                    let d1 = R.dist(p1[0],p1[1],p2[0],p2[1]), d2 = R.dist(p2[0],p2[1],p3[0],p3[1]);
                     let a1 = _calculateAngle(p1[0],p1[1],p2[0],p2[1]), a2 = _calculateAngle(p2[0],p2[1],p3[0],p3[1]);
                     // Calculate curvature based on the minimum distance
                     let dd = curvature * Math.min(Math.min(d1,d2),0.5 * Math.min(d1,d2)), dmax = Math.max(d1,d2)
@@ -2303,14 +2374,14 @@
                         let point3 = {x: p2[0] + dd * R.cos(-a2), y: p2[1] + dd * R.sin(-a2)}
                         let point4 = {x: point3.x + dmax * R.cos(-a2+90), y: point3.y + dmax * R.sin(-a2+90)}
                         let int = _intersectLines(point1,point2,point3,point4,true)
-                        let radius = _r.dist(point1.x,point1.y,int.x,int.y)
-                        let disti = _r.dist(point1.x,point1.y,point3.x,point3.y)/2
+                        let radius = R.dist(point1.x,point1.y,int.x,int.y)
+                        let disti = R.dist(point1.x,point1.y,point3.x,point3.y)/2
                         let a3 = 2 * Math.asin( disti/radius ) * (180 / Math.PI);
                         let s3 = 2 * Math.PI * radius * a3 / 360;
                         let temp = _close ? (i === 0 ? 0 : s1-done) : s1-done;
                         let temp2 = (i === array_points.length - 3) ? (_close ? pep - dd : s2) : 0;
                         p.addSegment(a1,temp, p1[2],true)
-                        p.addSegment(a1,s3, p1[2],true)
+                        p.addSegment(a1,isNaN(s3) ? 0 : s3, p1[2],true)
                         p.addSegment(a2,temp2, p2[2],true)
                         done = dd;
                         if (i === 0) pep = s1, pep2 = dd, tep = [point1.x,point1.y];
@@ -2322,7 +2393,7 @@
                     // If curvature is 0, simply create segments
                     if (i === 0 && _close) array_points.pop()
                     let p1 = array_points[i], p2 = array_points[i+1]
-                    let d = _r.dist(p1[0],p1[1],p2[0],p2[1]);
+                    let d = R.dist(p1[0],p1[1],p2[0],p2[1]);
                     let a = _calculateAngle(p1[0],p1[1],p2[0],p2[1]);
                     p.addSegment(a,d,1,true)
                     if (i == array_points.length - 2) {
@@ -2362,6 +2433,17 @@
  * techniques for simulating watercolor paints.
  */
 
+    // No docs for now
+    const E = {
+        erase(color = "white", alpha = 255) {
+            E.isActive = true
+            E.c = color; E.a = alpha;
+        },
+        noErase() {
+            E.isActive = false
+        }
+    }
+
     /**
      * Sets the fill color and opacity for subsequent drawing operations.
      * @param {number|p5.Color} a - The red component of the color or grayscale value, a CSS color string, or a p5.Color object.
@@ -2371,6 +2453,7 @@
      * EXPORTED
      */
     function setFill(a,b,c,d) {
+        _ensureReady()
         F.opacity = (arguments.length < 4) ? ((arguments.length < 3) ? b : 1) : d;
         F.color = (arguments.length < 3) ? _r.color(a) : _r.color(a,b,c);
         F.isActive = true;
@@ -2383,11 +2466,13 @@
      * EXPORTED
      */
     function setBleed(_i, _direction = "out") {
+        _ensureReady()
         F.bleed_strength = R.constrain(_i,0,0.6);
         F.direction = _direction
     }
 
     function setTexture(_texture = 0.4, _border = 0.4) {
+        _ensureReady()
         F.texture_strength = R.constrain(_texture, 0, 1);
         F.border_strength = R.constrain(_border, 0, 1);
     }
@@ -2495,7 +2580,7 @@
             this.midP = _center;
             this.size = -Infinity;
             for (let v of this.v) {
-                let temp_size = _r.dist(this.midP.x,this.midP.y,v.x,v.y)
+                let temp_size = R.dist(this.midP.x,this.midP.y,v.x,v.y)
                 if (temp_size > this.size) this.size = temp_size;
             }
             // This calculates the bleed direction for the initial shape, for each of the vertices.
@@ -2504,7 +2589,7 @@
                 for (let i = 0; i < this.v.length; i++) {
                     const currentVertex = this.v[i]
                     const nextVertex = this.v[(i + 1) % this.v.length];
-                    let side = p5.Vector.sub(nextVertex, currentVertex)
+                    let side = nextVertex.copy().sub(currentVertex)
                     let direction1 = side.copy();
                     direction1.rotate(90 * rotationFactor);
                     let linea = {
@@ -2544,7 +2629,7 @@
                 return modifier + (gaussianVariation - 0.5) * 0.1;
             };
             // Reusable vector objects
-            let direction = new p5.Vector();
+            let direction = _r.createVector()
             // Loop through each vertex to calculate the new position based on growth
             for (let i = 0; i < verticesToProcess; i++) {
                 const currentVertex = this.v[i];
@@ -2566,7 +2651,7 @@
                 direction.rotate(rotationDegrees * Math.PI / 180);
                 direction.mult(R.gaussian(0.5, 0.2) * R.random(0.6, 1.4) * sideMagnitude * mod);
                 // Calculate the new vertex position
-                let newVertex = p5.Vector.lerp(currentVertex, nextVertex, R.constrain(R.gaussian(0.5,0.2),0.1,0.9));
+                let newVertex = currentVertex.copy().lerp(nextVertex, R.constrain(R.gaussian(0.5,0.2),0.1,0.9))
                 newVertex.add(direction);
                 // Add the new vertex and its modifier
                 newVerts.push(newVertex);
@@ -2594,13 +2679,14 @@
             const texture = tex * 3;
 
             // Perform initial setup only once
+            Mix.watercolor = true;
             Matrix.trans();
             Mix.blend(color,false,false,true)
-            Mix.mask.push();
-            Mix.mask.noStroke();
-            Mix.mask.translate(Matrix.translation[0] + _r.width/2, Matrix.translation[1] + _r.height/2);
-            Mix.mask.rotate(Matrix.rotation)
-            Mix.mask.scale(Scale.current)
+            Mix.masks[0].push();
+            Mix.masks[0].noStroke();
+            Mix.masks[0].translate(Matrix.translation[0] + _r.width/2, Matrix.translation[1] + _r.height/2);
+            Mix.masks[0].rotate(Matrix.rotation)
+            Mix.masks[0].scale(Scale.current)
 
             // Set the different polygons for texture
             let pol = this.grow()
@@ -2627,7 +2713,7 @@
                 // Erase after each set of layers is drawn
                 if (texture !== 0) pol.erase(texture, intensity);
             }
-            Mix.mask.pop();
+            Mix.masks[0].pop();
         }
 
         /**
@@ -2639,18 +2725,18 @@
          */
         layer (_nr, _alpha, bool = true) {
             // Set fill and stroke properties once
-            Mix.mask.fill(255, 0, 0, _alpha);
+            Mix.masks[0].fill(255, 0, 0, _alpha);
             if (bool) {
-                Mix.mask.stroke(255, 0, 0, 0.5 + 1.5 * F.border_strength);
-                Mix.mask.strokeWeight(R.map(_nr, 0, 24, 6, 0.5));
+                Mix.masks[0].stroke(255, 0, 0, 0.5 + 1.5 * F.border_strength);
+                Mix.masks[0].strokeWeight(R.map(_nr, 0, 24, 6, 0.5));
             } else {
-                Mix.mask.noStroke();
+                Mix.masks[0].noStroke();
             }
-            Mix.mask.beginShape();
+            Mix.masks[0].beginShape();
             for(let v of this.v) {             
-                Mix.mask.vertex(v.x, v.y);
+                Mix.masks[0].vertex(v.x, v.y);
             }
-            Mix.mask.endShape(_r.CLOSE);
+            Mix.masks[0].endShape(_r.CLOSE);
         }
 
         /**
@@ -2662,16 +2748,23 @@
             const halfSize = this.size / 2;
             const minSizeFactor = 0.025 * this.size;
             const maxSizeFactor = 0.19 * this.size;
-            Mix.mask.erase(3.5 * texture - R.map(intensity, 80, 120, 0.3, 1, true),0);
+            Mix.masks[0].erase(3.5 * texture - R.map(intensity, 80, 120, 0.3, 1, true),0);
             for (let i = 0; i < numCircles; i++) {
                 const x = this.midP.x + R.gaussian(0, halfSize);
                 const y = this.midP.y + R.gaussian(0, halfSize);
                 const size = R.random(minSizeFactor, maxSizeFactor);
-                Mix.mask.circle(x, y, size);
+                Mix.masks[0].circle(x, y, size);
             }
-            Mix.mask.noErase();
+            Mix.masks[0].noErase();
         }
     }
+
+    function _end() {
+        Mix.blend(false, true)
+        Mix.blend(false, true, true)
+    }
+
+    exports.end = _end
 
 // =============================================================================
 // Section: Standard Brushes
@@ -2782,6 +2875,9 @@
     exports.beginStroke = _beginStroke;      // Begins a hand-drawn stroke.
     exports.segment = _segment;                    // Moves to a specified point in the hand-drawn stroke.
     exports.endStroke = _endStroke;          // Ends a hand-drawn stroke.
+
+    exports.erase = E.erase;
+    exports.noErase = E.noErase;
 
     // HATCHING Operations
     exports.hatchArray = H.hatch;                 // Function to create hatched patterns within polygons.
