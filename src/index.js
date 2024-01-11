@@ -1,6 +1,6 @@
 /**
  * @fileoverview p5.brush - A comprehensive toolset for brush management in p5.js.
- * @version 1.0.6
+ * @version 1.0.9
  * @license MIT
  * @author Alejandro Campos Uribe
  * 
@@ -387,7 +387,7 @@
         
         // Stroke
         _saveState.stroke.isActive = B.isActive;
-        _saveState.stroke.brush = B.name;
+        _saveState.stroke.name = B.name;
         _saveState.stroke.color = B.c;
         _saveState.stroke.weight = B.w;
         _saveState.stroke.clip = B.cr;
@@ -419,7 +419,7 @@
         
         // Stroke
         B.isActive = _saveState.stroke.isActive;
-        B.name = _saveState.stroke.brush;
+        B.name = _saveState.stroke.name;
         B.c = _saveState.stroke.color;
         B.w = _saveState.stroke.weight;
         B.cr = _saveState.stroke.clip;
@@ -467,10 +467,6 @@
      * Captures the desired rotation.
      */
     export function rotate (a = 0) {
-        if (!R.isNumber(a)) {
-            console.error("rotate(): Value must be numeric");
-            return null;
-        }
         Matrix.rotation = R.toDegrees(a)
     }
 
@@ -605,7 +601,7 @@
                     if (webgl_mask) this.blending1 = true, this.color1 = this.currentColor;
                     else this.blending2 = true, this.color2 = this.currentColor;
                 } else if (_isLast) {
-                    if (!webgl_mask) this.reDraw()
+                    if (!webgl_mask) reDraw()
                     return
                 }
             }
@@ -617,7 +613,7 @@
 
             if (newColor.toString() !== this.currentColor.toString() || _isLast || !this.isCaching) {
                 // Paste info from noBlend buffer
-                this.reDraw()
+                reDraw()
 
                 if (this.isBlending) {
                     _r.push();
@@ -726,10 +722,6 @@
     export function field (a) {
         _ensureReady();
         // Check if field exists
-        if (!FF.list.has(a)) {
-            console.error("field(): No VectorField with that name");
-            return null;
-        }
         FF.isActive = true; // Mark the field framework as active
         FF.current = a; // Update the current field
     }
@@ -758,10 +750,6 @@
      * @param {number} [t=0] - An optional time parameter that can affect field generation.
      */
     export function refreshField(t) {
-        if (!R.isNumber(t)) {
-            console.error("refreshField(): Value for refreshField must be numeric");
-            return null
-        }
         FF.refresh(t)
     }
 
@@ -1412,10 +1400,6 @@
      * @param {string} brushName - The name of the brush to set as current.
      */
     export function pick(brushName) {
-        if (!B.list.has(brushName)) {
-            console.error("set() / setBrush() / setHatch():\n No brush with that name");
-            return null;
-        }
         B.name = brushName;
     }
 
@@ -1545,7 +1529,8 @@
          */
         load() {
             for (let key of this.tips.keys()){
-                let image = loadImage(key, () => T.imageToWhite(image))
+                let _r = _isInstanced ? _inst : window.self;
+                let image = _r.loadImage(key, () => T.imageToWhite(image))
                 this.tips.set(key, image)
             }
         }
@@ -1802,6 +1787,13 @@
                 Mix.masks[2].pop()
             }
         }
+
+        show () {
+            this.fill();
+            this.hatch();
+            this.draw();
+            this.erase();
+        }
     }
 
     /**
@@ -1811,18 +1803,9 @@
      * @param {Array} pointsArray - An array of points where each point is an array of two numbers [x, y].
      */
     export function polygon(pointsArray) {
-        if (!Array.isArray(pointsArray) || pointsArray.length < 3) {
-            console.error('Invalid input for polygon: An array with at least 3 points is required.');
-            return;
-        }
         // Create a new Polygon instance
         let polygon = new Polygon(pointsArray);
-        // Fill the polygon if the F state is active (the check is in the polygon class)
-        polygon.fill();
-        // Hatch the polygon if H.isActive is active (the check is in the polygon class)
-        polygon.hatch()
-        // Draw the polygon if the B state is active (the check is in the polygon class)
-        polygon.draw();
+        polygon.show()
     }
 
     /**
@@ -1845,10 +1828,7 @@
             endShape(_r.CLOSE)
         } else {
             let p = new Polygon([[x,y],[x+w,y],[x+w,y+h],[x,y+h]])
-            p.fill();
-            p.hatch();
-            p.draw();
-            p.erase();
+            p.show()
         }
     }
 
@@ -1982,6 +1962,7 @@
             this.index = -1, this.suma = 0;
             let d = 0;
             while (d <= _d) {this.suma = d; d += this.segments[this.index+1]; this.index++;}
+            return this.index
         }
 
         /**
@@ -1992,37 +1973,23 @@
          */
         genPol (_x,_y,_scale = 1, isHatch = false) {
             _ensureReady(); // Ensure that the drawing environment is prepared
-            let max = 0;
-            let min = 9999;
-            for (let o of this.segments) {
-                o *= _scale;
-                if (o !== 0) {
-                    max = Math.max(max, o);
-                    min = Math.min(min, o);
+            const step = 0.5;
+            const vertices = []
+            const numSteps = Math.round(this.length/step);
+            const pos = new Position(_x,_y)
+            let side = F.bleed_strength * 3; 
+            let pside = 0;
+            let prevIdx = 0
+            for (let i = 0; i < numSteps; i++) {
+                pos.plotTo(this, step, step, 1)
+                let idx = this.calcIndex(pos.plotted)
+                pside += step;
+                if ((pside >= this.segments[idx] * side * R.random(0.7,1.3) || idx >= prevIdx) && pos.x) {
+                    vertices.push([pos.x,pos.y])
+                    pside = 0;
+                    if (idx >= prevIdx) prevIdx++
                 }
             }
-            let _step = B.spacing()  // get last spacing
-            let vertices = []
-            let bleed = R.constrain(F.bleed_strength,0.075,1)
-            let side = (max + min) * (isHatch ? 0.03 : ((F.isAnimated) ? 0.25 : bleed));
-            let linepoint = new Position(_x,_y);
-            let numsteps = Math.round(this.length/_step);
-            let pside = 0, i = 0, j = 0;
-            let side1 = side * R.random(0.6,1.5)
-            for (let steps = 0; steps < numsteps; steps++) {
-                linepoint.plotTo(this,_step,_step,1)
-                pside += _step;
-                this.calcIndex(linepoint.plotted)
-                if (this.index >= j && linepoint.x) {
-                    vertices.push([linepoint.x,linepoint.y])
-                    j++
-                }
-                if (pside >= side1 && linepoint.x) {
-                    vertices.push([linepoint.x,linepoint.y])
-                    side1 = side * R.random(0.7,1.3), i++, pside = 0
-                }
-            }
-            this.calcIndex(0);
             return new Polygon(vertices);
         }
 
@@ -2069,19 +2036,28 @@
         }
 
         erase(x, y, scale) {
-            if (this.origin) x = this.origin[0], y = this.origin[1], scale = 1;
-            this.pol = this.genPol(x, y, scale, true)
-            Mix.masks[2].push()
-            Mix.masks[2].noStroke()
-            let ccc = _r.color(E.c)
-            ccc.setAlpha(E.a)
-            Mix.masks[2].fill(ccc)
-            Mix.masks[2].beginShape()
-            for (let p of this.pol.vertices) {
-                Mix.masks[2].vertex(p.x,p.y)
+            if (E.isActive) {
+                if (this.origin) x = this.origin[0], y = this.origin[1], scale = 1;
+                this.pol = this.genPol(x, y, scale, true)
+                Mix.masks[2].push()
+                Mix.masks[2].noStroke()
+                let ccc = _r.color(E.c)
+                ccc.setAlpha(E.a)
+                Mix.masks[2].fill(ccc)
+                Mix.masks[2].beginShape()
+                for (let p of this.pol.vertices) {
+                    Mix.masks[2].vertex(p.x,p.y)
+                }
+                Mix.masks[2].endShape(_r.CLOSE)
+                Mix.masks[2].pop()
             }
-            Mix.masks[2].endShape(_r.CLOSE)
-            Mix.masks[2].pop()
+        }
+
+        show(x, y, scale) {
+            this.draw(x, y, scale)
+            this.fill(x, y, scale)
+            this.hatch(x, y, scale)
+            this.erase(x, y, scale)
         }
     }
 
@@ -2094,7 +2070,6 @@
      * @param {boolean} [r=false] - If true, applies a random factor to the radius for each segment.
      */
     export function circle(x,y,radius,r = false) {
-
         // Create a new Plot instance for a curve shape
         let p = new Plot("curve")
         // Calculate the length of the arc for each quarter of the circle
@@ -2115,10 +2090,7 @@
         p.endPlot(angle2 + angle,1, true)
         // Fill / hatch / draw
         let o = [x - radius * R.sin(angle),y - radius * R.cos(-angle),1]
-        p.fill(o[0],o[1])
-        p.hatch(o[0],o[1])
-        p.draw(o[0],o[1])
-        p.erase(o[0],o[1])
+        p.show(o[0],o[1])
     }
     
     // Holds the array of vertices for the custom shape being defined. Each vertex includes position and optional pressure.
@@ -2157,16 +2129,7 @@
         }
         // Create a new Plot with the recorded vertices and curvature option
         let plot = (_strokeOption == 0 && !FF.isActive) ? new Polygon(_strokeArray) : _createSpline(_strokeArray, _strokeOption, a === _r.CLOSE ? true : false);
-        if (F.isActive || H.isActive) {
-            plot.fill(); // Fill the shape if the fill state is active
-            plot.hatch(); // Hatch the shape if the hatch state is active
-        }
-        if (B.isActive) {
-            plot.draw(); // Draw the shape if the brush state is active
-        }
-        if (E.isActive) {
-            plot.erase()
-        }
+        plot.show();
         _strokeArray = false; // Clear the array after the shape has been drawn
     }
     

@@ -23,28 +23,43 @@ Embrace the full potential of your creative coding projects with p5.brush.js, wh
 
 ## Installation
 
-Before using p5.brush.js, ensure you include **[Spectral.js](https://github.com/rvanwijnen/spectral.js)**, which is a prerequisite library for color mixing features.
+### Local Installation
 
-### Standard Installation
-
-To set up your project, add both `p5.brush.js` and `Spectral.js` to your HTML file. Place the script tags in the following order:
+To set up your project, add `p5.min.js` `p5.brush.js` to your HTML file. You can download the last version of the p5.brush.js library in the [dist](/dist) folder.
+Place the script tags in the following order:
 
 ```html
 <!-- Commented version of p5.brush.js, with a Spectral.js dependency -->
-<script src="path_to/spectral.min.js"></script>
+<script src="path_to/p5.min.js"></script>
 <script src="path_to/p5.brush.js"></script>
 ```
-Replace path_to with the actual path to the minified script in your project directory or the URL if you are using a CDN.
+Replace path_to with the actual path to the script in your project directory or the URL if you are using a CDN.
 
-### Minified Version
+### Use a hosted version of the p5.brush.js library 
 
-For improved performance, use the minified version of `p5.brush.js` which bundles `Spectral.js`:
+Alternatively, you can link to a `p5.brush.js` file hosted online. All versions are stored in a CDN (Content Delivery Network). You can find a history of these versions in the p5.js CDN. In this case you can change the link to:
 
 ```html
-<!-- Minified version of p5.brush.js with Spectral.js included -->
-<script src="path_to/p5.brush.min.js"></script>
+<!-- Online version of p5.brush -->
+<script src="https://cdn.jsdelivr.net/npm/p5.brush@1.1/dist/p5.brush.js"></script>
 ```
-Replace path_to with the actual path to the minified script in your project directory or the URL if you are using a CDN.
+
+### Install with NPM and other modular-based apps
+
+Install the npm package. p5.brush requires p5.js as a peer dependency.
+
+```
+npm install p5.brush --save
+```
+
+After that, import p5.brush functions to your sketch:
+
+```
+import * as brush from 'p5.brush'
+```
+
+If you are using p5 and p5.brush as modules, you will need to use instance mode. Read below.
+
 
 ### Note for p5 instance mode
 

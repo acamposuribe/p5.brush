@@ -1,26 +1,26 @@
 {
   "name": "p5.brush",
-  "version": "1.0.7",
+  "version": "1.0.9",
   "description": "Unlock custom brushes, natural fill effects and intuitive hatching in p5.js",
   "main": "p5.brush.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "build": "webpack"
+    "build2": "webpack",
+    "build": "rollup --config -w"
   },
+  "type": "module",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/acamposuribe/p5.brush.git"
   },
   "keywords": [
     "brush",
-    "children",
     "p5",
     "p5js",
     "brushes",
     "watercolor",
     "flowfield",
-    "p5-library",
-    "hatching"
+    "p5-library"
   ],
   "author": "Alejandro Campos Uribe",
   "license": "MIT",
@@ -29,13 +29,8 @@
   },
   "homepage": "https://p5-brush.cargo.site/",
   "devDependencies": {
-    "@babel/core": "^7.23.7",
-    "@babel/preset-env": "^7.23.8",
-    "babel-loader": "^9.1.3",
-    "webpack": "^5.89.0",
-    "webpack-cli": "^5.1.4"
-  },
-  "dependencies": {
-    "spectral.js": "^2.0.2"
+    "@rollup/plugin-terser": "^0.4.4",
+    "rollup": "^4.9.4",
+    "rollup-plugin-cleanup": "^3.2.1"
   }
 }
