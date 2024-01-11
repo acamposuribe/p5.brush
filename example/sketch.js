@@ -78,10 +78,12 @@ function setup () {
 
     translate(-width/2,-height/2)
     
-    for (let i = 0; i < 5; i++) {
+    for (let i = 0; i < 6; i++) {
         x_values[i] = random(width)
         y_values[i] = random(width)
     }
+    
+    brush.load()
     
     /*
     brush.field("seabed")
@@ -92,7 +94,7 @@ function setup () {
             brush.flowLine(30,60+i*10,195,0)
         i++
     }
-    */
+    
 
     brush.noStroke()
     brush.fill("black", 60)
@@ -111,20 +113,21 @@ function setup () {
     brush.vertex(200,150)
     brush.vertex(100,150)
     brush.endShape(CLOSE)
+
+    */
     
 }
 
 function draw() {
 
-    /*
     background("#e2e7dc")
     translate(-width/2,-height/2)
     strokeWeight(2)
-    brush.fill("#ff2702",70)
-    brush.bleed(0.2)
-    brush.beginShape(0 + frameCount * 0.01)
-        for (let i = 0; i < 5; i++) {
-            stroke(palette[i])
+    //brush.fill("#ff2702",70)
+    brush.bleed(0.4)
+    brush.beginShape(1)
+        for (let i = 0; i < 6; i++) {
+            stroke(random(palette))
             point(x_values[i],y_values[i])
             brush.vertex(x_values[i],y_values[i])
         }
@@ -132,7 +135,6 @@ function draw() {
     brush.endShape(CLOSE)
 
     noLoop()
-    */
 }
 
 function mouseDragged() {

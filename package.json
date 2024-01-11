@@ -1,35 +1,27 @@
 {
   "name": "p5.brush",
-  "version": "0.0.1-beta",
+  "version": "1.1",
   "description": "Unlock custom brushes, natural fill effects and intuitive hatching in p5.js",
-  "main": "p5.brush.js",
+  "main": "src/index.js",
+  "module": "src/index.js",
+  "browser": "dist/p5.brush.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "build:types": "tsc --project tsconfig.build.json"
+    "build": "rollup --config -w"
   },
+  "type": "module",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/acamposuribe/p5.brush.git"
   },
-  "typings": "dist/p5.brush.d.ts",
-  "exports": {
-    ".": {
-      "import": "./p5.brush.js",
-      "require": "./p5.brush.js",
-      "types": "./dist/p5.brush.d.ts"
-    },
-    "./minified": "./p5.brush.min.js"
-  },
   "keywords": [
     "brush",
-    "children",
     "p5",
     "p5js",
     "brushes",
     "watercolor",
     "flowfield",
-    "p5-library",
-    "hatching"
+    "p5-library"
   ],
   "author": "Alejandro Campos Uribe",
   "license": "MIT",
@@ -38,7 +30,11 @@
   },
   "homepage": "https://p5-brush.cargo.site/",
   "devDependencies": {
-    "@types/p5": "^1.7.3",
-    "typescript": "^5.3.2"
+    "@rollup/plugin-terser": "^0.4.4",
+    "rollup": "^4.9.4",
+    "rollup-plugin-cleanup": "^3.2.1"
+  },
+  "peerDependencies": {
+    "p5": "^1.9.0"
   }
 }
