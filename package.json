@@ -1,11 +1,11 @@
 {
   "name": "p5.brush",
-  "version": "1.0.9",
+  "version": "1.1",
   "description": "Unlock custom brushes, natural fill effects and intuitive hatching in p5.js",
-  "main": "p5.brush.js",
+  "main": "src/index.js",
+  "module": "src/index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "build2": "webpack",
     "build": "rollup --config -w"
   },
   "type": "module",
@@ -32,5 +32,8 @@
     "@rollup/plugin-terser": "^0.4.4",
     "rollup": "^4.9.4",
     "rollup-plugin-cleanup": "^3.2.1"
+  },
+  "peerDependencies": {
+    "p5": "^1.9.0"
   }
 }

@@ -1,6 +1,6 @@
 /**
  * @fileoverview p5.brush - A comprehensive toolset for brush management in p5.js.
- * @version 1.0.9
+ * @version 1.1
  * @license MIT
  * @author Alejandro Campos Uribe
  * 
@@ -699,12 +699,11 @@
         p5p.registerMethod('post', () => Mix.blend(false, true, true));
     }
     if (typeof p5 !== "undefined") _registerMethods(p5.prototype);
-    function _instance (inst) {
+    export function instance (inst) {
         _isInstanced = true;
         _inst = inst;
         _registerMethods(inst)
     }
-    exports.instance = _instance
 
 // =============================================================================
 // Section: FlowField
@@ -2591,8 +2590,6 @@
         Mix.blend(false, true)
         Mix.blend(false, true, true)
     }
-
-    exports.end = _end
 
 // =============================================================================
 // Section: Standard Brushes
