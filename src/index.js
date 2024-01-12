@@ -1,6 +1,6 @@
 /**
  * @fileoverview p5.brush - A comprehensive toolset for brush management in p5.js.
- * @version 1.1
+ * @version 1.1.1
  * @license MIT
  * @author Alejandro Campos Uribe
  * 
@@ -87,21 +87,13 @@
     let _inst = false;
 
     /**
-     * Configures the drawing system with custom options.
-     * @param {Object} [objct={}] - Optional configuration object.
-     */
-    export function config(objct = {}) {
-        if (objct.R) R.source = objct.R; // Overrides the default random source if provided
-    }
-
-    /**
      * Initializes the drawing system and sets up the environment.
      * @param {string|boolean} [canvasID=false] - Optional ID of the canvas element to use.
      *                                            If false, it uses the current window as the rendering context.
      */
     export function load (canvasID = false) {
         let inst = (_isInstanced && canvasID) ? _inst : false;
-        if (_isReady) _remove(false)
+        if (_isReady) remove(false)
         // Set the renderer to the specified canvas or to the window if no ID is given
         if (!canvasID && _isInstanced) canvasID = _inst;
         _r = (!canvasID) ? window.self : canvasID;
@@ -158,6 +150,15 @@
  */
 
     /**
+     * The basic source of randomness, can be seeded for determinism.
+     * @returns {number} A random number between 0 and 1.
+     */
+    let rng = new Math.seedrandom(Math.random())
+    export function seed (s) {
+        rng = new Math.seedrandom(s)
+    }
+
+    /**
      * Object for random number generation and related utility functions.
      * @property {function} source - Function that returns a random number from the base random generator.
      * @property {function} random - Function to generate a random number within a specified range.
@@ -173,20 +174,14 @@
     const R = {
 
         /**
-         * The basic source of randomness, can be replaced with a deterministic alternative for testing.
-         * @returns {number} A random number between 0 and 1.
-         */
-        source: () => _r.random(),
-
-        /**
          * Generates a random number within a specified range.
          * @param {number} [min=0] - The lower bound of the range.
          * @param {number} [max=1] - The upper bound of the range.
          * @returns {number} A random number within the specified range.
          */
         random(e = 0, r = 1) {
-            if (arguments.length === 1) {return this.map(this.source(), 0, 1, 0, e); }
-            else {return this.map(this.source(), 0, 1, e, r)}
+            if (arguments.length === 1) {return this.map(rng(), 0, 1, 0, e); }
+            else {return this.map(rng(), 0, 1, e, r)}
         },
 
         /**
@@ -222,7 +217,7 @@
             for (r in e)
                 for (a = 0; a < 10 * e[r]; a++)
                     n.push(r);
-                return n[Math.floor(this.source() * n.length)]
+                return n[Math.floor(rng() * n.length)]
         },
 
         /**
@@ -523,25 +518,21 @@
         load(inst) {
             this.type = (_isInstanced && !inst) ? 0 : (!inst ? 1 : 2)
             this.masks = []
-            switch(this.type) {
-                case 0:
-                    // Create a buffer to be used as a mask for blending
-                    this.masks[0] = _r.createGraphics(_r.width,_r.height)
-                    // WEBGL buffer for img brushes (image() is much quicker like this)
-                    this.masks[1] = _r.createGraphics(_r.width,_r.height, _r.WEBGL)
-                    // Create a buffer for noBlend brushes
-                    this.masks[2] = _r.createGraphics(_r.width,_r.height)
-                    break;
-                case 1:
-                    this.masks[0] = createGraphics(_r.width,_r.height)
-                    this.masks[1] = createGraphics(_r.width,_r.height, WEBGL)
-                    this.masks[2] = createGraphics(_r.width,_r.height)
-                    break;
-                case 2:
-                    this.masks[0] = inst.createGraphics(inst.width, inst.height)
-                    this.masks[1] = inst.createGraphics(inst.width, inst.height, inst.WEBGL)
-                    this.masks[2] = inst.createGraphics(inst.width, inst.height)
-                    break;
+            // Create a buffer to be used as a mask for blending
+            // WEBGL buffer for img brushes (image() is much quicker like this)
+            // Create a buffer for noBlend brushes
+            for (let i = 0; i < 3; i++) {
+                switch(this.type) {
+                    case 0:
+                        this.masks[i] = _r.createGraphics(_r.width,_r.height, i == 1 ? _r.WEBGL : _r.P2D)
+                        break;
+                    case 1:
+                        this.masks[i] = createGraphics(_r.width,_r.height, i == 1 ? WEBGL : P2D)
+                        break;
+                    case 2:
+                        this.masks[i] = inst.createGraphics(inst.width, inst.height, i == 1 ? inst.WEBGL : inst.P2D)
+                        break;
+                }
             }
 
             for (let mask of this.masks) {
@@ -683,10 +674,10 @@
      * This function forces marker-brushes and fills to be updated into the canvas
      */
     export function reBlend() {
-        push()
-        set("marker","white",1)
-        line(-10,-10,-5,-5)
-        pop();
+        _r.push()
+        _r.set("marker","white",1)
+        _r.line(-10,-10,-5,-5)
+        _r.pop();
     }
 
     /**
@@ -960,7 +951,7 @@
          * @param {number} _step_length - The length of each step.
          * @param {boolean} isFlow - Whether to use the flow field for movement.
          */
-        moveTo (_length, _dir, _step_length = FF.step_length(), isFlow = true) {
+        moveTo (_length, _dir, _step_length = B.spacing(), isFlow = true) {
             if (this.isIn()) {
                 let a, b;
                 if (!isFlow) {
@@ -1976,7 +1967,7 @@
             const vertices = []
             const numSteps = Math.round(this.length/step);
             const pos = new Position(_x,_y)
-            let side = F.bleed_strength * 3; 
+            let side = isHatch ? 0.15 : F.bleed_strength * 3;
             let pside = 0;
             let prevIdx = 0
             for (let i = 0; i < numSteps; i++) {
@@ -2052,7 +2043,7 @@
             }
         }
 
-        show(x, y, scale) {
+        show(x, y, scale = 1) {
             this.draw(x, y, scale)
             this.fill(x, y, scale)
             this.hatch(x, y, scale)
@@ -2088,8 +2079,8 @@
         // Finalize the plot
         p.endPlot(angle2 + angle,1, true)
         // Fill / hatch / draw
-        let o = [x - radius * R.sin(angle),y - radius * R.cos(-angle),1]
-        p.show(o[0],o[1])
+        let o = [x - radius * R.sin(angle),y - radius * R.cos(-angle)]
+        p.show(o[0],o[1],1)
     }
     
     // Holds the array of vertices for the custom shape being defined. Each vertex includes position and optional pressure.
@@ -2306,6 +2297,14 @@
         F.border_strength = R.constrain(_border, 0, 1);
     }
 
+    export function gravity(x, y) {
+        _ensureReady()
+        F.light_source = {x: x, y: y}
+    }
+    export function noGravity() {
+        F.light_source = false;
+    }
+
     /**
      * Disables the fill for subsequent drawing operations.
      */
@@ -2351,7 +2350,7 @@
             // Store polygon
             this.polygon = polygon;
             // Map polygon vertices to p5.Vector objects
-            this.v = polygon.a.map(vert => _r.createVector(vert[0], vert[1]));
+            this.v = [...polygon.vertices];
             // Calculate fluidity once, outside the loop
             const fluid = this.v.length * R.random(0.4);
             // Map vertices to bleed multipliers with more intense effect on 'fluid' vertices
@@ -2361,6 +2360,12 @@
             });
             // Shift vertices randomly to create a more natural watercolor edge
             let shift = R.randInt(0, this.v.length);
+            // If light source, look for closest
+            if (F.light_source) {
+                for (let i = 0; i < this.v.length; i ++) {
+                    if (R.dist(this.v[i].x,this.v[i].y,F.light_source.x,F.light_source.y) < R.dist(this.v[shift].x,this.v[shift].y,F.light_source.x,F.light_source.y)) shift = i
+                }
+            }
             this.v = [...this.v.slice(shift), ...this.v.slice(0, shift)];
             // Create and fill the polygon with the calculated bleed effect
             let pol = new FillPolygon (this.v, this.m, this.calcCenter(),[],true)
@@ -2378,7 +2383,7 @@
                 midy += this.v[i].y;
             }
             midx /= this.v.length, midy /= this.v.length; 
-            return _r.createVector(midx,midy)
+            return {x: midx, y: midy}
         }
     }
 
@@ -2412,25 +2417,35 @@
             }
             // This calculates the bleed direction for the initial shape, for each of the vertices.
             if (isFirst) {
-                const rotationFactor = (_r.angleMode() === "radians") ? Math.PI / 180 : 1;
                 for (let i = 0; i < this.v.length; i++) {
-                    const currentVertex = this.v[i]
-                    const nextVertex = this.v[(i + 1) % this.v.length];
-                    let side = nextVertex.copy().sub(currentVertex)
-                    let direction1 = side.copy();
-                    direction1.rotate(90 * rotationFactor);
+                    const v1 = this.v[i]
+                    const v2 = this.v[(i + 1) % this.v.length];
+                    const side = { x: v2.x - v1.x, y: v2.y - v1.y }
+                    const rt = _rotate(0,0,side.x,side.y,90)
                     let linea = {
-                        point1 : {x: currentVertex.x + side.x / 2, y: currentVertex.y + side.y / 2},
-                        point2 : {x: currentVertex.x + side.x / 2 + direction1.x, y: currentVertex.y + side.y / 2 + direction1.y},
+                        point1 : {x: v1.x + side.x / 2, y: v1.y + side.y / 2},
+                        point2 : {x: v1.x + side.x / 2 + rt.x, y: v1.y + side.y / 2 + rt.y},
                     }
                     const isLeft = (a, b, c) => {
                         return (b.x - a.x)*(c.y - a.y) - (b.y - a.y)*(c.x - a.x) > 0.01;
                     }
                     let d1 = 0;
-                    for (let int of F.polygon.intersect(linea)) {if (isLeft(currentVertex,nextVertex,int)) d1++;}
+                    for (let int of F.polygon.intersect(linea)) {if (isLeft(v1,v2,int)) d1++;}
                     this.dir[i] = (d1 % 2 === 0) ? true : false;
                 }
             }
+        }
+
+        trim (factor) {
+            let v = [...this.v], m = [...this.m], dir = [...this.dir];
+            if (this.v.length > 10 && factor >= 0.2) {
+                let numTrim = ~~((1 - factor) * this.v.length);
+                let sp = ~~this.v.length/2 - ~~numTrim/2;
+                v.splice(sp, numTrim)
+                m.splice(sp, numTrim)
+                dir.splice(sp, numTrim)
+            }
+            return {v: v, m: m, dir: dir}
         }
 
         /**
@@ -2445,47 +2460,48 @@
             const newMods = [];
             const newDirs = [];
             // Determine the length of vertices to process based on growth factor
-            let verticesToProcess = (growthFactor >= 0.2 && this.v.length >= 10) ? Math.floor(growthFactor * this.v.length) : this.v.length;
+            let tr = this.trim(growthFactor)
             // Pre-compute values that do not change within the loop
-            const angleM = _r.angleMode()
-            _r.angleMode(_r.RADIANS)
             const modAdjustment = degrow ? -0.5 : 1;
             // Inline changeModifier to reduce function calls
             const changeModifier = (modifier) => {
                 const gaussianVariation = R.gaussian(0.5, 0.1);
                 return modifier + (gaussianVariation - 0.5) * 0.1;
             };
-            // Reusable vector objects
-            let direction = _r.createVector()
             // Loop through each vertex to calculate the new position based on growth
-            for (let i = 0; i < verticesToProcess; i++) {
-                const currentVertex = this.v[i];
-                const nextVertex = this.v[(i + 1) % verticesToProcess];
+            for (let i = 0; i < tr.v.length; i++) {
+                const currentVertex = tr.v[i];
+                const nextVertex = tr.v[(i + 1) % tr.v.length];
                 // Determine the growth modifier
-                let mod = (growthFactor === 0.1) ? (F.bleed_strength <= 0.1 ? 0.25 : 0.75) : this.m[i];
+                let mod = (growthFactor === 0.1) ? (F.bleed_strength <= 0.1 ? 0.25 : 0.75) : tr.m[i];
                 mod *= modAdjustment;
                 // Add the current vertex and its modified value
                 newVerts.push(currentVertex);
                 newMods.push(changeModifier(mod));
-                // Calculate vertex bleed
-                let sidex = nextVertex.x - currentVertex.x, sidey = nextVertex.y - currentVertex.y;
-                let sideMagnitude = Math.sqrt(sidex * sidex + sidey * sidey);
-                direction.set(sidex,sidey).normalize();
+                
+                // Calculate side
+                let side = {x: nextVertex.x - currentVertex.x, y: nextVertex.y - currentVertex.y}
+
                 // Make sure that we always bleed in the selected direction
-                let dir = this.dir[i];
-                let bleed = (F.direction == "out") ? 90 : -90;
+                let dir = tr.dir[i];
+                let bleed = (F.direction == "out") ? -90 : 90;
                 let rotationDegrees = ((dir) ? bleed : -bleed) + (R.gaussian(0,0.4)) * 45;
-                direction.rotate(rotationDegrees * Math.PI / 180);
-                direction.mult(R.gaussian(0.5, 0.2) * R.random(0.6, 1.4) * sideMagnitude * mod);
+
+                // Calculate the middle vertex position
+                let lerp = R.constrain(R.gaussian(0.5,0.2),0.1,0.9)
+                let newVertex = {x: currentVertex.x + side.x * lerp, y: currentVertex.y + side.y * lerp}
+
                 // Calculate the new vertex position
-                let newVertex = currentVertex.copy().lerp(nextVertex, R.constrain(R.gaussian(0.5,0.2),0.1,0.9))
-                newVertex.add(direction);
+                let mult = R.gaussian(0.5, 0.2) * R.random(0.6, 1.4) * mod;
+                let direction = _rotate(0,0,side.x,side.y,rotationDegrees)
+                newVertex.x += direction.x * mult
+                newVertex.y += direction.y * mult
+
                 // Add the new vertex and its modifier
                 newVerts.push(newVertex);
                 newMods.push(changeModifier(mod));
                 newDirs.push(dir,dir)
             }
-            _r.angleMode(angleM)
             return new FillPolygon (newVerts, newMods, this.midP, newDirs);
         }
 
@@ -2584,11 +2600,6 @@
             }
             Mix.masks[0].noErase();
         }
-    }
-
-    function _end() {
-        Mix.blend(false, true)
-        Mix.blend(false, true, true)
     }
 
 // =============================================================================

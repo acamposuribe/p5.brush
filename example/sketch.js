@@ -72,6 +72,8 @@ let y_values = []
 
 function setup () {
 
+    randomSeed(12323)
+    brush.seed(121233)
     C.createCanvas()
     background("#e2e7dc")
     angleMode(RADIANS)
@@ -83,7 +85,6 @@ function setup () {
         y_values[i] = random(width)
     }
     
-    brush.load()
     
     /*
     brush.field("seabed")
@@ -94,9 +95,12 @@ function setup () {
             brush.flowLine(30,60+i*10,195,0)
         i++
     }
-    
+    */
 
     brush.noStroke()
+
+    brush.gravity(0,height)
+
     brush.fill("black", 60)
     brush.bleed(0.3)
     brush.beginShape(0.5)
@@ -105,6 +109,7 @@ function setup () {
     brush.vertex(150,150)
     brush.vertex(50,150)
     brush.endShape(CLOSE)
+    
 
     brush.fill("blue", 60)
     brush.beginShape(0.5)
@@ -113,17 +118,17 @@ function setup () {
     brush.vertex(200,150)
     brush.vertex(100,150)
     brush.endShape(CLOSE)
-
-    */
+    brush.noFill()
+    
     
 }
 
 function draw() {
 
-    background("#e2e7dc")
+    //background("#e2e7dc")
     translate(-width/2,-height/2)
     strokeWeight(2)
-    //brush.fill("#ff2702",70)
+    brush.set("HB", "black", 1)
     brush.bleed(0.4)
     brush.beginShape(1)
         for (let i = 0; i < 6; i++) {

@@ -136,7 +136,7 @@ p5.brush.js provides a comprehensive API for creating complex drawings and effec
 |                                            | brush.clip()        |   |                                            | brush.vertex()      |
 |                                            | brush.noClip()      |   |                                            | brush.endShape()    |
 | [Stroke Operations](#stroke-operations)    | brush.set()         |   |                                            | brush.polygon()     |
-|                                            | brush.pick()        |   | [Configuration](#optional-configuration)   | brush.config()      |
+|                                            | brush.pick()        |   | [Configuration](#optional-configuration)   | brush.seed()        |
 |                                            | brush.stroke()      |   |                                            | brush.load()        |
 |                                            | brush.noStroke()    |   |                                            | brush.preload()     |
 |                                            | brush.strokeWeight()|   |                                            | brush.colorCache()  |
@@ -866,18 +866,15 @@ These three functions perform similarly to the p5.js beginShape(), vertex(), and
 
 This section covers functions for initializing the drawing system, preloading required assets, and configuring system behavior. By default, the library works without executing these functions, but you might want to configure them to your liking.
 
-- `brush.config(objct = {})`
-  - **Description**: Sets custom configuration for the drawing system. It allows the overriding of the default randomness source by specifying a custom function.
+- `brush.seed(seed)`
+  - **Description**: Sets a custom seed for deterministic drawing results.
   - **Parameters**: 
-    - `objct` (Object): Configuration object with properties. Default is `{}`.
-    - `objct.R` (Function): Optional custom random number generator function.
-  - **Example**: To use a deterministic random number generator, such as one from a generative art platform like fx(hash), you might configure your system as follows:
+    - `seed` (String | Number): A seed.
+  - **Example**: 
     ```javascript
-    brush.config({
-      R: () => $fx.random()
-    });
+    brush.seed('hello');
     ```
-    Replace `$fx.random()` with the actual function provided by the platform. By default, if `objct.R` is not provided, `p5.brush.js` uses p5's `random()` function, which allows for the use of `randomSeed()` to set the seed for randomness.
+    Replace `hello` with the actual seed.
 
 ---
 

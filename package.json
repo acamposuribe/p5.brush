@@ -1,6 +1,6 @@
 {
   "name": "p5.brush",
-  "version": "1.1",
+  "version": "1.1.0",
   "description": "Unlock custom brushes, natural fill effects and intuitive hatching in p5.js",
   "main": "src/index.js",
   "module": "src/index.js",
@@ -30,6 +30,7 @@
   },
   "homepage": "https://p5-brush.cargo.site/",
   "devDependencies": {
+    "@rollup/plugin-node-resolve": "^15.2.3",
     "@rollup/plugin-terser": "^0.4.4",
     "rollup": "^4.9.4",
     "rollup-plugin-cleanup": "^3.2.1"
