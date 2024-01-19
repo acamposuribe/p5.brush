@@ -36,7 +36,7 @@
  * @license
  * MIT License
  * 
- * Copyright (c) 2023 Alejandro Campos Uribe
+ * Copyright (c) 2023-2024 Alejandro Campos Uribe
  * 
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -149,13 +149,15 @@
  * and angle calculation.
  */
 
+    import { prng_alea } from 'esm-seedrandom';
+
     /**
      * The basic source of randomness, can be seeded for determinism.
      * @returns {number} A random number between 0 and 1.
      */
-    let rng = new Math.seedrandom(Math.random())
+    let rng = new prng_alea(Math.random())
     export function seed (s) {
-        rng = new Math.seedrandom(s)
+        rng = new prng_alea(s)
     }
 
     /**
@@ -2385,6 +2387,13 @@
             midx /= this.v.length, midy /= this.v.length; 
             return {x: midx, y: midy}
         }
+    }
+
+    function _rotate(cx, cy, x, y, angle) {
+        let cos = R.cos(angle), sin = R.sin(angle),
+        nx = (cos * (x - cx)) + (sin * (y - cy)) + cx,
+        ny = (cos * (y - cy)) - (sin * (x - cx)) + cy;
+        return { x: nx, y: ny };
     }
 
     /**

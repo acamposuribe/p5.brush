@@ -41,7 +41,7 @@ Alternatively, you can link to a `p5.brush.js` file hosted online. All versions 
 
 ```html
 <!-- Online version of p5.brush -->
-<script src="https://cdn.jsdelivr.net/npm/p5.brush@1.1/dist/p5.brush.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/p5.brush@1.1.1/dist/p5.brush.js"></script>
 ```
 
 ### Install with NPM and other modular-based apps

@@ -97,11 +97,14 @@ function setup () {
     }
     */
 
+    
+
     brush.noStroke()
 
     brush.gravity(0,height)
 
     brush.fill("black", 60)
+    
     brush.bleed(0.3)
     brush.beginShape(0.5)
     brush.vertex(50,50)
@@ -125,6 +128,7 @@ function setup () {
 
 function draw() {
 
+    /*
     //background("#e2e7dc")
     translate(-width/2,-height/2)
     strokeWeight(2)
@@ -140,6 +144,7 @@ function draw() {
     brush.endShape(CLOSE)
 
     noLoop()
+    */
 }
 
 function mouseDragged() {
