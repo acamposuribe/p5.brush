@@ -1,6 +1,6 @@
 /**
  * @fileoverview p5.brush - A comprehensive toolset for brush management in p5.js.
- * @version 1.1.1
+ * @version 1.1.2
  * @license MIT
  * @author Alejandro Campos Uribe
  * 
@@ -78,6 +78,7 @@
      * @type {boolean}
      */
     let _isReady = false;
+    let _isLoaded = false;
 
     /**
      * Flag to indicate if p5 is instanced or global mode.
@@ -97,13 +98,9 @@
         // Set the renderer to the specified canvas or to the window if no ID is given
         if (!canvasID && _isInstanced) canvasID = _inst;
         _r = (!canvasID) ? window.self : canvasID;
-        if (!_isReady) {
-            _isReady = true;
-            FF.create(); // Load flowfield system
-            scaleBrushes(_r.width / 250) // Adjust standard brushes to match canvas
-        }
         // Load color blending
         Mix.load(inst);
+        _isLoaded = true;
     }
 
     /**
@@ -135,7 +132,12 @@
      * Loads the system if it hasn't been loaded already.
      */
     function _ensureReady () {
-        if (!_isReady) load();
+        if (!_isReady) {
+            if (!_isLoaded) load();
+            FF.create(); // Load flowfield system
+            scaleBrushes(_r.width / 250) // Adjust standard brushes to match canvas
+            _isReady = true;
+        }
     }
 
 // =============================================================================
@@ -582,6 +584,8 @@
          */
         blend (_color = false, _isLast = false, webgl_mask = false) {
 
+            _ensureReady();
+
             // Select between the two options:
             this.isBlending = webgl_mask ? this.blending1 : this.blending2;
             this.currentColor = webgl_mask ? this.color1 : this.color2;
@@ -692,9 +696,11 @@
         p5p.registerMethod('post', () => Mix.blend(false, true, true));
     }
     if (typeof p5 !== "undefined") _registerMethods(p5.prototype);
+    
     export function instance (inst) {
         _isInstanced = true;
         _inst = inst;
+        _r = inst;
         _registerMethods(inst)
     }
 
@@ -731,7 +737,6 @@
      * @param {Function} funct - The function that generates the field values.
      */
     export function addField(name,funct) {
-        _ensureReady();
         FF.list.set(name,{gen: funct}); // Map the field name to its generator function
         FF.current = name; // Set the newly added field as the current one to be used
         FF.refresh(); // Refresh the field values using the generator function

@@ -78,7 +78,10 @@ If you plan to use p5 instance mode, you need to load p5.brush in a specific way
         brush.instance(p)
 
         p.setup = function() {
-          p.createCanvas(700, 410);
+          // Important to create the canvas in WEBGL mode
+          p.createCanvas(700, 410, p.WEBGL);
+          // Don't forget to load the library after canvas is created
+          brush.load()
         };
 
         p.draw = function() {
