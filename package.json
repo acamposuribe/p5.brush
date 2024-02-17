@@ -1,6 +1,6 @@
 {
   "name": "p5.brush",
-  "version": "1.1.1",
+  "version": "1.1.2",
   "description": "Unlock custom brushes, natural fill effects and intuitive hatching in p5.js",
   "main": "src/index.js",
   "module": "src/index.js",

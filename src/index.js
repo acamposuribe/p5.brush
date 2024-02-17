@@ -98,6 +98,7 @@
         // Set the renderer to the specified canvas or to the window if no ID is given
         if (!canvasID && _isInstanced) canvasID = _inst;
         _r = (!canvasID) ? window.self : canvasID;
+        
         // Load color blending
         Mix.load(inst);
         _isLoaded = true;
@@ -184,8 +185,7 @@
          * @returns {number} A random number within the specified range.
          */
         random(e = 0, r = 1) {
-            if (arguments.length === 1) {return this.map(rng(), 0, 1, 0, e); }
-            else {return this.map(rng(), 0, 1, e, r)}
+            return e + rng() * (r - e);
         },
 
         /**
@@ -205,8 +205,8 @@
          * @returns {number} A random number following a normal distribution.
          */
         gaussian(mean = 0, stdev = 1) {
-            const u = 1 - R.random();
-            const v = R.random();
+            const u = 1 - rng();
+            const v = rng();
             const z = Math.sqrt( -2.0 * Math.log( u ) ) * Math.cos( 2.0 * Math.PI * v );
             return z * stdev + mean;
         },
@@ -728,6 +728,7 @@
      * Deactivates the current vector field.
      */
     export function noField () {
+        _ensureReady();
         FF.isActive = false;
     }
 
