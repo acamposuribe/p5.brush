@@ -96,7 +96,9 @@ function setup () {
         i++
     }
     */
-
+   
+    brush.arc(100,100,50,0,PI/2)
+    brush.arc(100,100,45,PI/2,PI)
     
 
     brush.noStroke()

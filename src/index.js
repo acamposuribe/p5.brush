@@ -1,6 +1,6 @@
 /**
  * @fileoverview p5.brush - A comprehensive toolset for brush management in p5.js.
- * @version 1.1.2
+ * @version 1.1.3
  * @license MIT
  * @author Alejandro Campos Uribe
  * 
@@ -681,8 +681,8 @@
      */
     export function reBlend() {
         _r.push()
-        _r.set("marker","white",1)
-        _r.line(-10,-10,-5,-5)
+        set("marker","white",1)
+        line(-10,-10,-5,-5)
         _r.pop();
     }
 
@@ -2068,6 +2068,7 @@
      * @param {boolean} [r=false] - If true, applies a random factor to the radius for each segment.
      */
     export function circle(x,y,radius,r = false) {
+        _ensureReady();
         // Create a new Plot instance for a curve shape
         let p = new Plot("curve")
         // Calculate the length of the arc for each quarter of the circle
@@ -2089,6 +2090,22 @@
         // Fill / hatch / draw
         let o = [x - radius * R.sin(angle),y - radius * R.cos(-angle)]
         p.show(o[0],o[1],1)
+    }
+
+    export function arc(x,y,radius,start,end) {
+        _ensureReady();
+        // Create a new Plot instance for a curve shape
+        let p = new Plot("curve")
+        // Calculate start angle and end angle
+        let a1 = 270 - R.toDegrees(start), a2 = 270 - R.toDegrees(end);
+        // Calcualte length arc
+        let arcAngle = R.toDegrees(end - start);
+        let l = Math.PI * radius * arcAngle / 180;
+        // Add segments to plot
+        p.addSegment(a1, l, 1, true)
+        p.endPlot(a2, 1, true)
+        // Fill / hatch / draw
+        p.draw(x + radius * R.cos(- a1 - 90),y + radius * R.sin(- a1 - 90),1)
     }
     
     // Holds the array of vertices for the custom shape being defined. Each vertex includes position and optional pressure.
@@ -2121,6 +2138,7 @@
      * @param {string} [a] - An optional argument to close the shape if set to _r.CLOSE.
      */
     export function endShape(a) {
+        _ensureReady();
         if (a === _r.CLOSE) {
             _strokeArray.push(_strokeArray[0]); // Close the shape by connecting the last vertex to the first
             _strokeArray.push(_strokeArray[1]);
