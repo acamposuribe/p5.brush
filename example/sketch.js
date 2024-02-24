@@ -96,9 +96,6 @@ function setup () {
         i++
     }
     */
-   
-    brush.arc(100,100,50,0,PI/2)
-    brush.arc(100,100,45,PI/2,PI)
     
 
     brush.noStroke()
@@ -115,6 +112,7 @@ function setup () {
     brush.vertex(50,150)
     brush.endShape(CLOSE)
     
+    brush.reBlend()
 
     brush.fill("blue", 60)
     brush.beginShape(0.5)

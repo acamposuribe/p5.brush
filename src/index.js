@@ -680,10 +680,8 @@
      * This function forces marker-brushes and fills to be updated into the canvas
      */
     export function reBlend() {
-        _r.push()
-        set("marker","white",1)
-        line(-10,-10,-5,-5)
-        _r.pop();
+        Mix.blend(false, true)
+        Mix.blend(false, true, true)
     }
 
     /**
