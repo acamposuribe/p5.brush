@@ -372,7 +372,7 @@ Functions for managing brush behaviors and properties.
         spacing: 0.6,
         blend: true,
         pressure: {
-            type: "custom",
+            type: "standard",
             min_max: [1.35,1],
             curve: [0.35,0.25] // Values for the bell curve
         },
@@ -380,7 +380,7 @@ Functions for managing brush behaviors and properties.
            // in this example, the tip is composed of two squares, rotated 45 degrees
            // Always execute drawing functions within the _m buffer!
            _m.rotate(45), _m.rect(-1.5,-1.5,3,3), _m.rect(1,1,1,1);
-        }
+        },
         rotate: "natural",
     })
     ```
