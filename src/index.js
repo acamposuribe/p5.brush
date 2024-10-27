@@ -449,14 +449,14 @@
         /**
          * Captures the current translation values from the renderer's transformation matrix.
          * 
-         * Assumes that the renderer's transformation matrix (`uMVMatrix`) is a 4x4 matrix
+         * Assumes that the renderer's transformation matrix (`uModelMatrix`) is a 4x4 matrix
          * where the translation components are in the 13th (index 12) and 14th (index 13) positions.
          * 
          * @returns {number[]} An array containing the x (horizontal) and y (vertical) translation values.
          */
         trans () {
             // Access the renderer's current model-view matrix and extract the translation components
-            this.translation = [_r._renderer.uMVMatrix.mat4[12],_r._renderer.uMVMatrix.mat4[13]];
+            this.translation = [_r._renderer.uModelMatrix.mat4[12],_r._renderer.uModelMatrix.mat4[13]];
             // Return the translation components as a two-element array
             return this.translation
         }

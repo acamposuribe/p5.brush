@@ -66,33 +66,35 @@ If you are using p5 and p5.brush as modules, you will need to use instance mode.
 By default, all p5.js functions are in the global namespace (i.e. bound to the window object), meaning you can call them simply ellipse(), fill(), etc. However, this might be inconvenient if you are mixing with other JS libraries (synchronously or asynchronously) or writing long programs of your own. p5.js currently supports a way around this problem called "instance mode". In instance mode, all p5 functions are bound up in a single variable instead of polluting your global namespace. 
 
 If you plan to use p5 instance mode, you need to load p5.brush in a specific way:
-    
-    - Use `brush.instance()` before the setup and draw functions, pointing to your sketch id and the p5 function argument
-    Example:
-    ```javascript
-      let sketch = function(p) {
-        let x = 100;
-        let y = 100;
 
-        // Register instance method here, sending your function arg p
-        brush.instance(p)
+- Use `brush.instance()` before the setup and draw functions, pointing to your sketch id and the p5 function argument
 
-        p.setup = function() {
-          // Important to create the canvas in WEBGL mode
-          p.createCanvas(700, 410, p.WEBGL);
-          // Don't forget to load the library after canvas is created
-          brush.load()
-        };
+  Example:
 
-        p.draw = function() {
-          p.background(0);
-          brush.fill("red", 75);
-          brush.rect(x, y, 50, 50);
-        };
-      };
+  ```javascript
+  let sketch = function(p) {
+    let x = 100;
+    let y = 100;
 
-      let myp5 = new p5(sketch);
-      ```
+    // Register instance method here, sending your function arg p
+    brush.instance(p)
+
+    p.setup = function() {
+      // Important to create the canvas in WEBGL mode
+      p.createCanvas(700, 410, p.WEBGL);
+      // Don't forget to load the library after canvas is created
+      brush.load()
+    };
+
+    p.draw = function() {
+      p.background(0);
+      brush.fill("red", 75);
+      brush.rect(x, y, 50, 50);
+    };
+  };
+
+  let myp5 = new p5(sketch);
+  ```
 
 ---
 
@@ -372,7 +374,7 @@ Functions for managing brush behaviors and properties.
         spacing: 0.6,
         blend: true,
         pressure: {
-            type: "custom",
+            type: "standard",
             min_max: [1.35,1],
             curve: [0.35,0.25] // Values for the bell curve
         },
@@ -380,7 +382,7 @@ Functions for managing brush behaviors and properties.
            // in this example, the tip is composed of two squares, rotated 45 degrees
            // Always execute drawing functions within the _m buffer!
            _m.rotate(45), _m.rect(-1.5,-1.5,3,3), _m.rect(1,1,1,1);
-        }
+        },
         rotate: "natural",
     })
     ```
