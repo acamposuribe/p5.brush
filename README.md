@@ -888,7 +888,7 @@ This section covers functions for initializing the drawing system, preloading re
   - **Example (load p5.brush on buffer)**: 
     ```javascript
       function setup() {
-        createCanvas(400,400,WEBGL)
+        createCanvas(400, 400, WEBGL)
         // Draw stuff to global canvas
         brush.set("HB","black",1)
         brush.rect(40,40,150,100)
@@ -896,7 +896,7 @@ This section covers functions for initializing the drawing system, preloading re
         brush.reDraw()
 
         // Create buffer
-        let buffer = createGraphics(200,300)
+        let buffer = createGraphics(200, 300, WEBGL)
         brush.load(buffer)
         brush.set("HB","black",1)
         brush.rect(40,40,150,100)

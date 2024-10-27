@@ -2096,13 +2096,13 @@
         let p = new Plot("curve")
         // Calculate start angle and end angle
         let a1 = 270 - R.toDegrees(start), a2 = 270 - R.toDegrees(end);
-        // Calcualte length arc
+        // Calculate length arc
         let arcAngle = R.toDegrees(end - start);
         let l = Math.PI * radius * arcAngle / 180;
         // Add segments to plot
         p.addSegment(a1, l, 1, true)
         p.endPlot(a2, 1, true)
-        // Fill / hatch / draw
+        // Draw from starting point
         p.draw(x + radius * R.cos(- a1 - 90),y + radius * R.sin(- a1 - 90),1)
     }
     
