@@ -23,7 +23,7 @@ Embrace the full potential of your creative coding projects with p5.brush.js, wh
 
 ## Installation
 
-Important note: p5.brush requires p5.js 1.11 or higher
+Important note: p5.brush requires p5.js 1.11 or higher. 
 
 ### Local Installation
 
