@@ -23,6 +23,8 @@ Embrace the full potential of your creative coding projects with p5.brush.js, wh
 
 ## Installation
 
+Important note: p5.brush requires p5.js 1.11 or higher
+
 ### Local Installation
 
 To set up your project, add `p5.min.js` `p5.brush.js` to your HTML file. You can download the last version of the p5.brush.js library in the [dist](/dist) folder.
@@ -41,7 +43,7 @@ Alternatively, you can link to a `p5.brush.js` file hosted online. All versions 
 
 ```html
 <!-- Online version of p5.brush -->
-<script src="https://cdn.jsdelivr.net/npm/p5.brush@1.1.1/dist/p5.brush.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/p5.brush"></script>
 ```
 
 ### Install with NPM and other modular-based apps
