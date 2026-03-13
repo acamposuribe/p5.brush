@@ -117,7 +117,7 @@ p5.brush.js provides a comprehensive API for creating complex drawings and effec
 | [Utility](#utility-functions)              |                     |   | [Hatch Operations](#hatch-operations)      | brush.hatch()       |
 |                                            |                     |   |                                            | brush.noHatch()     |
 | [Vector-Fields](#vector-fields)            | brush.field()       |   |                                            | brush.hatchStyle()  |
-|                                            | brush.noField()     |   | [Geometry](#geometry)                      | brush.line()        |
+|                                            | brush.noField()     |   | [Primitives](#primitives)                  | brush.line()        |
 |                                            | brush.refreshField()|   |                                            | brush.flowLine()    |
 |                                            | brush.listFields()  |   |                                            | brush.beginStroke() |
 |                                            | brush.addField()    |   |                                            | brush.move()        |
@@ -589,7 +589,7 @@ In essence, the hatching system activates hatches for subsequent shapes, similar
 ---
 
 <sub>[back to table](#table-of-functions)</sub>
-### Geometry
+### Primitives
 
 This section details the functions for creating various shapes and strokes with the set brush, fill, and hatch parameters.
 
