@@ -178,10 +178,10 @@ export function createHatch(polygons) {
     let continuousLine = j > 0 && options.continuous;
     for (let i = 0; i < dd.length - 1; i += 2) {
       if (r !== 0) {
-        dd[i].x += r * dist * rr(-10, 10);
-        dd[i].y += r * dist * rr(-10, 10);
-        dd[i + 1].x += r * dist * rr(-10, 10);
-        dd[i + 1].y += r * dist * rr(-10, 10);
+        dd[i].x += r * dist * rr(-1, 1);
+        dd[i].y += r * dist * rr(-1, 1);
+        dd[i + 1].x += r * dist * rr(-1, 1);
+        dd[i + 1].y += r * dist * rr(-1, 1);
       }
       line(dd[i].x, dd[i].y, dd[i + 1].x, dd[i + 1].y);
       if (continuousLine) {

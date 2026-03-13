@@ -58,7 +58,7 @@
  */
 
 // Randomness and other auxiliary functions
-export { weightedRand as wRand, seed, noiseSeed } from "./core/utils.js";
+export { weightedRand as wRand } from "./core/utils.js";
 
 // Color Blending
 export { load, instance } from "./core/color.js";
@@ -124,6 +124,7 @@ export { fill, noFill, fillTexture, fillBleed } from "./fill/fill.js";
 // p5 addon registration
 import { Mix } from "./core/color.js";
 import { push as brushPush, pop as brushPop } from "./core/save.js";
+import { seed as brushSeed, noiseSeed as brushNoiseSeed } from "./core/utils.js";
 
 function registerAddon(_p5, fn, lifecycles) {
   lifecycles.postsetup = () => Mix.blend(false, true);
@@ -131,6 +132,8 @@ function registerAddon(_p5, fn, lifecycles) {
 
   const _push = fn.push;
   const _pop = fn.pop;
+  const _randomSeed = fn.randomSeed;
+  const _noiseSeed = fn.noiseSeed;
 
   fn.push = function () {
     _push.call(this);
@@ -140,6 +143,16 @@ function registerAddon(_p5, fn, lifecycles) {
   fn.pop = function () {
     _pop.call(this);
     brushPop();
+  };
+
+  fn.randomSeed = function (s) {
+    _randomSeed.call(this, s);
+    brushSeed(s);
+  };
+
+  fn.noiseSeed = function (s) {
+    _noiseSeed.call(this, s);
+    brushNoiseSeed(s);
   };
 }
 

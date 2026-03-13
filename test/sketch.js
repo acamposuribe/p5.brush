@@ -138,8 +138,7 @@ function runErrorTests() {
 
 async function setup() {
   randomSeed(42);
-  brush.seed(42);
-  brush.noiseSeed(42);
+  noiseSeed(42);
 
   createCanvas(CANVAS_W, CANVAS_H, WEBGL);
   brush.load();

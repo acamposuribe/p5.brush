@@ -198,4 +198,10 @@ export function glDraw() {
 
   // Reset queue (no deallocation)
   circleCount = 0;
+
+  // We called gl.useProgram() directly, bypassing p5's _curShader tracking.
+  // Reset it to null so p5 is forced to re-activate its own shader next time
+  // it draws — otherwise p5 skips gl.useProgram() and sets uniforms on the
+  // wrong active program, causing "location is not from the associated program".
+  Mix.glMask._renderer._curShader = null;
 }

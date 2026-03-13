@@ -130,12 +130,11 @@ p5.brush.js provides a comprehensive API for creating complex drawings and effec
 |                                            | brush.pick()        |   |                                            | brush.vertex()      |
 |                                            | brush.stroke()      |   |                                            | brush.endShape()    |
 |                                            | brush.noStroke()    |   |                                            | brush.polygon()     |
-|                                            | brush.strokeWeight()|   | [Configuration](#optional-configuration)   | brush.seed()        |
-| [Fill Operations](#fill-operations)        | brush.fill()        |   |                                            | brush.noiseSeed()   |
-|                                            | brush.noFill()      |   |                                            | brush.load()        |
-|                                            | brush.fillBleed()   |   |                                            | brush.preload()     |
-|                                            | brush.fillTexture() |   |                                            | brush.scaleBrushes()|
-|                                            |                     |   |                                            | brush.instance()    |
+|                                            | brush.strokeWeight()|   | [Configuration](#optional-configuration)   | brush.load()        |
+| [Fill Operations](#fill-operations)        | brush.fill()        |   |                                            | brush.preload()     |
+|                                            | brush.noFill()      |   |                                            | brush.scaleBrushes()|
+|                                            | brush.fillBleed()   |   |                                            | brush.instance()    |
+|                                            | brush.fillTexture() |   |                                            |                     |
 |                                            |                     |   | [Classes](#exposed-classes)                | brush.Polygon()     |
 |                                            |                     |   |                                            | brush.Plot()        |
 |                                            |                     |   |                                            | brush.Position()    |
@@ -463,7 +462,7 @@ The Fill Management section focuses on managing fill properties for shapes, enab
     - `a` (Number|String|p5.Color): The red component of the color or grayscale value, a CSS color string, or a p5.Color object.
     - `b` (Number): Optional. The green component of the color or grayscale opacity if two arguments are used.
     - `c` (Number): Optional. The blue component of the color.
-    - `d` (Number): Optional. The opacity of the color.
+    - `d` (Number): Optional. The opacity of the color, 0 - 255.
   - **Usage**:
     ```javascript
     // Set the fill color using RGB values and opacity
@@ -804,27 +803,7 @@ These three functions perform similarly to the p5.js beginShape(), vertex(), and
 
 This section covers functions for initializing the drawing system, preloading required assets, and configuring system behavior. By default, the library works without executing these functions, but you might want to configure them to your liking.
 
-- `brush.seed(seed)`
-  - **Description**: Set a custom seed for deterministic drawing results.
-  - **Parameters**:
-    - `seed` (String | Number): A seed value.
-  - **Example**:
-    ```javascript
-    brush.seed('hello');
-    ```
-
----
-
-- `brush.noiseSeed(seed)`
-  - **Description**: Set the seed for the Perlin noise used internally by the library. Useful for getting reproducible organic texture in brush strokes.
-  - **Parameters**:
-    - `seed` (Number): Any integer.
-  - **Example**:
-    ```javascript
-    brush.noiseSeed(99);
-    ```
-
----
+> **Seeding**: p5.brush automatically hooks into p5's `randomSeed()` and `noiseSeed()`. Calling either of those functions seeds both p5 and the library simultaneously — no separate `brush.seed()` call is needed.
 
 - `brush.load(buffer)`
   - **Description**: Initialize the library on the current canvas. If a `p5.Graphics` buffer is passed, the library will target that buffer instead. Call `brush.load()` again (with no argument) to switch back to the main canvas.

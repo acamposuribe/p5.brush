@@ -12,7 +12,7 @@
  * techniques for simulating watercolor paints.
  */
 
-import { Renderer, Mix, State, Cwidth, Cheight } from "../core/color.js";
+import { Renderer, Mix, State, Cwidth, Cheight, Density } from "../core/color.js";
 import { drawPolygon, circle } from "../core/mask.js";
 import {
   constrain,
@@ -36,7 +36,7 @@ import { Plot } from "../core/plot.js";
  * Global fill state settings.
  */
 State.fill = {
-  opacity: 60,
+  opacity: 150,
   bleed_strength: 0.07,
   texture_strength: 0.8,
   border_strength: 0.5,
@@ -62,7 +62,7 @@ const FillSetState = (state) => {
  * @param {number} [d] - The opacity.
  */
 export function fill(a, b, c, d) {
-  State.fill.opacity = (arguments.length < 4 ? b : d) || 60;
+  State.fill.opacity = (arguments.length < 4 ? b : d) || 150;
   State.fill.color =
     arguments.length < 3 ? Renderer.color(a) : Renderer.color(a, b, c);
   State.fill.isActive = true;
@@ -174,7 +174,7 @@ export function createFill(polygon) {
   const center = _center(shifted);
   new FillPoly(shifted, modifiers, center, [], true).fill(
     State.fill.color,
-    map(State.fill.opacity, 0, 100, 0, 1, true),
+    map(State.fill.opacity, 0, 255, 0, 1, true),
     State.fill.texture_strength,
   );
 }
@@ -376,10 +376,10 @@ class FillPoly {
 
     Mix.ctx.save();
     Mix.ctx.setTransform(
-      Matrix.a(), Matrix.b(),
-      Matrix.c(), Matrix.d(),
-      Matrix.x() + Cwidth / 2,
-      Matrix.y() + Cheight / 2,
+      Density * Matrix.a(), Density * Matrix.b(),
+      Density * Matrix.c(), Density * Matrix.d(),
+      Density * (Matrix.x() + Cwidth / 2),
+      Density * (Matrix.y() + Cheight / 2),
     );
 
     Mix.ctx.strokeStyle = `rgb(${color._getRed()} ${color._getGreen()} ${color._getBlue()} / ${
