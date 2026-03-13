@@ -1,0 +1,302 @@
+# p5.brush
+
+p5.brush is a p5.js library for natural drawing — pencils, charcoal, markers, watercolor fills, hatch patterns, and vector fields. Requires **p5.js 2.x** and a **WEBGL canvas**.
+
+## Installation
+
+```html
+<script src="https://cdn.jsdelivr.net/npm/p5@2.1.1/lib/p5.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/p5.brush"></script>
+```
+
+```js
+// ESM
+import * as brush from 'p5.brush'
+```
+
+## Setup
+
+The canvas **must use WEBGL mode**. Call `brush.load()` after `createCanvas()`.
+
+```js
+async function setup() {
+  createCanvas(600, 600, WEBGL)
+  brush.load()
+  brush.scaleBrushes(1.5) // optional: scale all default brushes
+}
+```
+
+In **instance mode**, call `brush.instance(p)` before setup:
+
+```js
+const sketch = (p) => {
+  brush.instance(p)
+  p.setup = () => { p.createCanvas(600, 600, p.WEBGL); brush.load() }
+}
+new p5(sketch)
+```
+
+## p5 Integration
+
+p5.brush hooks into p5 automatically:
+- `push()` / `pop()` — saves and restores brush stroke, fill, and hatch state
+- `translate()`, `rotate()`, `scale()` — all p5 transforms apply to brush strokes
+- `randomSeed(n)` — seeds both p5 and the brush library
+- `noiseSeed(n)` — seeds both p5 noise and the brush library
+
+No separate `brush.push()`, `brush.translate()`, or `brush.seed()` calls are needed.
+
+---
+
+## API Reference
+
+### Configuration
+
+- `brush.load(buffer?)` — Initialize on the current canvas, or on a `p5.Graphics` buffer. Call again with no args to return to the main canvas.
+- `brush.scaleBrushes(scale)` — Multiply all default brush sizes by `scale`. Call once in setup.
+- `brush.instance(p)` — Use when p5 is in instance mode. Call before setup/draw.
+- `brush.preload()` — Legacy. Not needed in v2.
+
+---
+
+### Stroke Operations
+
+- `brush.set(name, color, weight)` — Set brush name, color (hex string or p5.Color), and weight multiplier. Enables stroke.
+- `brush.pick(name)` — Change brush type only, keeping current color and weight.
+- `brush.stroke(r, g, b)` or `brush.stroke(color)` — Set stroke color. Enables stroke.
+- `brush.strokeWeight(weight)` — Set weight multiplier only.
+- `brush.noStroke()` — Disable stroke for subsequent shapes.
+
+---
+
+### Fill Operations
+
+Fill simulates watercolor — soft edges, bleed, texture layering.
+
+- `brush.fill(color, opacity)` or `brush.fill(r, g, b, opacity)` — Set fill color. Opacity is 0–255. Enables fill.
+- `brush.noFill()` — Disable fill.
+- `brush.fillBleed(strength, direction?)` — Edge bleed amount, 0–1. Direction: `"out"` or `"in"`.
+- `brush.fillTexture(textureStrength, borderIntensity)` — Texture and border, both 0–1.
+
+---
+
+### Hatch Operations
+
+Hatching draws parallel lines inside shapes. Activate before drawing a shape, disable after.
+
+- `brush.hatch(dist, angle, options?)` — Enable hatching. `dist` = spacing in canvas units, `angle` = line angle (respects `angleMode()`). Options: `{rand: 0–1, continuous: bool, gradient: 0–1}`.
+- `brush.noHatch()` — Disable hatching.
+- `brush.hatchStyle(name, color, weight)` — Set brush used for hatching (independent of stroke brush).
+- `brush.hatchArray(polygons)` — Apply current hatch style directly to a `brush.Polygon` or array of polygons.
+
+---
+
+### Vector Fields
+
+When a field is active, `flowLine()` and shape outlines follow its flow.
+
+Built-in fields: `"hand"`, `"curved"`, `"zigzag"`, `"waves"`, `"seabed"`, `"spiral"`, `"columns"`.
+
+- `brush.field(name)` — Activate a named vector field.
+- `brush.noField()` — Deactivate the current field.
+- `brush.wiggle(intensity)` — Shorthand for activating `"hand"` field with a given wobble strength (e.g. 1–10).
+- `brush.listFields()` — Returns array of all field names.
+- `brush.refreshField(t)` — Update field values using its time-dependent generator. Call in draw loop.
+- `brush.addField(name, fn)` — Create a custom field. `fn(t, field)` fills a 2D angle grid and returns it.
+
+```js
+brush.addField("diagonal", (t, field) => {
+  for (let col = 0; col < field.length; col++)
+    for (let row = 0; row < field[0].length; row++)
+      field[col][row] = 45 + t * 10
+  return field
+})
+brush.field("diagonal")
+```
+
+---
+
+### Primitives
+
+#### Lines (stroke only, no fill/hatch)
+
+- `brush.line(x1, y1, x2, y2)` — Straight line with current brush.
+- `brush.flowLine(x, y, length, dir)` — Line that follows the active vector field. `dir` is initial angle.
+- `brush.spline(points, curvature?)` — Smooth curve through `[[x,y], [x,y,pressure], ...]`. Curvature 0–1.
+
+#### Manual strokes (stroke only)
+
+```js
+brush.beginStroke("curve", x, y)   // or "segments"
+brush.move(angle, length, pressure)
+brush.move(angle, length, pressure)
+brush.endStroke(angle, pressure)
+```
+
+#### Shapes (affected by stroke + fill + hatch)
+
+- `brush.rect(x, y, w, h, mode?)` — Rectangle. `mode`: `"corner"` (default) or `"center"`.
+- `brush.circle(x, y, radius, r?)` — Circle outline. `r` = hand-drawn irregularity (0–1). **Fill is not applied to circles** — use `brush.polygon()` for filled circles.
+- `brush.arc(x, y, radius, start, end)` — Arc in radians. Stroke only.
+- `brush.polygon(pointsArray)` — Polygon from `[[x,y], ...]`. Not affected by vector fields.
+- `brush.beginShape(curvature?)` / `brush.vertex(x, y, pressure?)` / `brush.endShape(close?)` — Custom shape.
+
+---
+
+### Brush Management
+
+- `brush.box()` — Returns array of all brush names.
+- `brush.clip([x1, y1, x2, y2])` — Clip all strokes to a rectangle.
+- `brush.noClip()` — Remove clipping.
+- `brush.add(name, params)` — Define a custom brush.
+
+**`brush.add()` params:**
+
+| Property | Description |
+|----------|-------------|
+| `type` | `"default"`, `"spray"`, `"marker"`, `"custom"`, `"image"` |
+| `weight` | Base thickness in canvas units |
+| `scatter` | Sideways spread |
+| `sharpness` | Edge softness 0–1 (`"default"` type only) |
+| `grain` | Texture density (`"default"` type only) |
+| `opacity` | Mark opacity 0–255 |
+| `spacing` | Stamp gap along stroke (1 = no overlap) |
+| `blend` | Paint mixing on/off |
+| `pressure` | `[start, end]` or `[start, mid, end]` or `(t) => value` |
+| `tip` | `"custom"` type: `(_m) => { _m.rect(...) }` |
+| `image` | `"image"` type: `{ src: "./tip.jpg" }` |
+| `rotate` | `"none"`, `"natural"`, `"random"` |
+
+Image brushes return a Promise — use `await brush.add(...)` inside `async setup()`.
+
+```js
+// Custom tip
+brush.add("diamond", {
+  type: "custom",
+  weight: 5, scatter: 0.08, opacity: 23, spacing: 0.6,
+  blend: true, pressure: [0.5, 1.5, 0.5],
+  tip: (_m) => { _m.rotate(45); _m.rect(-1.5, -1.5, 3, 3) },
+  rotate: "natural"
+})
+
+// Image tip (must await)
+await brush.add("photo", {
+  type: "image",
+  weight: 10, scatter: 2, opacity: 30, spacing: 1.5,
+  blend: true, pressure: [1, 0.5],
+  image: { src: "./tip.jpg" },
+  rotate: "random"
+})
+```
+
+---
+
+### Exposed Classes
+
+#### `brush.Polygon(pointsArray)`
+
+```js
+let p = new brush.Polygon([[x1,y1],[x2,y2],[x3,y3]])
+p.draw(brushName, color, weight)
+p.fill(color, opacity, bleed, texture)
+p.hatch(distance, angle, options)
+p.intersect(line)  // returns [{x,y}, ...]
+// Attributes: p.vertices, p.sides
+```
+
+#### `brush.Plot(type)`
+
+For constructing custom stroke paths programmatically.
+
+```js
+let plot = new brush.Plot("curve")
+plot.addSegment(angle, length, pressure)
+plot.endPlot(angle, pressure)
+plot.draw(x, y)   // draws with current stroke state
+plot.fill(x, y)   // fills with current fill state
+plot.hatch(x, y)  // hatches with current hatch state
+plot.rotate(angle)
+plot.genPol(x, y) // returns a Polygon
+```
+
+#### `brush.Position(x, y)`
+
+Point that can move through a vector field.
+
+```js
+let pos = new brush.Position(x, y)
+pos.moveTo(length, dir, stepLength, isFlow)
+pos.plotTo(plot, length, stepLength, scale)
+```
+
+---
+
+## Common Patterns
+
+### Basic sketch
+
+```js
+async function setup() {
+  createCanvas(600, 600, WEBGL)
+  brush.load()
+  brush.scaleBrushes(2)
+  angleMode(DEGREES)
+  background("#fffceb")
+}
+
+function draw() {
+  translate(-width/2, -height/2) // shift origin to top-left in WEBGL
+
+  brush.set("HB", "#222", 1)
+  brush.line(50, 50, 550, 550)
+
+  brush.fill("#003c32", 120)
+  brush.fillBleed(0.15)
+  brush.noStroke()
+  brush.rect(100, 100, 200, 200, "center")
+}
+```
+
+### Vector field + flowLine
+
+```js
+brush.field("waves")
+brush.set("charcoal", "white", 1)
+for (let i = 0; i < 40; i++)
+  brush.flowLine(random(width), random(height), 120, random(360))
+brush.noField()
+```
+
+### Hatch inside a shape
+
+```js
+brush.hatchStyle("HB", "#333", 1)
+brush.hatch(8, 45, { rand: 0.05 })
+brush.noStroke()
+brush.polygon([[100,100],[300,100],[300,300],[100,300]])
+brush.noHatch()
+```
+
+### push/pop with transforms
+
+```js
+push()
+translate(300, 300)
+rotate(45)
+brush.set("marker", "red", 1)
+brush.rect(0, 0, 100, 100, "center")
+pop()
+```
+
+---
+
+## Key Gotchas
+
+- Canvas **must be WEBGL** — `createCanvas(w, h, WEBGL)`.
+- In WEBGL mode the origin is at the center. Use `translate(-width/2, -height/2)` at the start of `draw()` to work in top-left coordinates.
+- `brush.circle()` draws a stroke outline only — fill is not applied. Use `brush.polygon()` with many points for a filled circle.
+- `brush.load()` must be called after `createCanvas()`, not before.
+- For image brushes, `setup()` must be `async` and you must `await brush.add(...)`.
+- `randomSeed()` and `noiseSeed()` seed the library automatically — no separate brush seed call needed.
+- `brush.rect()` mode uses strings: `"corner"` or `"center"` — not p5 constants.
+- Fill opacity is 0–255, not 0–100.
