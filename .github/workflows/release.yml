@@ -25,7 +25,7 @@ jobs:
 
       - name: create declarations
         continue-on-error: false
-        run: npm run build:types
+        run: npm run build
 
   # publish: 
   #   name: publish new release
