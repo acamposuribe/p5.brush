@@ -1,0 +1,228 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>p5.brush - Transform Test</title>
+    <script src="https://cdn.jsdelivr.net/npm/p5@2.1.1/lib/p5.min.js"></script>
+    <script src="../dist/p5.brush.js"></script>
+    <style>
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+      body {
+        background: #ccc;
+        font-family: monospace;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        padding: 20px;
+        gap: 10px;
+      }
+      h1 {
+        font-size: 13px;
+        color: #333;
+        letter-spacing: 0.05em;
+      }
+      p {
+        font-size: 11px;
+        color: #555;
+        max-width: 760px;
+        text-align: center;
+      }
+      canvas {
+        display: block;
+        box-shadow: 0 2px 16px rgba(0, 0, 0, 0.25);
+      }
+    </style>
+  </head>
+  <body>
+    <h1>TRANSFORM TEST - p5.brush</h1>
+    <p>
+      Red = native p5 lines/rect at the exact same coordinates as brush marks —
+      they must align perfectly.<br />
+      Col 1: <b>translate(+80, -40)</b> &nbsp;|&nbsp; Col 2:
+      <b>rotate(PI/5)</b> &nbsp;|&nbsp; Col 3: <b>scale(1.8)</b><br />
+      Row 1: strokes &nbsp;|&nbsp; Row 2: fills
+    </p>
+
+    <script>
+      // Canvas / grid layout
+      const CW = 760,
+        CH = 600;
+      const COLS = 3,
+        ROWS = 2;
+      const CellW = CW / COLS; // 253
+      const CellH = CH / ROWS; // 300
+      const cx = (c) => c * CellW + CellW / 2;
+      const cy = (r) => r * CellH + CellH / 2;
+
+      // Colours
+      const BLUE = "#1a3a6a";
+      const RED = "#c0392b";
+      const OLIVE = "#4a6a1a";
+
+      // ----------------------------------------------------------------
+      // p5 sketch
+      // ----------------------------------------------------------------
+      function setup() {
+        createCanvas(CW, CH, WEBGL);
+        brush.load();
+        brush.scaleBrushes(2);
+        noLoop();
+      }
+
+      function draw() {
+        // Shift origin to top-left (standard for p5.brush in WEBGL mode)
+        translate(-CW / 2, -CH / 2);
+        background(248, 246, 238);
+
+        // ---- grid lines & column headers ----
+        stroke(190);
+        strokeWeight(1);
+        noFill();
+        for (let c = 1; c < COLS; c++) line(c * CellW, 0, c * CellW, CH);
+        line(0, CellH, CW, CellH);
+
+        // ================================================================
+        // HELPER: native p5 lines at the exact same coords as brushLines()
+        // ================================================================
+        function refLines() {
+          stroke(220, 30, 30);
+          strokeWeight(0.5);
+          noFill();
+          line(-60, 0, 60, 0);
+          line(0, -40, 0, 40);
+          line(-50, -20, 50, 20);
+          noStroke();
+        }
+
+        // ================================================================
+        // HELPER: native p5 rect + fill at the exact same coords as brushFill()
+        // ================================================================
+        function refRect(hex) {
+          // translucent fill matching brush opacity (~80/255 ≈ 31%)
+          const c = color(hex);
+          fill(red(c), green(c), blue(c), 80);
+          stroke(220, 30, 30);
+          strokeWeight(2);
+          rect(-55, -40, 110, 80);
+          noFill();
+          noStroke();
+        }
+
+        // ================================================================
+        // HELPER: draw the same brush stroke pattern at local (0,0)
+        // ================================================================
+        function brushLines(color) {
+          brush.set("HB", color, 1.2);
+          brush.line(-60, 0, 60, 0); // horizontal line through origin
+          brush.line(0, -40, 0, 40); // vertical line through origin
+          brush.set("2B", color, 0.8);
+          brush.line(-50, -20, 50, 20); // diagonal
+        }
+
+        // ================================================================
+        // HELPER: draw a brush fill rect centred at (0,0)
+        // ================================================================
+        function brushFill(color) {
+          brush.noStroke();
+          brush.fill(color, 200);
+          brush.fillBleed(0.3);
+          brush.fillTexture(0.5, 0.4);
+          brush.rect(-55, -40, 110, 80, "corner");
+          brush.noFill();
+        }
+
+        const r0 = 0;
+        const dashLen = 3,
+          gapLen = 4,
+          unit = dashLen + gapLen;
+
+        // Col 0 — translate
+        push();
+        translate(cx(0), cy(r0));
+        stroke(180);
+        strokeWeight(0.5);
+        for (let d = -70; d < 70; d += unit)
+          line(d, 0, Math.min(d + dashLen, 70), 0);
+        for (let d = -60; d < 60; d += unit)
+          line(0, d, 0, Math.min(d + dashLen, 60));
+        push();
+        translate(80, -40);
+        refLines();
+        brushLines(BLUE);
+        pop();
+        pop();
+
+        // Col 1 — rotate
+        push();
+        translate(cx(1), cy(r0));
+        stroke(180);
+        strokeWeight(0.5);
+        for (let d = -70; d < 70; d += unit)
+          line(d, 0, Math.min(d + dashLen, 70), 0);
+        for (let d = -60; d < 60; d += unit)
+          line(0, d, 0, Math.min(d + dashLen, 60));
+        push();
+        rotate(Math.PI / 5);
+        refLines();
+        brushLines(RED);
+        pop();
+        pop();
+
+        // Col 2 — scale
+        push();
+        translate(cx(2), cy(r0));
+        stroke(180);
+        strokeWeight(0.5);
+        for (let d = -70; d < 70; d += unit)
+          line(d, 0, Math.min(d + dashLen, 70), 0);
+        for (let d = -60; d < 60; d += unit)
+          line(0, d, 0, Math.min(d + dashLen, 60));
+        push();
+        scale(1.8);
+        refLines();
+        brushLines(OLIVE);
+        pop();
+        pop();
+
+        // ================================================================
+        // ROW 1 — FILL TESTS
+        // ================================================================
+        const r1 = 1;
+
+        // Col 0 — translate
+        push();
+        translate(cx(0), cy(r1));
+        push();
+        translate(80, -40);
+        refRect(BLUE);
+        brushFill(BLUE);
+        pop();
+        pop();
+
+        // Col 1 — rotate
+        push();
+        translate(cx(1), cy(r1));
+        push();
+        rotate(Math.PI / 5);
+        refRect(RED);
+        brushFill(RED);
+        pop();
+        pop();
+
+        // Col 2 — scale
+        push();
+        translate(cx(2), cy(r1));
+        push();
+        scale(1.8);
+        refRect(OLIVE);
+        brushFill(OLIVE);
+        pop();
+        pop();
+      }
+    </script>
+  </body>
+</html>

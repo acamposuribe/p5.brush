@@ -2,13 +2,7 @@
 
 # p5.brush.js
 
-p5.brush.js is a versatile library for the p5.js ecosystem, tailored for artists, designers, and hobbyists who wish to explore natural textures in generative art. This library extends the drawing capabilities of p5.js by introducing a rich set of tools that allow for the creation of dynamic and customizable brushes, vector-fields, and fill modes.
-
-With p5.brush.js, you can easily configure and manage intricate drawing systems, inject life into your sketches with organic movements, and apply complex vector fields to control the flow and form of strokes. The library is designed with texture quality in mind, and may only be suitable for high-resolution artworks, not real-time interactive pieces.
-
-Whether you're looking to simulate natural media, create patterned backgrounds, or design intricate particle systems, p5.brush.js offers the functionalities to turn your vision into reality. The API is straightforward and modular, providing both high-level functions for quick setup and in-depth customization options for advanced users.
-
-Embrace the full potential of your creative coding projects with p5.brush.js, where every stroke is a brush with possibility.
+p5.brush.js adds natural drawing tools to p5.js — pencils, charcoal, markers, watercolor fills, hatch patterns, and vector fields that bend strokes organically. It's built for generative art and high-resolution printing.
 
 [Visit the library website here! (more examples soon)](https://p5-brush.cargo.site/)
 
@@ -23,7 +17,7 @@ Embrace the full potential of your creative coding projects with p5.brush.js, wh
 
 ## Installation
 
-Important note: p5.brush requires p5.js 1.11 or higher. 
+Important note: p5.brush requires p5.js 2.x or higher.
 
 ### Local Installation
 
@@ -65,38 +59,31 @@ If you are using p5 and p5.brush as modules, you will need to use instance mode.
 
 ### Note for p5 instance mode
 
-By default, all p5.js functions are in the global namespace (i.e. bound to the window object), meaning you can call them simply ellipse(), fill(), etc. However, this might be inconvenient if you are mixing with other JS libraries (synchronously or asynchronously) or writing long programs of your own. p5.js currently supports a way around this problem called "instance mode". In instance mode, all p5 functions are bound up in a single variable instead of polluting your global namespace. 
+In instance mode, p5 functions are scoped to a variable instead of the global namespace — useful when mixing with other libraries or using p5 as an ES module.
 
-If you plan to use p5 instance mode, you need to load p5.brush in a specific way:
+Call `brush.instance(p)` inside your sketch function before `setup` and `draw`. After that, all `brush.*` calls work normally without any `p.` prefix.
 
-- Use `brush.instance()` before the setup and draw functions, pointing to your sketch id and the p5 function argument
+```javascript
+const sketch = (p) => {
+  // Tell p5.brush which p5 instance to use
+  brush.instance(p);
 
-  Example:
-
-  ```javascript
-  let sketch = function(p) {
-    let x = 100;
-    let y = 100;
-
-    // Register instance method here, sending your function arg p
-    brush.instance(p)
-
-    p.setup = function() {
-      // Important to create the canvas in WEBGL mode
-      p.createCanvas(700, 410, p.WEBGL);
-      // Don't forget to load the library after canvas is created
-      brush.load()
-    };
-
-    p.draw = function() {
-      p.background(0);
-      brush.fill("red", 75);
-      brush.rect(x, y, 50, 50);
-    };
+  p.setup = () => {
+    // Canvas must be in WEBGL mode
+    p.createCanvas(700, 410, p.WEBGL);
+    // Initialize p5.brush after canvas is created
+    brush.load();
   };
 
-  let myp5 = new p5(sketch);
-  ```
+  p.draw = () => {
+    p.background(240);
+    brush.set("HB", "#333", 1);
+    brush.line(100, 100, 400, 300);
+  };
+};
+
+new p5(sketch);
+```
 
 ---
 
@@ -127,30 +114,29 @@ p5.brush.js provides a comprehensive API for creating complex drawings and effec
 
 |      Section                               |      Functions      |   | Section                                    |      Functions      |
 |--------------------------------------------|---------------------|---|--------------------------------------------|---------------------|
-| [Utility](#utility-functions)              | brush.push()        |   | [Hatch Operations](#hatch-operations)      | brush.hatch()       |
-|                                            | brush.pop()         |   |                                            | brush.noHatch()     |
-|                                            | brush.rotate()      |   |                                            | brush.setHatch()    |
-|                                            | brush.scale()       |   | [Geometry](#geometry)                      | brush.line()        |
-|                                            | brush.reDraw()      |   |                                            | brush.flowLine()    |
-|                                            | brush.reBlend()     |   |                                            | brush.beginStroke() |
-| [Vector-Fields](#vector-fields)            | brush.field()       |   |                                            | brush.segment()     |
-|                                            | brush.noField()     |   |                                            | brush.endStroke()   |
-|                                            | brush.refreshField()|   |                                            | brush.spline()      |
-|                                            | brush.listFields()  |   |                                            | brush.plot()        |
-|                                            | brush.addField()    |   |                                            | brush.rect()        |
-| [Brush Management](#brush-management)      | brush.box()         |   |                                            | brush.circle()      |
-|                                            | brush.add()         |   |                                            | brush.beginShape()  |
-|                                            | brush.clip()        |   |                                            | brush.vertex()      |
-|                                            | brush.noClip()      |   |                                            | brush.endShape()    |
-| [Stroke Operations](#stroke-operations)    | brush.set()         |   |                                            | brush.polygon()     |
-|                                            | brush.pick()        |   | [Configuration](#optional-configuration)   | brush.seed()        |
-|                                            | brush.stroke()      |   |                                            | brush.load()        |
-|                                            | brush.noStroke()    |   |                                            | brush.preload()     |
-|                                            | brush.strokeWeight()|   |                                            | brush.colorCache()  |
-| [Fill Operations](#fill-operations)        | brush.fill()        |   |                                            | brush.scaleBrushes()|
-|                                            | brush.noFill()      |   |                                            | brush.remove()      |
-|                                            | brush.bleed()       |   |                                            | brush.instance()    |
-|                                            | brush.fillTexture() |   | [Classes](#exposed-classes)                | brush.Polygon()     |
+| [Utility](#utility-functions)              |                     |   | [Hatch Operations](#hatch-operations)      | brush.hatch()       |
+|                                            |                     |   |                                            | brush.noHatch()     |
+| [Vector-Fields](#vector-fields)            | brush.field()       |   |                                            | brush.hatchStyle()  |
+|                                            | brush.noField()     |   | [Geometry](#geometry)                      | brush.line()        |
+|                                            | brush.refreshField()|   |                                            | brush.flowLine()    |
+|                                            | brush.listFields()  |   |                                            | brush.beginStroke() |
+|                                            | brush.addField()    |   |                                            | brush.move()        |
+|                                            | brush.wiggle()      |   |                                            | brush.endStroke()   |
+| [Brush Management](#brush-management)      | brush.box()         |   |                                            | brush.spline()      |
+|                                            | brush.add()         |   |                                            | brush.rect()        |
+|                                            | brush.clip()        |   |                                            | brush.circle()      |
+|                                            | brush.noClip()      |   |                                            | brush.arc()         |
+| [Stroke Operations](#stroke-operations)    | brush.set()         |   |                                            | brush.beginShape()  |
+|                                            | brush.pick()        |   |                                            | brush.vertex()      |
+|                                            | brush.stroke()      |   |                                            | brush.endShape()    |
+|                                            | brush.noStroke()    |   |                                            | brush.polygon()     |
+|                                            | brush.strokeWeight()|   | [Configuration](#optional-configuration)   | brush.seed()        |
+| [Fill Operations](#fill-operations)        | brush.fill()        |   |                                            | brush.noiseSeed()   |
+|                                            | brush.noFill()      |   |                                            | brush.load()        |
+|                                            | brush.fillBleed()   |   |                                            | brush.preload()     |
+|                                            | brush.fillTexture() |   |                                            | brush.scaleBrushes()|
+|                                            |                     |   |                                            | brush.instance()    |
+|                                            |                     |   | [Classes](#exposed-classes)                | brush.Polygon()     |
 |                                            |                     |   |                                            | brush.Plot()        |
 |                                            |                     |   |                                            | brush.Position()    |
 
@@ -161,30 +147,7 @@ p5.brush.js provides a comprehensive API for creating complex drawings and effec
 
 ---
  
-- `brush.push()`
-  - **Description**: The push() function saves the current brush, hatch, and fill settings and transformations, while pop() restores these settings. Note that these functions are always used together.
-
-- `brush.pop()`
-  - **Description**: The push() function saves the current brush, hatch, and fill settings and transformations, while pop() restores these settings. Note that these functions are always used together.
-
----
-
-- `brush.rotate(angle)`
-  - **Description**: Rotates following shapes by the amount specified by the angle parameter. This function accounts for angleMode(), so angles can be entered in either RADIANS or DEGREES. Objects are always rotated around their relative position to the origin and positive numbers rotate objects in an anti-clockwise direction. Transformations apply to everything that happens after and subsequent calls to the function accumulate the effect. This function can be further controlled by brush.push() and brush.pop().
-
----
-
-- `brush.scale(scale)`
-  - **Description**: Increases or decreases the size of shapes and strokes by expanding or contracting vertices. Objects always scale from their relative origin to the coordinate system. Scale values are specified as decimal percentages. For example, the function call scale(2.0) increases the dimension of a shape by 200%. Transformations apply to everything that happens after and subsequent calls to the function multiply the effect. For example, calling scale(2.0) and then scale(1.5) is the same as scale(3.0).
-
----
-
-- `brush.reDraw()`
-  - **Description**: p5.brush uses several buffers and caches to make the drawing operations more performant. Use the reDraw() function if you want to force noBlend brushes to be drawn into the canvas. This function is designed to help maintain the correct draw order for the different strokes and shapes.
-
-- `brush.reBlend()`
-  - **Description**: p5.brush uses several buffers and caches to make the drawing operations more performant. Use the reDraw() function if you want to force Blend brushes to be drawn into the canvas. This function is designed to help maintain the correct draw order for the different strokes and shapes.
-
+> **Note for users upgrading from older versions**: `brush.push()`, `brush.pop()`, `brush.translate()`, `brush.rotate()`, and `brush.scale()` are no longer needed. The library now automatically hooks into p5's `push()` and `pop()`, so brush state (stroke, fill, hatch settings) is saved and restored alongside p5's own state. Likewise, p5's `translate()`, `rotate()`, and `scale()` are automatically inherited by all brush strokes and fills.
 
 ---
 
@@ -202,7 +165,7 @@ Vector Fields allow for dynamic control over brush stroke behavior, enabling the
   - **Description**: Activates a named vector field. When a vector field is active, it influences the flow and direction of the brush strokes for shapes drawn thereafter. It is important to note that certain shapes may be exempt from this influence; such exceptions will be clearly documented in the API for each specific geometry.
   - **Parameters**:
     - `name` (String): The identifier for the vector field to be activated. This can be a name of one of the predefined fields or a custom field created with `brush.addField()`.
-  - **Default Fields**: The library comes with a set of built-in vector fields: `curved`, `truncated`, `zigzag`, `seabed`, and `waves`. These, as well as any custom fields added, can be activated using this function.
+  - **Default Fields**: The library comes with a set of built-in vector fields: `hand`, `curved`, `zigzag`, `waves`, `seabed`, `spiral`, and `columns`. These, as well as any custom fields added, can be activated using this function.
   - **Usage**:
     ```javascript
     // To activate the "waves" vector field
@@ -216,13 +179,22 @@ Vector Fields allow for dynamic control over brush stroke behavior, enabling the
 ---
 
 - `brush.noField()`
-  - **Description**: Deactivates the currently active vector field, returning the drawing behavior to its default state where shapes are not influenced by any vector field. Any shapes drawn after this function call will not be affected by the previously active vector field.
+  - **Description**: Deactivate the currently active vector field, returning the drawing behavior to its default state where shapes are not influenced by any vector field.
   - **Usage**:
     ```javascript
-    // Deactivate the current vector field
     brush.noField();
     ```
-    Use this function when you want to draw shapes that are unaffected by the directional flow of any vector field, effectively resetting the drawing behavior to its original state.
+
+---
+
+- `brush.wiggle(wiggle)`
+  - **Description**: Activate the built-in `"hand"` vector field with a given wiggle intensity. A shorthand for adding a subtle hand-drawn wobble to strokes without calling `brush.field("hand")` directly.
+  - **Parameters**:
+    - `wiggle` (Number): Intensity of the wobble, e.g. 1–10.
+  - **Usage**:
+    ```javascript
+    brush.wiggle(3);
+    ```
 
 ---
 
@@ -243,18 +215,15 @@ Vector Fields allow for dynamic control over brush stroke behavior, enabling the
 ---
 
 - `brush.listFields()`
-  - **Description**: Retrieves an iterator containing the names of all the available vector fields within the system. This includes both the default fields provided by the library and any custom fields that have been added using `brush.addField()`.
-  - **Returns**: `Iterator<string>` - An iterator that yields the names of the vector fields.
+  - **Description**: Retrieve an array containing the names of all available vector fields, including built-in fields and any custom fields added with `brush.addField()`.
+  - **Returns**: `Array<string>` - An array of vector field names.
   - **Usage**:
     ```javascript
-    // Get an iterator of all vector field names
     let fieldNames = brush.listFields();
-    // Loop through the names using the iterator
     for (let name of fieldNames) {
       console.log(name);
     }
     ```
-    Use `brush.listFields()` to access the names of all existing vector fields, which can then be used to activate or modify fields as needed.
 
 ---
  
@@ -263,41 +232,26 @@ Vector Fields allow for dynamic control over brush stroke behavior, enabling the
 ---
 
 - `brush.addField(name, generatorFunction)`
-  - **Description**: Adds a custom vector field to the list of available fields. This advanced function requires a unique name for the field and a generator function that defines the behavior of the vector field over time.
+  - **Description**: Creates your own custom vector field. A vector field is just a grid of angles — each cell tells the brush "point in this direction". You give the field a name and a function that fills the grid. Once added, activate it with `brush.field(name)` just like any built-in field.
   - **Parameters**:
-    - `name` (String): A unique identifier for the vector field.
-    - `generatorFunction` (Function): A function that generates the field values. It takes a time parameter `t`, loops through the vector field cells, assigns angular values based on custom logic, and returns the modified `field` array.
-  - **Default Fields**: The library includes several pre-defined vector fields. Users can add their own to extend the functionality.
-  - **Usage**: To add a vector field that creates wave-like motions:
+    - `name` (String): Any name you want, e.g. `"myField"`.
+    - `generatorFunction` (Function): A function `(t, field) => field` that fills every cell of the grid with an angle **in degrees** and returns it. `t` is a time value you can use for animation (pass it via `brush.refreshField(t)`).
+  - **How the grid works**: `field` is a 2D array — `field[column][row]`. You loop through every column and row and set each cell to an angle in degrees. Small angles (±10°) make subtle curves; large ones (±90° or more) make dramatic bends.
+  - **Simplest example** — a diagonal flow that slowly rotates over time:
     ```javascript
-    brush.addField("waves", function(t, field) {
-        let sinrange = random(10,15) + 5 * sin(t);
-        let cosrange = random(3,6) + 3 * cos(t);
-        let baseAngle = random(20,35);
-        for (let column = 0; column < field.length; column++) {
-            for (let row = 0; row < field[0].length; row++) {               
-                let angle = sin(sinrange * column) * (baseAngle * cos(row * cosrange)) + random(-3,3);
-                field[column][row] = angle;
+    brush.addField("diagonal", function(t, field) {
+        for (let col = 0; col < field.length; col++) {
+            for (let row = 0; row < field[0].length; row++) {
+                field[col][row] = 45 + t * 10; // 45° angle, changes with time
             }
         }
-        return field;
+        return field; // always return field at the end!
     });
+
+    brush.field("diagonal"); // activate it
     ```
-    - **Note**: It's important that your loops create a grid of `field.length` x `field[0].length`. It's necessary to fill all the `field` cells with a numeric value. Return this array when you've filled the values. **The angles MUST BE in Degrees**.
-    ```javascript
-    brush.addField("name_field", function(t, field) {
-        let field = FF.genField()
-        // Related functions for angle calculation
-        for (let i = 0; i < field.length; i++) {
-            for (let j = 0; j < field[0].length; j++) {               
-                // Related functions for angle calculation here
-                field[i][j] = CalculatedAngle;
-            }
-        }
-        return field;
-    });
-    ```
-    
+  - **Tip**: You don't have to use `t` at all if you don't need animation. Just fill the grid and return it.
+
 
 ---
 
@@ -323,72 +277,69 @@ Functions for managing brush behaviors and properties.
 ---
 
 - `brush.add(name, params)`
-  - **Description**: Adds a new brush to the brush list with specified parameters, defining the brush's behavior and appearance. This function allows for extensive customization, enabling the creation of unique brush types suited to various artistic needs.
+  - **Description**: Creates a new brush with your own settings. Once added, you use it just like any built-in brush with `brush.set("myBrush", color, size)`.
   - **Parameters**:
-    - `name` (String): A unique identifier for the brush.
-    - `params` (BrushParameters): An object containing the parameters for the brush. The parameters include:
-      - `type`: (`standard` | `spray` | `marker` | `custom` | `image`) The tip type. 
-      - `weight`: Base size of the brush tip, in canvas units.
-      - `vibration`: Vibration of the lines, affecting spread, in canvas units.
-      - `definition`: (Number from 0-1) Between 0 and 1, defining clarity. Unnecessary for custom, marker, and image type brushes.
-      - `quality`: Higher values lead to a more continuous line. Unnecessary for custom, marker, and image type brushes.
-      - `opacity`: (Number from 0-255) Base opacity of the brush (affected by pressure).
-      - `spacing`: Spacing between points in the brush stroke, in canvas units.
-      - `blend`: (Boolean) Enables or disables realistic color mixing (default true for marker, custom, and image brushes).
-      - `pressure`: An object or function defining the pressure sensitivity.
-         - `type` : 'standard" or 'custom". Use standard for simple gauss bell curves. Use 'custom' for custom pressure curves.
-         - `min_max`: (Array [min, max]) Define min and max pressure (reverse for inverted presure).
-         - `curve`: function or array.
-            - Standard pressure: [a, b] - If 'standard' pressure curve, pick a and b values for the gauss curve. a is max horizontal mvt of the bell, b changes the slope.
-            - Custom pressure: (x) => function - If 'custom' pressure curve, define the curve function with a curve equation receiving values from 0 to 1, returning values from 0 to 1. Use https://mycurvefit.com/
-      - `tip`: (For custom types) A function defining the geometry of the brush tip. Remove if unnecessary.
-      - `image`: (For image types) The url path to your image, which MUST be in the same baseURL. Remove if unnecessary.
-      - `rotate`: (`none` | `natural` | `random`) Defines the tip angle rotation.
+    - `name` (String): A name for your brush — pick anything you like.
+    - `params` (Object): An object with the brush settings:
+      - `type`: The kind of brush tip. Choose one: `"default"` (pencil-like), `"spray"` (scattered dots), `"marker"` (flat solid), `"custom"` (you draw the tip shape), `"image"` (use a photo as the tip).
+      - `weight`: How thick the brush is, in canvas units.
+      - `scatter`: How much the stroke wobbles sideways. Higher = more spread. (in canvas units)
+      - `sharpness`: A number from 0 to 1. Lower = softer/fuzzier edge. Only matters for `"default"` type.
+      - `grain`: Controls how dense the texture is. Higher = smoother, more continuous line. Only matters for `"default"` type.
+      - `opacity`: How opaque each mark is, from 0 to 255. Pressure also affects this.
+      - `spacing`: Gap between brush tip stamps along the stroke. `1` means no overlap, lower values create denser strokes.
+      - `blend`: `true` or `false`. Enables realistic paint mixing. On by default for `"marker"`, `"custom"`, and `"image"` types.
+      - `pressure`: Controls how the brush size changes from start to end of a stroke. Use a simple array — the easiest way:
+         - `[start, end]` — e.g. `[2, 0.5]` starts thick and gets thin.
+         - `[start, middle, end]` — e.g. `[0.5, 2, 0.5]` starts thin, swells in the middle, ends thin.
+         - Or a function `(t) => value` where `t` goes from 0 (start) to 1 (end), for full control.
+      - `tip`: Only for `"custom"` type. A function where you draw the tip shape using p5.js commands inside a small graphics buffer `_m`.
+      - `image`: Only for `"image"` type. An object with a `src` property pointing to your image file: `{ src: "./tip.jpg" }`.
+      - `rotate`: How the tip rotates as it moves. `"none"` keeps it fixed, `"natural"` follows the stroke direction, `"random"` spins randomly.
   - **Usage**:
     ```javascript
-    // You create an image brush like this:
-    brush.add("watercolor", {
-        type: "image",
-        weight: 10,
-        vibration: 2,
-        opacity: 30,
-        spacing: 1.5,
-        blend: true,
-        pressure: {
-            type: "custom",
-            min_max: [0.5,1.2],
-            // This formula implies that the pressure changes in a linear distribution through the whole length of the line.
-            // Minimum pressure at the start, maximum pressure at the end.
-            curve: (x) => 1-x
-        },
-        image: {
-            src: "./brush_tips/brush.jpg",
-        },
-        rotate: "random",
-    })
-    
-    // You create a custom tip brush like this:
-    brush.add("watercolor", {
+    // Image brush — use a photo as the brush tip.
+    // IMPORTANT: use "await" so the image loads before drawing,
+    // and make sure your setup() function is declared "async"!
+    async function setup() {
+        createCanvas(800, 800, WEBGL);
+        brush.load();
+
+        await brush.add("watercolor", {
+            type: "image",
+            weight: 10,
+            scatter: 2,
+            opacity: 30,
+            spacing: 1.5,
+            blend: true,
+            pressure: [1, 0.5],   // starts thick, ends thin
+            image: { src: "./brush_tips/brush.jpg" },
+            rotate: "random",
+        });
+
+        // Now you can draw with it!
+        brush.set("watercolor", "blue", 1);
+        brush.line(100, 100, 400, 100);
+    }
+
+    // Custom tip brush — no await needed, just call brush.add() normally
+    brush.add("diamond", {
         type: "custom",
         weight: 5,
-        vibration: 0.08,
+        scatter: 0.08,
         opacity: 23,
         spacing: 0.6,
         blend: true,
-        pressure: {
-            type: "standard",
-            min_max: [1.35,1],
-            curve: [0.35,0.25] // Values for the bell curve
-        },
+        pressure: [0.5, 1.5, 0.5],   // thin → thick → thin
         tip: (_m) => {
-           // in this example, the tip is composed of two squares, rotated 45 degrees
-           // Always execute drawing functions within the _m buffer!
-           _m.rotate(45), _m.rect(-1.5,-1.5,3,3), _m.rect(1,1,1,1);
+            // Draw inside _m using normal p5.js drawing commands
+            _m.rotate(45);
+            _m.rect(-1.5, -1.5, 3, 3);
         },
         rotate: "natural",
-    })
+    });
     ```
-    By using `brush.add()`, you can expand your brush collection with custom brushes tailored to specific artistic effects and styles.
+    **Image brushes only**: `brush.add()` returns a Promise when `type` is `"image"` — you must `await` it so the image finishes loading before you start drawing. For this to work, your `setup()` function must be declared `async`. For all other brush types, no `await` is needed.
 
 ---
 
@@ -504,8 +455,6 @@ Stroke Operations encompass methods for manipulating and applying brushes to str
 
 The Fill Management section focuses on managing fill properties for shapes, enabling complex fill operations with effects like bleeding to simulate watercolor-like textures. These methods set fill colors with opacity, control bleed intensity, and manage fill operations. The watercolor fill effect is inspired by Tyler Hobbs' generative art techniques.
 
-** IMPORTANT: ** At the moment, fill operations expect an array of vertices in the clockwise direction. Otherwise, the fill will "bleed" to the inside, destroying the effect. I'll try to fix this on a forthcoming update.
-
 ---
 
 - `brush.fill(a, b, c, d)` or `brush.fill(color, opacity)`
@@ -536,16 +485,15 @@ The Fill Management section focuses on managing fill properties for shapes, enab
 
 ---
 
-- `brush.bleed(strength, direction)`
-  - **Description**: Adjusts the bleed and texture levels for the fill operation, mimicking the behavior of watercolor paints. This function adds a natural and organic feel to digital artwork.
+- `brush.fillBleed(strength, direction)`
+  - **Description**: Adjust the bleed intensity for the fill operation, mimicking the edge diffusion of watercolor paints.
   - **Parameters**:
-    - `strength` (Number): The intensity of the bleed effect, capped at 0.5.
-    - `direction` (String): Optional. "out" or "in". Defines the direction of the bleed effect
+    - `strength` (Number): The intensity of the bleed effect, ranging from 0 to 1.
+    - `direction` (String): Optional. `"out"` or `"in"`. Defines the direction of the bleed effect.
     - `_borderIntensity` (Number): The intensity of the border watercolor effect, ranging from 0 to 1.
   - **Usage**:
     ```javascript
-    // Set the bleed intensity and direction for a watercolor effect
-    brush.bleed(0.3, "out");
+    brush.fillBleed(0.3, "out");
     ```
 
 ---
@@ -562,17 +510,6 @@ The Fill Management section focuses on managing fill properties for shapes, enab
     ```
 
 ---
-
-- `brush.fillAnimatedMode(mode)`
-  - **Description**: Toggles certain operations on or off to ensure a consistent bleed effect for animations, especially useful at varying bleed levels.
-  - **Parameters**:
-    - `mode` (Boolean): Set to `true` to enable animated mode, `false` to disable.
-  - **Usage**:
-    ```javascript
-    // Enable animated mode for consistent bleed effects in animations
-    brush.fillAnimatedMode(true);
-    ```
-    `brush.fillAnimatedMode()` is valuable for animators and artists working on dynamic projects, where maintaining consistent fill effects across frames is crucial.
 
 ---
 
@@ -611,16 +548,15 @@ The Hatching section focuses on creating and drawing hatching patterns, which in
 
 ---
 
-- `brush.setHatch(brushName, color, weight)`
-  - **Description**: Sets the brush type, color, and weight specifically for hatching. If not called, hatching will use the parameters defined by the current stroke settings.
+- `brush.hatchStyle(brushName, color, weight)`
+  - **Description**: Set the brush type, color, and weight specifically for hatching. If not called, hatching will use the parameters defined by the current stroke settings.
   - **Parameters**:
     - `brushName` (String): The name of the brush to use for hatching.
     - `color` (String|p5.Color): The color for the brush, either as a CSS string or a p5.Color object.
     - `weight` (Number): The weight or size of the brush for hatching.
   - **Usage**:
     ```javascript
-    // Set the hatching brush to "rotring" with green color and specific weight
-    brush.setHatch("rotring", "green", 1.3);
+    brush.hatchStyle("rotring", "green", 1.3);
     ```
 
 ---
@@ -696,7 +632,7 @@ The following functions are only affected by stroke() operations, completely ign
 
 ---
 
-These three functions provide advanced control over the creation of strokes/paths, allowing for custom pressure and direction at different points along the path. This is a strange way of defining strokes, but intuitive when you think of them as bodily movements performed with the hands. You can create two types of strokes: "curve" or "segments". For curved strokes, the curvature at any point of the stroke is lerped between the nearest control points.
+These three functions provide advanced control over the creation of strokes/paths, allowing for custom pressure and direction at different points along the path. Think of them as bodily movements performed with the hands. You can create two types of strokes: `"curve"` or `"segments"`. For curved strokes, the curvature at any point is interpolated between the nearest control points.
 
 These functions allow for the creation of strokes with varied pressures and directions, mimicking the organic nature of hand-drawn strokes. For an application of these principles, see: [Enfantines II](https://art.arqtistic.com/Enfantines-2)
 
@@ -712,17 +648,16 @@ These functions allow for the creation of strokes with varied pressures and dire
     brush.beginStroke("curve", 15, 30);
     ```
 
-- `brush.segment(angle, length, pressure)`
-  - **Description**: Adds a segment to the stroke, defining its path by specifying the angle, length, and pressure. This function is used after `brush.beginStroke()` and before `brush.endStroke()` to outline the stroke's trajectory and characteristics.
+- `brush.move(angle, length, pressure)`
+  - **Description**: Add a segment to the stroke, defining its path by specifying the angle, length, and pressure. Use between `brush.beginStroke()` and `brush.endStroke()` to outline the stroke's trajectory and characteristics.
   - **Parameters**:
     - `angle` (Number): The initial angle of the segment, relative to the canvas, measured anticlockwise from the x-axis.
     - `length` (Number): The length of the segment.
     - `pressure` (Number): The pressure at the start of the segment, influencing properties like width.
   - **Usage**:
     ```javascript
-    // Add two segments to the stroke
-    brush.segment(30, 150, 0.6);
-    brush.segment(75, 40, 1.1);
+    brush.move(30, 150, 0.6);
+    brush.move(75, 40, 1.1);
     ```
 
 - `brush.endStroke(angle, pressure)`
@@ -739,36 +674,15 @@ These functions allow for the creation of strokes with varied pressures and dire
 ---
 
 - `brush.spline(array_points, curvature)`
-  - **Description**: Generates and draws a spline curve, a smooth curve defined by a series of control points. The curve connects the start and end points directly, using the other points in the array as control points to define the curve's path. The curvature parameter allows for adjusting the smoothness of the curve. Spline is maybe not the appropriate description, since these splines are basically segmented paths with rounded corners.
+  - **Description**: Draw a spline curve through a series of control points. The curve connects the start and end points directly, using intermediate points to shape the path. These splines are segmented paths with rounded corners.
   - **Parameters**:
-    - `array_points` (Array<Array<number>>): An array of points, where each point is an array of two numbers `[x, y]`.
-    - `curvature` (Number): Optional. The curvature of the spline curve, ranging from 0 to 1. A curvature of 0 results in a series of straight segments.
+    - `array_points` (Array<Array<number>>): An array of points, where each point is `[x, y]` or `[x, y, pressure]`. The optional pressure value at each point influences brush width along the curve.
+    - `curvature` (Number): Optional. The curvature of the spline, ranging from 0 to 1. A value of 0 produces straight segments.
   - **Note**: This is a simplified alternative to beginShape() - endShape() operations, useful for certain stroke() applications.
   - **Usage**:
     ```javascript
-    // Define points for the spline curve
-    let points = [[30, 70], [85, 20], [130, 100], [180, 50]];
-    // Create a spline curve with a specified curvature
+    let points = [[30, 70], [85, 20, 1.5], [130, 100], [180, 50]];
     brush.spline(points, 0.5);
-    ```
-
----
-
-- `brush.plot(p, x, y, scale)`
-  - **Description**: Renders a predefined shape or plot with a flowing brush stroke, following the currently active vector field. The shape is drawn at a specified starting position and scale. The plot object should be defined following the instructions in the Exposed Classes section.
-  - **Parameters**:
-    - `p` (Plot Object): A plot object representing the shape.
-    - `x` (Number): The x-coordinate of the starting position.
-    - `y` (Number): The y-coordinate of the starting position.
-    - `scale` (Number): The scale at which to draw the shape.
-  - **Note**: This is an alternative to beginStroke() - endStroke() operations. It is useful for drawing the same Plot at different starting points and scales.
-  - **Usage**:
-    ```javascript
-    // Define a plot (heart shape)
-    let heart = new brush.Plot();
-    // ... Define the heart plot here ...
-    // Draw the heart shape with a flowing stroke
-    brush.flowShape(heart, 200, 200, 1.3);
     ```
 
 ---
@@ -780,25 +694,25 @@ The following functions are affected by stroke(), fill() and hatch() operations.
 ---
 
 - `brush.rect(x, y, w, h, mode)`
-  - **Description**: Draws a rectangle on the canvas. This shape adheres to the current stroke, fill, and hatch attributes. Rectangles are influenced by active vector fields.
+  - **Description**: Draw a rectangle on the canvas using the current stroke, fill, and hatch settings. Rectangles are influenced by active vector fields.
   - **Parameters**:
     - `x` (Number): The x-coordinate of the rectangle.
     - `y` (Number): The y-coordinate of the rectangle.
     - `w` (Number): The width of the rectangle.
     - `h` (Number): The height of the rectangle.
-    - `mode` (Boolean): Optional. If `CENTER`, the rectangle is drawn centered at `(x, y)`.
+    - `mode` (String): Optional. `"corner"` (default) positions `(x, y)` at the top-left corner. `"center"` draws the rectangle centered at `(x, y)`.
   - **Usage**:
     ```javascript
     brush.noStroke();
     brush.noHatch();
     brush.fill("#002185", 75);
-    brush.rect(150, 100, 50, 35, CENTER);
+    brush.rect(150, 100, 50, 35, "center");
     ```
 
 ---
 
 - `brush.circle(x, y, radius, r)`
-  - **Description**: Draws a circle on the canvas, using the current brush settings. If `r` is true, the circle is rendered with a hand-drawn style. Circles are affected by vector fields.
+  - **Description**: Draw a circle outline using the current brush settings. Circles are affected by vector fields. Note: `circle()` draws only the stroke outline — `fill()` is not applied. To draw a filled circle, use `brush.polygon()` with many vertices approximating a circle.
   - **Parameters**:
     - `x` (Number): The x-coordinate of the circle's center.
     - `y` (Number): The y-coordinate of the circle's center.
@@ -807,6 +721,21 @@ The following functions are affected by stroke(), fill() and hatch() operations.
   - **Usage**:
     ```javascript
     brush.circle(100, 150, 75, true);
+    ```
+
+---
+
+- `brush.arc(x, y, radius, start, end)`
+  - **Description**: Draw an arc (partial circle) using the current brush settings. The arc is drawn as a stroke only — `fill()` is not applied.
+  - **Parameters**:
+    - `x` (Number): The x-coordinate of the center.
+    - `y` (Number): The y-coordinate of the center.
+    - `radius` (Number): The radius of the arc.
+    - `start` (Number): Start angle in radians.
+    - `end` (Number): End angle in radians.
+  - **Usage**:
+    ```javascript
+    brush.arc(200, 200, 50, 0, Math.PI);
     ```
 
 ---
@@ -840,14 +769,16 @@ These three functions perform similarly to the p5.js beginShape(), vertex(), and
     ```
 
 - `brush.endShape(a)`
-  - **Description**: Completes the custom shape, finalizing the recording of vertices. The shape can be either closed or left open based on the optional argument. The function also triggers the rendering of the shape with the current stroke, fill, and hatch settings.
+  - **Description**: Complete the custom shape, finalizing the recording of vertices, and render it with the current stroke, fill, and hatch settings.
   - **Parameters**:
-    - `a` (String): Optional. If set to `CLOSE`, the shape is closed.
+    - `a` (Boolean): Optional. Pass `true` to close the shape (connect the last vertex back to the first). Pass `false` or omit to leave the shape open.
   - **Returns**: None.
   - **Usage**:
     ```javascript
-    // Finish the custom shape and close it with a straight line
-    brush.endShape(CLOSE);
+    // Finish the custom shape and close it
+    brush.endShape(true);
+    // Or leave it open
+    brush.endShape(false);
     ```
 
 ---
@@ -874,87 +805,62 @@ These three functions perform similarly to the p5.js beginShape(), vertex(), and
 This section covers functions for initializing the drawing system, preloading required assets, and configuring system behavior. By default, the library works without executing these functions, but you might want to configure them to your liking.
 
 - `brush.seed(seed)`
-  - **Description**: Sets a custom seed for deterministic drawing results.
-  - **Parameters**: 
-    - `seed` (String | Number): A seed.
-  - **Example**: 
+  - **Description**: Set a custom seed for deterministic drawing results.
+  - **Parameters**:
+    - `seed` (String | Number): A seed value.
+  - **Example**:
     ```javascript
     brush.seed('hello');
     ```
-    Replace `hello` with the actual seed.
 
 ---
 
-- `brush.load(canvasID)`
-  - **Description**: Initializes the drawing system and sets up the environment. If `canvasID` is not provided, the current window is used as the rendering context. If you want to load the library on a custom p5.Graphics element, you can do it by executing this function.
-  - **Parameters**: 
-    - `canvasID` (string): Optional ID of the buffer/canvas element. If false, uses the window's rendering context.
-  - **Example (load p5.brush on buffer)**: 
+- `brush.noiseSeed(seed)`
+  - **Description**: Set the seed for the Perlin noise used internally by the library. Useful for getting reproducible organic texture in brush strokes.
+  - **Parameters**:
+    - `seed` (Number): Any integer.
+  - **Example**:
     ```javascript
-      function setup() {
-        createCanvas(400, 400, WEBGL)
-        // Draw stuff to global canvas
-        brush.set("HB","black",1)
-        brush.rect(40,40,150,100)
-        // Force draw stuff to canvas
-        brush.reDraw()
-
-        // Create buffer
-        let buffer = createGraphics(200, 300, WEBGL)
-        brush.load(buffer)
-        brush.set("HB","black",1)
-        brush.rect(40,40,150,100)
-        // Force draw stuff to buffer
-        brush.reDraw()
-
-        image(buffer,20,40)
-
-        // Load p5.brush again on global canvas
-        brush.load()
-      }
-      ```
-  - **Note for Instance Mode**: If you want to use the p5 instance mode, you need to pass the proper variable as canvasID.
-      ```javascript
-      let sketch = function(p) {
-        let x = 100;
-        let y = 100;
-
-        // Register instance method here, sending your function arg p
-        brush.instance(p)
-
-        p.setup = function() {
-          p.createCanvas(700, 410);
-        };
-
-        p.draw = function() {
-          p.background(0);
-          brush.fill("red", 75);
-          brush.rect(x, y, 50, 50);
-        };
-      };
-
-      let myp5 = new p5(sketch);
-      ```
+    brush.noiseSeed(99);
+    ```
 
 ---
 
-- `brush.preload()`
-  - **Description**: Preloads necessary assets or configurations for brushes. If you are using custom image tip brushes, you need to include this question within the preload() function of your p5 sketch.
-  - **Parameters**: None
-  - **Example**: To use a deterministic random number generator, such as one from a generative art platform like fx(hash), you might configure your system as follows:
+- `brush.load(buffer)`
+  - **Description**: Initialize the library on the current canvas. If a `p5.Graphics` buffer is passed, the library will target that buffer instead. Call `brush.load()` again (with no argument) to switch back to the main canvas.
+  - **Parameters**:
+    - `buffer` (p5.Graphics): Optional. A p5.Graphics buffer to draw into.
+  - **Example (draw into a buffer)**:
     ```javascript
-    // Your p5 preload function
-    function preload () {
-      brush.preload() // Add this if you want to use custom img brushes
+    function setup() {
+      createCanvas(400, 400, WEBGL);
+      brush.load();
+      brush.set("HB", "black", 1);
+      brush.rect(40, 40, 150, 100);
+
+      // Switch to a buffer
+      let buffer = createGraphics(200, 300, WEBGL);
+      brush.load(buffer);
+      brush.set("HB", "black", 1);
+      brush.rect(40, 40, 150, 100);
+      image(buffer, 20, 40);
+
+      // Switch back to main canvas
+      brush.load();
     }
     ```
 
 ---
 
-- `brush.colorCache(bool = true)`
-  - **Description**: Enables or disables color caching for WebGL shaders. Color caching can increase performance but may produce less accurate textures when the same color is used repeatedly. It's set to _true_ by default
-  - **Parameters**: 
-    - `bool` (boolean): Set to true to enable caching, or false to disable it.
+- `brush.preload()`
+  - **Description**: Kept for backward compatibility. Image brushes no longer require a separate `preload()` call — they auto-load when you use `await brush.add()` with `type: "image"`. You only need this function if you are working with older code that relied on the previous loading approach.
+  - **Parameters**: None
+  - **Example**:
+    ```javascript
+    function preload() {
+      brush.preload(); // only needed for backward compatibility
+    }
+    ```
 
 ---
 
@@ -972,38 +878,30 @@ This section covers functions for initializing the drawing system, preloading re
     
 ---
 
----
-
-- `brush.remove()`
-  - **Description**: Removes brush library brushes and unloads the library. This can be useful if you only used the library to draw into a buffer, and you want to perform only normal p5 operations after that.
-    
----
-
 - `brush.instance(p)`
-  - **Description**: Execute before the setup() and draw() functions if you need to use p5 in instance mode
-  - **Parameters**: 
-    - `p` (variable): Variable used as the function argument. See below
+  - **Description**: Call this inside your sketch function before `setup` and `draw` when using p5 in instance mode. Tells p5.brush which p5 instance to render into. After calling this, all `brush.*` functions work normally — no need to prefix them with `p.`.
+  - **Parameters**:
+    - `p` (p5): The p5 instance passed as the argument to your sketch function.
   - **Example**:
       ```javascript
-      let sketch = function(p) {
-        let x = 100;
-        let y = 100;
+      const sketch = (p) => {
+        // Must be called before setup/draw
+        brush.instance(p);
 
-        // Register instance method here, sending your function arg p
-        brush.instance(p)
-
-        p.setup = function() {
-          p.createCanvas(700, 410);
+        p.setup = () => {
+          // Canvas must be WEBGL
+          p.createCanvas(700, 410, p.WEBGL);
+          brush.load();
         };
 
-        p.draw = function() {
-          p.background(0);
-          brush.fill("red", 75);
-          brush.rect(x, y, 50, 50);
+        p.draw = () => {
+          p.background(240);
+          brush.set("HB", "#333", 1);
+          brush.line(100, 100, 400, 300);
         };
       };
 
-      let myp5 = new p5(sketch);
+      new p5(sketch);
       ```
 
 ---

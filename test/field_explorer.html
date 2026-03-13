@@ -1,0 +1,122 @@
+<!doctype html>
+<html>
+  <head>
+    <title>Flow Field Explorer</title>
+    <script src="https://cdn.jsdelivr.net/npm/p5@2.1.1/lib/p5.min.js"></script>
+    <script src="../dist/p5.brush.js"></script>
+    <style>
+      * { box-sizing: border-box; margin: 0; padding: 0; }
+      body { background: #e8e8e8; font-family: monospace; }
+      #controls {
+        padding: 10px 24px;
+        background: #fff;
+        border-bottom: 1px solid #ccc;
+        display: flex;
+        align-items: center;
+        gap: 24px;
+        font-size: 13px;
+      }
+      label { display: flex; align-items: center; gap: 6px; }
+      select { font-family: monospace; font-size: 13px; padding: 3px 8px; }
+      input[type=range] { width: 100px; }
+      span.val { width: 28px; display: inline-block; }
+      canvas { display: block; margin: 24px auto; box-shadow: 0 2px 12px rgba(0,0,0,0.15); }
+    </style>
+  </head>
+  <body>
+    <div id="controls">
+      <label>
+        Field:
+        <select id="fieldSel"></select>
+      </label>
+      <label>
+        Density:
+        <input type="range" id="density" min="6" max="30" value="18">
+        <span class="val" id="densityVal">18</span>
+      </label>
+      <label>
+        Line length:
+        <input type="range" id="lineLen" min="20" max="150" value="55">
+        <span class="val" id="lineLenVal">55</span>
+      </label>
+    </div>
+
+    <script>
+      const FIELDS = ["curved", "zigzag", "waves", "seabed", "spiral", "columns", "hand"];
+
+      // Read current params
+      const params = new URLSearchParams(location.search);
+      const currentField  = params.get("field")   || "curved";
+      const currentDensity = parseInt(params.get("density") || "18");
+      const currentLen     = parseInt(params.get("len")     || "55");
+
+      // Populate select
+      const sel = document.getElementById("fieldSel");
+      FIELDS.forEach((f) => {
+        const opt = document.createElement("option");
+        opt.value = f;
+        opt.textContent = f;
+        if (f === currentField) opt.selected = true;
+        sel.appendChild(opt);
+      });
+
+      // Sync slider displays
+      const densityEl  = document.getElementById("density");
+      const densityVal = document.getElementById("densityVal");
+      const lineLenEl  = document.getElementById("lineLen");
+      const lineLenVal = document.getElementById("lineLenVal");
+
+      densityEl.value  = currentDensity;
+      densityVal.textContent = currentDensity;
+      lineLenEl.value  = currentLen;
+      lineLenVal.textContent = currentLen;
+
+      densityEl.addEventListener("input",  () => { densityVal.textContent = densityEl.value; });
+      lineLenEl.addEventListener("input",  () => { lineLenVal.textContent = lineLenEl.value; });
+
+      function navigate() {
+        const f = sel.value;
+        const d = densityEl.value;
+        const l = lineLenEl.value;
+        location.search = `?field=${f}&density=${d}&len=${l}`;
+      }
+
+      sel.addEventListener("change", navigate);
+      densityEl.addEventListener("change", navigate);
+      lineLenEl.addEventListener("change", navigate);
+
+      // ---- p5 sketch ----
+      function setup() {
+        createCanvas(800, 800, WEBGL);
+        brush.load();
+        brush.scaleBrushes(3);
+        background(245);
+        translate(-width / 2, -height / 2);
+
+        if (currentField === "hand") {
+          brush.wiggle(5);
+        } else {
+          brush.field(currentField);
+        }
+        brush.set("HB", "#1a2a5a", 1);
+
+        const n = currentDensity;
+        for (let r = 0; r < n; r++) {
+          for (let c = 0; c < n; c++) {
+            const x = 40 + (c / (n - 1)) * 720;
+            const y = 40 + (r / (n - 1)) * 720;
+            brush.flowLine(x, y, currentLen, 0);
+          }
+        }
+
+        brush.noField();
+        noLoop();
+      }
+
+      function draw() {
+        translate(-width / 2, -height / 2);
+        noLoop();
+      }
+    </script>
+  </body>
+</html>

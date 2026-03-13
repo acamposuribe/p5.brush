@@ -1,0 +1,182 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>p5.brush - Push/Pop Test</title>
+    <script src="https://cdn.jsdelivr.net/npm/p5@2.1.1/lib/p5.min.js"></script>
+    <script src="../dist/p5.brush.js"></script>
+    <style>
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+      body {
+        background: #ccc;
+        font-family: monospace;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        padding: 20px;
+        gap: 10px;
+      }
+      h1 {
+        font-size: 13px;
+        color: #333;
+        letter-spacing: 0.05em;
+      }
+      p {
+        font-size: 11px;
+        color: #555;
+        max-width: 760px;
+        text-align: center;
+      }
+      canvas {
+        display: block;
+        box-shadow: 0 2px 16px rgba(0, 0, 0, 0.25);
+      }
+    </style>
+  </head>
+  <body>
+    <h1>PUSH / POP TEST - p5.brush</h1>
+    <p>
+      Each column proves that p5's <b>push()</b> / <b>pop()</b> automatically
+      saves &amp; restores brush state. Inside the push block a different state
+      is set; after pop the original state must be fully restored.<br />
+      Col 1: <b>stroke color</b> &nbsp;|&nbsp; Col 2:
+      <b>stroke weight + brush type</b> &nbsp;|&nbsp; Col 3:
+      <b>fill color + opacity</b><br />
+      Each column shows:
+      <span style="color: #1a3a6a">■ before (blue)</span> &nbsp;—&nbsp;
+      <i>inside push (red, should differ)</i> &nbsp;—&nbsp;
+      <span style="color: #1a3a6a">■ after pop (must match before)</span>
+    </p>
+
+    <script>
+      const CW = 760,
+        CH = 500;
+      const COLS = 3;
+      const CellW = CW / COLS;
+      const cx = (c) => c * CellW + CellW / 2;
+
+      // Row y positions
+      const Y_BEFORE = 100,
+        Y_INSIDE = 250,
+        Y_AFTER = 400;
+
+      function setup() {
+        createCanvas(CW, CH, WEBGL);
+        brush.load();
+        brush.scaleBrushes(1.5);
+        noLoop();
+      }
+
+      function draw() {
+        translate(-CW / 2, -CH / 2);
+        background(248, 246, 238);
+
+        // Grid dividers
+        stroke(190);
+        strokeWeight(1);
+        noFill();
+        for (let c = 1; c < COLS; c++) line(c * CellW, 0, c * CellW, CH);
+
+        // Row labels (native p5 lines as separators)
+        stroke(200);
+        strokeWeight(0.5);
+        line(0, Y_BEFORE - 50, CW, Y_BEFORE - 50);
+        line(0, Y_INSIDE - 50, CW, Y_INSIDE - 50);
+        line(0, Y_AFTER - 50, CW, Y_AFTER - 50);
+
+        // ================================================================
+        // COL 0 — stroke COLOR saved/restored
+        // ================================================================
+        // Set outer state: blue marker
+        brush.pick("marker");
+        brush.stroke("#1a3a6a");
+        brush.strokeWeight(3);
+
+        // BEFORE
+        push();
+        translate(cx(0), Y_BEFORE);
+        brush.line(-60, 0, 60, 0);
+        brush.line(0, -30, 0, 30);
+        pop();
+
+        // INSIDE push — change to red
+        push();
+        translate(cx(0), Y_INSIDE);
+        brush.stroke("#c0392b");
+        brush.line(-60, 0, 60, 0);
+        brush.line(0, -30, 0, 30);
+        pop();
+
+        // AFTER pop — must be blue again
+        push();
+        translate(cx(0), Y_AFTER);
+        brush.line(-60, 0, 60, 0);
+        brush.line(0, -30, 0, 30);
+        pop();
+
+        // ================================================================
+        // COL 1 — stroke WEIGHT + brush TYPE saved/restored
+        // ================================================================
+        brush.pick("HB");
+        brush.stroke("#1a3a6a");
+        brush.strokeWeight(1);
+        brush.noFill();
+
+        // BEFORE
+        push();
+        translate(cx(1), Y_BEFORE);
+        brush.line(-60, 0, 60, 0);
+        brush.line(0, -30, 0, 30);
+        pop();
+
+        // INSIDE push — heavy weight, different brush
+        push();
+        translate(cx(1), Y_INSIDE);
+        brush.pick("charcoal");
+        brush.stroke("#c0392b");
+        brush.strokeWeight(6);
+        brush.line(-60, 0, 60, 0);
+        brush.line(0, -30, 0, 30);
+        pop();
+
+        // AFTER pop — must be HB thin blue again
+        push();
+        translate(cx(1), Y_AFTER);
+        brush.line(-60, 0, 60, 0);
+        brush.line(0, -30, 0, 30);
+        pop();
+
+        // ================================================================
+        // COL 2 — FILL color + opacity saved/restored
+        // ================================================================
+        brush.noStroke();
+        brush.fill("#1a3a6a", 70);
+        brush.fillBleed(0.2);
+        brush.fillTexture(0.4, 0.3);
+
+        // BEFORE
+        push();
+        translate(cx(2), Y_BEFORE);
+        brush.rect(-55, -35, 110, 70, "corner");
+        pop();
+
+        // INSIDE push — red fill, high opacity
+        push();
+        translate(cx(2), Y_INSIDE);
+        brush.fill("#c0392b", 120);
+        brush.rect(-55, -35, 110, 70, "corner");
+        pop();
+
+        // AFTER pop — must be blue 70 again
+        push();
+        translate(cx(2), Y_AFTER);
+        brush.rect(-55, -35, 110, 70, "corner");
+        pop();
+      }
+    </script>
+  </body>
+</html>
