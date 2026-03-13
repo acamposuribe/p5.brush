@@ -146,7 +146,7 @@ function draw() {
         background("#ffe6d4");
 
         randomSeed(33213 * seeds[56])
-        brush.set("cpencil", "#003c32", 1)
+        brush.set("pen", "#000000", 1)
 
         randomSeed(33213 * seeds[35])
         brush.hatchStyle("HB", "#c76282", 1.3)
