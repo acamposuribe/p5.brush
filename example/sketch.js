@@ -46,11 +46,12 @@ async function setup() {
 
     for (let i = 0; i < 150; i++) seeds.push(random())
     background("#fffceb")
+
+    frameRate(30)
 }
 
 function draw() {
-
-    frameRate(30)
+    
     const t = frameCount / 30
     let scene = floor(t / 5) % 6
     textFont(font)

@@ -1,4 +1,4 @@
-![Teaser](/images/teaser.gif)
+![Teaser](/images/p5brush.gif)
 
 # p5.brush.js
 
