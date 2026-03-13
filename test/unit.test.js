@@ -8,7 +8,7 @@
 import { describe, it, expect, vi, beforeAll } from "vitest";
 
 // Mock color.js (pulls in GLSL shaders and WebGL — not available in Node)
-vi.mock("../src2/core/color.js", () => ({
+vi.mock("../src/core/color.js", () => ({
   Renderer: {
     angleMode: () => "radians",
     RADIANS: "radians",
@@ -34,7 +34,7 @@ import {
   randInt,
   seed,
   weightedRand,
-} from "../src2/core/utils.js";
+} from "../src/core/utils.js";
 
 // ---- map() ----
 describe("map()", () => {
@@ -149,8 +149,10 @@ describe("intersectLines()", () => {
 
   it("finds intersection of two crossing lines", () => {
     const pt = intersectLines(
-      mkPt(0, 0), mkPt(10, 10),
-      mkPt(0, 10), mkPt(10, 0),
+      mkPt(0, 0),
+      mkPt(10, 10),
+      mkPt(0, 10),
+      mkPt(10, 0),
       true,
     );
     expect(pt).not.toBe(false);
@@ -160,8 +162,10 @@ describe("intersectLines()", () => {
 
   it("returns false for parallel lines", () => {
     const pt = intersectLines(
-      mkPt(0, 0), mkPt(10, 0),
-      mkPt(0, 5), mkPt(10, 5),
+      mkPt(0, 0),
+      mkPt(10, 0),
+      mkPt(0, 5),
+      mkPt(10, 5),
       true,
     );
     expect(pt).toBe(false);
@@ -171,17 +175,16 @@ describe("intersectLines()", () => {
     // Segment 1: long horizontal at y=-5
     // Segment 2: short vertical from y=0 to y=3 — intersection at y=-5 is outside it
     const pt = intersectLines(
-      mkPt(0, -5), mkPt(10, -5),
-      mkPt(5,  0), mkPt(5,   3),
+      mkPt(0, -5),
+      mkPt(10, -5),
+      mkPt(5, 0),
+      mkPt(5, 3),
     );
     expect(pt).toBe(false);
   });
 
   it("returns false for point-like segments", () => {
-    const pt = intersectLines(
-      mkPt(0, 0), mkPt(0, 0),
-      mkPt(1, 0), mkPt(2, 0),
-    );
+    const pt = intersectLines(mkPt(0, 0), mkPt(0, 0), mkPt(1, 0), mkPt(2, 0));
     expect(pt).toBe(false);
   });
 });
