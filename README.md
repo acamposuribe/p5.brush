@@ -40,7 +40,7 @@ Alternatively, you can link to a `p5.brush.js` file hosted online. All versions 
 
 ```html
 <!-- Online version of p5.brush -->
-<script src="https://cdn.jsdelivr.net/npm/p5.brush"></script>
+<script src="https://cdn.jsdelivr.net/npm/p5.brush@2.0.0-beta"></script>
 ```
 
 ### Install with NPM and other modular-based apps

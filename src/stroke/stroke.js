@@ -896,21 +896,6 @@ for (let s of _standard_brushes) {
   add(s[0], obj);
 }
 
-add("diamond", {
-  type: "custom",
-  weight: 0.78,
-  scatter: 0.1,
-  opacity: 17,
-  spacing: 1.3,
-  pressure: [1.2, 0.82],
-  rotate: "none",
-  tip: (_m) => {
-    _m.rotate(45);
-    _m.rect(-4, -4, 8, 8);
-    _m.rect(2, 2, 3, 3);
-  },
-});
-
 // ---------------------------------------------------------------------------
 // Extensions to Polygon and Plot Prototypes
 // ---------------------------------------------------------------------------
@@ -1009,6 +994,7 @@ const T = {
             };
             nativeImg.onerror = () =>
               reject(new Error(`Failed to load image tip: ${src}`));
+            nativeImg.crossOrigin = "anonymous";
             nativeImg.src = src;
           }),
       ),
