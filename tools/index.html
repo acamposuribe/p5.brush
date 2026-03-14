@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>p5.brush</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #1a1a1a;
+      --border: #333;
+      --accent: #e8c547;
+      --text: #d4d4d4;
+      --text-dim: #777;
+      --font: 'JetBrains Mono', 'Fira Code', 'Menlo', monospace;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--font);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 48px;
+      padding: 40px 24px;
+    }
+
+    header { text-align: center; }
+
+    header h1 {
+      font-size: 22px;
+      font-weight: 700;
+      color: var(--accent);
+      letter-spacing: 0.06em;
+    }
+
+    header p {
+      margin-top: 8px;
+      font-size: 11px;
+      color: var(--text-dim);
+      letter-spacing: 0.04em;
+    }
+
+    nav {
+      display: flex;
+      gap: 24px;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+
+    a.card {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      width: 220px;
+      padding: 24px 20px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      text-decoration: none;
+      color: var(--text);
+      transition: border-color 0.15s, background 0.15s;
+    }
+
+    a.card:hover {
+      border-color: var(--accent);
+      background: rgba(232, 197, 71, 0.04);
+    }
+
+    a.card .card-title {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--accent);
+    }
+
+    a.card .card-desc {
+      font-size: 10px;
+      color: var(--text-dim);
+      line-height: 1.6;
+    }
+
+    footer {
+      font-size: 10px;
+      color: var(--text-dim);
+      letter-spacing: 0.04em;
+    }
+
+    footer a { color: var(--text-dim); }
+    footer a:hover { color: var(--text); }
+  </style>
+</head>
+<body>
+
+  <header>
+    <h1>p5.brush</h1>
+    <p>Natural drawing for p5.js — pencils, markers, watercolor, and more</p>
+  </header>
+
+  <nav>
+    <a class="card" href="./example/">
+      <span class="card-title">Example sketch</span>
+      <span class="card-desc">Live demo of the library's built-in brushes and fill system.</span>
+    </a>
+    <a class="card" href="./tools/brush-maker.html">
+      <span class="card-title">Brush Maker</span>
+      <span class="card-desc">Design custom brushes with live preview and copy-paste code output.</span>
+    </a>
+  </nav>
+
+  <footer>
+    <a href="https://github.com/acamposuribe/p5.brush" target="_blank">github.com/acamposuribe/p5.brush</a>
+  </footer>
+
+</body>
+</html>
