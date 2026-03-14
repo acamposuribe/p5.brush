@@ -163,7 +163,6 @@ brush.endStroke(angle, pressure)
 | `grain` | Texture density (`"default"` type only) |
 | `opacity` | Mark opacity 0–255 |
 | `spacing` | Stamp gap along stroke (1 = no overlap) |
-| `blend` | Paint mixing on/off |
 | `pressure` | `[start, end]` or `[start, mid, end]` or `(t) => value` |
 | `tip` | `"custom"` type: `(_m) => { _m.rect(...) }` |
 | `image` | `"image"` type: `{ src: "./tip.jpg" }` |
@@ -176,7 +175,7 @@ Image brushes return a Promise — use `await brush.add(...)` inside `async setu
 brush.add("diamond", {
   type: "custom",
   weight: 5, scatter: 0.08, opacity: 23, spacing: 0.6,
-  blend: true, pressure: [0.5, 1.5, 0.5],
+  pressure: [0.5, 1.5, 0.5],
   tip: (_m) => { _m.rotate(45); _m.rect(-1.5, -1.5, 3, 3) },
   rotate: "natural"
 })
@@ -185,7 +184,7 @@ brush.add("diamond", {
 await brush.add("photo", {
   type: "image",
   weight: 10, scatter: 2, opacity: 30, spacing: 1.5,
-  blend: true, pressure: [1, 0.5],
+  pressure: [1, 0.5],
   image: { src: "./tip.jpg" },
   rotate: "random"
 })

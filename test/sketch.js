@@ -182,6 +182,7 @@ async function setup() {
     tip: (_m) => {
       _m.rotate(45);
       _m.rect(-4, -4, 8, 8);
+      _m.rect(1, 1, 2, 2);
     },
   });
 

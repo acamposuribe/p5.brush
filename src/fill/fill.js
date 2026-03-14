@@ -454,9 +454,10 @@ class FillPoly {
     const int = 2 * intensity * (1 + tex / 2);
 
     // Perform initial setup only once
-    Mix.blend(color);
-    Mix.justChanged = true;
+    const switchingToFill = Mix.isBrush !== false;
     Mix.isBrush = false;
+    if (switchingToFill) Mix.justChanged = true;
+    Mix.blend(color);
 
     Mix.ctx.save();
     Mix.ctx.setTransform(

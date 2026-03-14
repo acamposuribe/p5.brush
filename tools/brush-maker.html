@@ -1,0 +1,1024 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>p5.brush — Brush Maker</title>
+  <script src="https://cdn.jsdelivr.net/npm/p5@2.1.1/lib/p5.min.js"></script>
+  <script src="../dist/p5.brush.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #1a1a1a;
+      --panel: #242424;
+      --border: #333;
+      --accent: #e8c547;
+      --text: #d4d4d4;
+      --text-dim: #777;
+      --input-bg: #1a1a1a;
+      --radius: 6px;
+      --font: 'JetBrains Mono', 'Fira Code', 'Menlo', monospace;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--font);
+      font-size: 12px;
+      display: flex;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    /* ── Left panel ─────────────────────────────────────────── */
+    #panel {
+      width: 280px;
+      flex-shrink: 0;
+      display: flex;
+      flex-direction: column;
+      border-right: 1px solid var(--border);
+      overflow: hidden;
+    }
+
+    #panel-header {
+      padding: 14px 16px 10px;
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+
+    #panel-header h1 {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--accent);
+      letter-spacing: 0.04em;
+    }
+
+    #panel-header p {
+      font-size: 10px;
+      color: var(--text-dim);
+      margin-top: 2px;
+    }
+
+    #controls {
+      flex: 1;
+      overflow-y: auto;
+      padding: 12px 16px;
+      scrollbar-width: thin;
+      scrollbar-color: var(--border) transparent;
+    }
+
+    /* ── Section headings ────────────────────────────────────── */
+    .section-label {
+      font-size: 9px;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--text-dim);
+      margin: 14px 0 8px;
+    }
+    .section-label:first-child { margin-top: 0; }
+
+    /* ── Individual control rows ─────────────────────────────── */
+    .control-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 9px;
+    }
+
+    .control-row label {
+      width: 68px;
+      flex-shrink: 0;
+      color: var(--text-dim);
+      font-size: 11px;
+    }
+
+    .control-row input[type="range"] {
+      flex: 1;
+      accent-color: var(--accent);
+      cursor: pointer;
+      height: 3px;
+    }
+
+    .control-row .val {
+      width: 36px;
+      text-align: right;
+      color: var(--text);
+      font-size: 11px;
+      flex-shrink: 0;
+    }
+
+    .control-row select,
+    .control-row input[type="text"] {
+      flex: 1;
+      background: var(--input-bg);
+      border: 1px solid var(--border);
+      color: var(--text);
+      font-family: var(--font);
+      font-size: 11px;
+      padding: 4px 6px;
+      border-radius: var(--radius);
+      outline: none;
+    }
+
+    .control-row select:focus,
+    .control-row input[type="text"]:focus {
+      border-color: var(--accent);
+    }
+
+    .control-row input[type="color"] {
+      width: 32px;
+      height: 22px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1px;
+      background: var(--input-bg);
+      cursor: pointer;
+    }
+
+    /* Toggle switch */
+    .toggle-wrap {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 9px;
+    }
+
+    .toggle-wrap label {
+      width: 68px;
+      color: var(--text-dim);
+      font-size: 11px;
+      flex-shrink: 0;
+    }
+
+    .toggle {
+      position: relative;
+      width: 36px;
+      height: 18px;
+    }
+
+    .toggle input { opacity: 0; width: 0; height: 0; }
+
+    .toggle .slider-track {
+      position: absolute;
+      inset: 0;
+      background: var(--border);
+      border-radius: 18px;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    .toggle input:checked + .slider-track { background: var(--accent); }
+
+    .toggle .slider-track::before {
+      content: '';
+      position: absolute;
+      width: 12px;
+      height: 12px;
+      left: 3px;
+      top: 3px;
+      background: white;
+      border-radius: 50%;
+      transition: transform 0.2s;
+    }
+
+    .toggle input:checked + .slider-track::before { transform: translateX(18px); }
+
+    /* Pressure row */
+    .pressure-group { margin-bottom: 9px; }
+    .pressure-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 6px;
+    }
+    .pressure-header span { color: var(--text-dim); font-size: 11px; }
+    .pressure-header .sub { font-size: 10px; color: var(--text-dim); }
+    /* Separator */
+    .sep {
+      border: none;
+      border-top: 1px solid var(--border);
+      margin: 14px 0;
+    }
+
+    /* ── Code output ─────────────────────────────────────────── */
+    #code-panel {
+      flex-shrink: 0;
+      border-top: 1px solid var(--border);
+      background: var(--panel);
+    }
+
+    #code-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 8px 16px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    #code-header span {
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--text-dim);
+    }
+
+    #copy-btn {
+      background: var(--accent);
+      color: #111;
+      border: none;
+      border-radius: var(--radius);
+      font-family: var(--font);
+      font-size: 10px;
+      font-weight: 700;
+      padding: 4px 10px;
+      cursor: pointer;
+      letter-spacing: 0.06em;
+    }
+
+    #copy-btn:hover { opacity: 0.85; }
+    #copy-btn.copied { background: #5cb85c; color: white; }
+
+    #code-output {
+      margin: 0;
+      padding: 12px 16px;
+      font-family: var(--font);
+      font-size: 10.5px;
+      line-height: 1.6;
+      color: #9cdcfe;
+      background: transparent;
+      white-space: pre;
+      overflow-x: auto;
+      max-height: 170px;
+    }
+
+    /* ── Right: viewport ─────────────────────────────────────── */
+    #viewport {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    #viewport-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 16px;
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+
+    #viewport-header span {
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--text-dim);
+    }
+
+    #viewport-controls {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+    }
+
+    #viewport-controls label { color: var(--text-dim); font-size: 11px; }
+
+    #bg-color {
+      width: 28px;
+      height: 20px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1px;
+      background: var(--input-bg);
+      cursor: pointer;
+    }
+
+    #stroke-color {
+      width: 28px;
+      height: 20px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1px;
+      background: var(--input-bg);
+      cursor: pointer;
+    }
+
+    #canvas-wrap {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      background: #111;
+    }
+
+    #canvas-wrap canvas { display: block; }
+
+    #multicolor-btn {
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--text-dim);
+      font-family: var(--font);
+      font-size: 10px;
+      padding: 3px 8px;
+      border-radius: var(--radius);
+      cursor: pointer;
+      letter-spacing: 0.06em;
+    }
+    #multicolor-btn:hover { border-color: var(--accent); color: var(--text); }
+    #multicolor-btn.active { background: var(--accent); border-color: var(--accent); color: #111; font-weight: 700; }
+
+    #tip-body {
+      width: 100%;
+      min-height: 80px;
+      background: var(--input-bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      color: #9cdcfe;
+      font-family: var(--font);
+      font-size: 11px;
+      line-height: 1.6;
+      padding: 8px;
+      resize: vertical;
+      outline: none;
+    }
+    #tip-body:focus { border-color: var(--accent); }
+
+    /* Upload zone */
+    #upload-zone {
+      border: 2px dashed var(--border);
+      border-radius: var(--radius);
+      padding: 14px 10px;
+      text-align: center;
+      cursor: pointer;
+      transition: border-color 0.2s, background 0.2s;
+      margin-bottom: 9px;
+      user-select: none;
+    }
+    #upload-zone:hover, #upload-zone.drag-over {
+      border-color: var(--accent);
+      background: rgba(232, 197, 71, 0.05);
+    }
+    #upload-zone .upload-icon { font-size: 18px; color: var(--text-dim); line-height: 1; }
+    #upload-zone p { font-size: 9px; color: var(--text-dim); margin-top: 4px; line-height: 1.4; }
+    #upload-zone.has-image { border-color: #5cb85c; }
+    #upload-zone.has-image p { color: #5cb85c; }
+    #upload-zone.has-image .upload-icon { color: #5cb85c; }
+
+    /* HTML label overlay */
+    #canvas-wrap { position: relative; }
+    #labels {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+    }
+    .lbl {
+      position: absolute;
+      font-size: 9px;
+      font-family: var(--font);
+      color: #888;
+      letter-spacing: 0.04em;
+    }
+  </style>
+</head>
+<body>
+
+<!-- ── Left panel ───────────────────────────────────────────── -->
+<div id="panel">
+  <div id="panel-header">
+    <h1>p5.brush · Brush Maker</h1>
+    <p>Adjust params — preview updates live</p>
+  </div>
+
+  <div id="controls">
+
+    <!-- Identity -->
+    <div class="section-label">Identity</div>
+
+    <div class="control-row">
+      <label>name</label>
+      <input type="text" id="brush-name" value="myBrush" />
+    </div>
+
+    <div class="control-row">
+      <label>type</label>
+      <select id="brush-type">
+        <option value="default">default</option>
+        <option value="spray">spray</option>
+        <option value="marker">marker</option>
+        <option value="custom">custom</option>
+      <option value="image">image</option>
+      </select>
+    </div>
+
+    <!-- Geometry -->
+    <div class="section-label">Geometry</div>
+
+    <div class="control-row" id="weight-row">
+      <label>weight</label>
+      <input type="range" id="weight" min="0" max="3" step="0.01" value="0.9" />
+      <span class="val" id="weight-val">0.9</span>
+    </div>
+
+    <div class="control-row">
+      <label>scatter</label>
+      <input type="range" id="scatter" min="0" max="15" step="0.05" value="1.8" />
+      <span class="val" id="scatter-val">1.8</span>
+    </div>
+
+    <div class="control-row" id="sharpness-row">
+      <label>sharpness</label>
+      <input type="range" id="sharpness" min="0" max="1" step="0.01" value="0.3" />
+      <span class="val" id="sharpness-val">0.3</span>
+    </div>
+
+    <!-- grain uses a non-linear internal mapping: pos 0–60 → grain 0–30 (step 0.5), pos 60–107 → grain 30–500 (step 10) -->
+    <div class="control-row" id="grain-row">
+      <label>grain</label>
+      <input type="range" id="grain" min="0" max="107" step="1" value="20" />
+      <span class="val" id="grain-val">10</span>
+    </div>
+
+    <!-- Appearance -->
+    <div class="section-label">Appearance</div>
+
+    <div class="control-row">
+      <label>opacity</label>
+      <input type="range" id="opacity" min="1" max="255" step="1" value="170" />
+      <span class="val" id="opacity-val">170</span>
+    </div>
+
+    <div class="control-row">
+      <label>spacing</label>
+      <input type="range" id="spacing" min="0.01" max="2" step="0.01" value="0.3" />
+      <span class="val" id="spacing-val">0.3</span>
+    </div>
+
+    <div class="control-row" id="rotate-row" style="display:none">
+      <label>rotate</label>
+      <select id="rotate">
+        <option value="natural">natural</option>
+        <option value="none">none</option>
+        <option value="random">random</option>
+      </select>
+    </div>
+
+    <!-- Pressure -->
+    <div class="section-label">Pressure</div>
+    <div class="pressure-group">
+      <div class="control-row">
+        <label>start</label>
+        <input type="range" id="press-start" min="0.1" max="3" step="0.02" value="1.1" />
+        <span class="val" id="press-start-val">1.1</span>
+      </div>
+      <div class="control-row" id="pressure-mid-row" style="display:none">
+        <label>mid</label>
+        <input type="range" id="press-mid" min="0.1" max="3" step="0.02" value="1.5" />
+        <span class="val" id="press-mid-val">1.5</span>
+      </div>
+      <div class="control-row">
+        <label>end</label>
+        <input type="range" id="press-end" min="0.1" max="3" step="0.02" value="0.9" />
+        <span class="val" id="press-end-val">0.9</span>
+      </div>
+      <div class="toggle-wrap" style="margin-top:4px">
+        <label>3-point</label>
+        <label class="toggle">
+          <input type="checkbox" id="pressure-3pt" />
+          <span class="slider-track"></span>
+        </label>
+      </div>
+    </div>
+
+    <!-- Tip function (custom type only) -->
+    <div id="tip-section" style="display:none">
+      <div class="section-label">Tip Function</div>
+      <p style="font-size:9px;color:var(--text-dim);margin-bottom:6px;line-height:1.5">Write p5 commands. Each line becomes <span style="color:#9cdcfe">_m.command</span></p>
+      <textarea id="tip-body" spellcheck="false">rotate(45);
+rect(-4, -4, 8, 8);
+rect(2, 2, 2, 2);</textarea>
+    </div>
+
+    <!-- Image upload (image type only) -->
+    <div id="image-section" style="display:none">
+      <div class="section-label">Image Tip</div>
+      <div id="upload-zone">
+        <div class="upload-icon">↑</div>
+        <p id="upload-label">Click or drag an image here</p>
+        <input type="file" id="image-file" accept="image/*" style="display:none" />
+      </div>
+    </div>
+
+  </div><!-- /controls -->
+
+  <!-- Code output -->
+  <div id="code-panel">
+    <div id="code-header">
+      <span>Generated Code</span>
+      <button id="copy-btn">COPY</button>
+    </div>
+    <pre id="code-output"></pre>
+  </div>
+</div><!-- /panel -->
+
+<!-- ── Right viewport ────────────────────────────────────────── -->
+<div id="viewport">
+  <div id="viewport-header">
+    <span>Preview</span>
+    <div id="viewport-controls">
+      <label>bg</label>
+      <input type="color" id="bg-color" value="#fffceb" />
+      <label>ink</label>
+      <input type="color" id="stroke-color" value="#1a1a2e" />
+      <button id="multicolor-btn">palette</button>
+    </div>
+  </div>
+  <div id="canvas-wrap">
+    <div id="labels"></div>
+  </div>
+</div>
+
+<script>
+// ─────────────────────────────────────────────
+// State
+// ─────────────────────────────────────────────
+const params = {
+  name:      'myBrush',
+  type:      'default',
+  weight:    0.9,
+  scatter:   1.8,
+  sharpness: 0.3,
+  grain:     10,
+  opacity:   170,
+  spacing:   0.3,
+  rotate:    'natural',
+  pressStart: 1.1,
+  pressMid:   1.5,
+  pressEnd:   0.9,
+  pressure3pt: false,
+  multicolor: false,
+  referenceBrush: 'HB',
+  tipBody: 'rotate(45);\nrect(-4, -4, 8, 8);\nrect(2, 2, 2, 2);',
+  imageDataUrl: null,
+  imageSrc: './your-image.jpg',
+  bgColor:    '#fffceb',
+  strokeColor: '#1a1a2e',
+};
+
+let needsRebuild = true;
+let brushReady = true;
+
+// ─────────────────────────────────────────────
+// Code generator
+// ─────────────────────────────────────────────
+function generateCode() {
+  const p = params;
+  const pressure = p.pressure3pt
+    ? `[${p.pressStart}, ${p.pressMid}, ${p.pressEnd}]`
+    : `[${p.pressStart}, ${p.pressEnd}]`;
+
+  const typeSpecific = p.type === 'default' || p.type === 'spray'
+    ? `  sharpness: ${p.sharpness},\n  grain:     ${p.grain},\n`
+    : '';
+
+  const tipLines = p.tipBody.split('\n').map(l => l.trim()).filter(Boolean).map(l => `      _m.${l}`).join('\n');
+  const tipField = p.type === 'custom'
+    ? `  tip: (_m) => {\n${tipLines}\n  },\n`
+    : '';
+
+  const imageField = p.type === 'image'
+    ? `  image: { src: "${p.imageSrc}" },\n`
+    : '';
+
+  const prefix = p.type === 'image'
+    ? '// Image brushes must be awaited inside async setup()\nawait '
+    : '';
+
+  return `${prefix}brush.add("${p.name}", {\n  type:    "${p.type}",\n  weight:  ${p.weight},\n  scatter: ${p.scatter},\n${typeSpecific}  opacity: ${p.opacity},\n  spacing: ${p.spacing},\n  pressure: ${pressure},\n  rotate:  "${p.rotate}",\n${imageField}${tipField}});`;
+}
+
+function updateCode() {
+  document.getElementById('code-output').textContent = generateCode();
+}
+
+// ─────────────────────────────────────────────
+// UI wiring
+// ─────────────────────────────────────────────
+function wire(id, key, transform = v => v) {
+  const el = document.getElementById(id);
+  const valEl = document.getElementById(id + '-val');
+  el.addEventListener('input', () => {
+    params[key] = transform(el.value);
+    if (valEl) valEl.textContent = params[key];
+    needsRebuild = true;
+    updateCode();
+  });
+  if (valEl) valEl.textContent = params[key];
+}
+
+// Non-linear grain mapping: slider 0–60 → grain 0–30 (step 0.5), slider 60–107 → grain 30–500 (step 10)
+function posToGrain(pos) {
+  pos = parseFloat(pos);
+  return pos <= 60 ? Math.round(pos * 0.5 * 10) / 10
+                   : Math.round((30 + (pos - 60) * 10) * 10) / 10;
+}
+function grainToPos(grain) {
+  return grain <= 30 ? grain / 0.5 : 60 + (grain - 30) / 10;
+}
+// Set grain slider initial position
+document.getElementById('grain').value = grainToPos(params.grain);
+
+wire('weight',    'weight',    v => Math.round(parseFloat(v) * 100) / 100);
+wire('scatter',   'scatter',   v => Math.round(parseFloat(v) * 100) / 100);
+wire('sharpness', 'sharpness', v => Math.round(parseFloat(v) * 100) / 100);
+wire('opacity',   'opacity',   v => Math.round(parseFloat(v) * 100) / 100);
+wire('spacing',   'spacing',   v => Math.max(0.001, Math.round(parseFloat(v) * 1000) / 1000));
+wire('press-start','pressStart', v => Math.round(parseFloat(v) * 100) / 100);
+wire('press-mid',  'pressMid',   v => Math.round(parseFloat(v) * 100) / 100);
+wire('press-end',  'pressEnd',   v => Math.round(parseFloat(v) * 100) / 100);
+
+// Grain uses custom mapping
+(function() {
+  const el = document.getElementById('grain');
+  const valEl = document.getElementById('grain-val');
+  el.addEventListener('input', () => {
+    params.grain = posToGrain(el.value);
+    valEl.textContent = params.grain;
+    needsRebuild = true;
+    updateCode();
+  });
+  valEl.textContent = params.grain;
+})();
+
+// Per-type slider ranges
+const SLIDER_RANGES = {
+  default: {
+    weight:  { min: 0,    max: 3,   step: 0.01 },
+    scatter: { min: 0,    max: 15,  step: 0.05 },
+    opacity: { min: 1,    max: 255, step: 1     },
+    spacing: { min: 0.01, max: 2,   step: 0.01  },
+  },
+  spray: {
+    weight:  { min: 0,  max: 3,   step: 0.01 },
+    scatter: { min: 10, max: 50,  step: 1     },
+    opacity: { min: 1,  max: 255, step: 1     },
+    spacing: { min: 2,  max: 50,  step: 1     },
+  },
+  marker: {
+    weight:  { min: 0,     max: 50,  step: 1     },
+    scatter: { min: 0,     max: 15,  step: 0.05  },
+    opacity: { min: 0,     max: 5,   step: 0.01  },
+    spacing: { min: 0.002, max: 0.5, step: 0.002 },
+  },
+  custom: {
+    weight:  { min: 0,    max: 3,   step: 0.01 },
+    scatter: { min: 0,    max: 15,  step: 0.05 },
+    opacity: { min: 1,    max: 255, step: 1     },
+    spacing: { min: 0.01, max: 2,   step: 0.01  },
+  },
+  image: {
+    weight:  { min: 1,   max: 60,  step: 1    },
+    scatter: { min: 0,   max: 10,  step: 0.05 },
+    opacity: { min: 1,   max: 50,  step: 1    },
+    spacing: { min: 2.5, max: 15,  step: 0.1  },
+  },
+};
+
+// Per-type starting values (effective after scaleBrushes(3))
+const TYPE_PRESETS = {
+  default: {
+    weight: 0.9, scatter: 1.8, sharpness: 0.3, grain: 10,
+    opacity: 170, spacing: 0.3, pressStart: 1.1, pressEnd: 0.9,
+    rotate: 'natural', referenceBrush: 'HB',
+  },
+  spray: {
+    weight: 0.6, scatter: 18, sharpness: null, grain: 40,
+    opacity: 90, spacing: 5, pressStart: 0.7, pressEnd: 1,
+    rotate: 'random', referenceBrush: 'spray',
+  },
+  marker: {
+    weight: 6, scatter: 0.36, sharpness: null, grain: null,
+    opacity: 1, spacing: 0.09, pressStart: 1.2, pressEnd: 0.85,
+    rotate: 'none', referenceBrush: 'marker',
+  },
+  custom: {
+    weight: 0.6, scatter: 0.15, sharpness: null, grain: null,
+    opacity: 15, spacing: 1.4, pressStart: 1, pressEnd: 1,
+    rotate: 'none', referenceBrush: 'HB',
+  },
+  image: {
+    weight: 40, scatter: 0.15, sharpness: null, grain: null,
+    opacity: 10, spacing: 2.5, pressStart: 0.8, pressEnd: 1.2,
+    rotate: 'random', referenceBrush: 'HB',
+  },
+};
+
+function applySliderRange(id, cfg) {
+  const el = document.getElementById(id);
+  const valEl = document.getElementById(id + '-val');
+  el.min  = cfg.min;
+  el.max  = cfg.max;
+  el.step = cfg.step;
+}
+
+function applySliderValue(id, value) {
+  const el = document.getElementById(id);
+  const valEl = document.getElementById(id + '-val');
+  el.value = value;
+  if (valEl) valEl.textContent = value;
+}
+
+function applyTypePreset(type) {
+  const preset = TYPE_PRESETS[type];
+  const ranges = SLIDER_RANGES[type];
+
+  // Update slider ranges
+  applySliderRange('weight',  ranges.weight);
+  applySliderRange('opacity', ranges.opacity);
+  applySliderRange('spacing', ranges.spacing);
+  if (ranges.scatter) applySliderRange('scatter', ranges.scatter);
+
+  // Update param values and slider positions
+  params.weight    = preset.weight;    applySliderValue('weight',  preset.weight);
+  params.scatter   = preset.scatter;   applySliderValue('scatter', preset.scatter);
+  params.opacity   = preset.opacity;   applySliderValue('opacity', preset.opacity);
+  params.spacing   = preset.spacing;   applySliderValue('spacing', preset.spacing);
+  params.pressStart = preset.pressStart; applySliderValue('press-start', preset.pressStart);
+  params.pressEnd   = preset.pressEnd;   applySliderValue('press-end',   preset.pressEnd);
+  params.rotate    = preset.rotate;
+  params.referenceBrush = preset.referenceBrush;
+  document.getElementById('rotate').value = preset.rotate;
+
+  if (preset.sharpness !== null) {
+    params.sharpness = preset.sharpness;
+    applySliderValue('sharpness', preset.sharpness);
+  }
+  if (preset.grain !== null) {
+    params.grain = preset.grain;
+    document.getElementById('grain').value = grainToPos(preset.grain);
+    document.getElementById('grain-val').textContent = preset.grain;
+  }
+}
+
+document.getElementById('brush-type').addEventListener('change', e => {
+  params.type = e.target.value;
+  const isCustom      = params.type === 'custom';
+  const isImage       = params.type === 'image';
+  const showGrain     = params.type === 'default' || params.type === 'spray';
+  const showSharpness = params.type === 'default';
+  document.getElementById('weight-row').style.display    = isCustom             ? 'none' : '';
+  document.getElementById('rotate-row').style.display    = (isCustom || isImage) ? ''    : 'none';
+  document.getElementById('sharpness-row').style.display = showSharpness        ? ''     : 'none';
+  document.getElementById('grain-row').style.display     = showGrain            ? ''     : 'none';
+  document.getElementById('tip-section').style.display   = isCustom             ? ''     : 'none';
+  document.getElementById('image-section').style.display = isImage              ? ''     : 'none';
+  applyTypePreset(params.type);
+  needsRebuild = true;
+  updateCode();
+});
+
+document.getElementById('tip-body').addEventListener('input', e => {
+  params.tipBody = e.target.value;
+  needsRebuild = true;
+  updateCode();
+});
+
+document.getElementById('rotate').addEventListener('change', e => {
+  params.rotate = e.target.value;
+  needsRebuild = true;
+  updateCode();
+});
+
+
+document.getElementById('brush-name').addEventListener('input', e => {
+  params.name = e.target.value || 'myBrush';
+  needsRebuild = true;
+  updateCode();
+});
+
+document.getElementById('pressure-3pt').addEventListener('change', e => {
+  params.pressure3pt = e.target.checked;
+  document.getElementById('pressure-mid-row').style.display = e.target.checked ? 'flex' : 'none';
+  needsRebuild = true;
+  updateCode();
+});
+
+const PALETTE = ["#002185", "#003c32", "#fcd300", "#ff2702", "#6b9404"];
+
+document.getElementById('multicolor-btn').addEventListener('click', () => {
+  params.multicolor = !params.multicolor;
+  document.getElementById('multicolor-btn').classList.toggle('active', params.multicolor);
+});
+
+document.getElementById('bg-color').addEventListener('input', e => {
+  params.bgColor = e.target.value;
+});
+
+document.getElementById('stroke-color').addEventListener('input', e => {
+  params.strokeColor = e.target.value;
+  needsRebuild = true;
+});
+
+document.getElementById('copy-btn').addEventListener('click', () => {
+  navigator.clipboard.writeText(generateCode()).then(() => {
+    const btn = document.getElementById('copy-btn');
+    btn.textContent = 'COPIED!';
+    btn.classList.add('copied');
+    setTimeout(() => { btn.textContent = 'COPY'; btn.classList.remove('copied'); }, 1500);
+  });
+});
+
+updateCode();
+
+// ─────────────────────────────────────────────
+// Image upload
+// ─────────────────────────────────────────────
+function handleImageFile(file) {
+  if (!file || !file.type.startsWith('image/')) return;
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    params.imageDataUrl = e.target.result;
+    params.imageSrc = file.name;
+    document.getElementById('upload-label').textContent = file.name;
+    const zone = document.getElementById('upload-zone');
+    zone.classList.add('has-image');
+    zone.querySelector('.upload-icon').textContent = '✓';
+    needsRebuild = true;
+    updateCode();
+  };
+  reader.readAsDataURL(file);
+}
+
+const uploadZone = document.getElementById('upload-zone');
+const imageFileInput = document.getElementById('image-file');
+
+uploadZone.addEventListener('click', () => imageFileInput.click());
+imageFileInput.addEventListener('change', e => handleImageFile(e.target.files[0]));
+
+uploadZone.addEventListener('dragover', e => {
+  e.preventDefault();
+  uploadZone.classList.add('drag-over');
+});
+uploadZone.addEventListener('dragleave', () => uploadZone.classList.remove('drag-over'));
+uploadZone.addEventListener('drop', e => {
+  e.preventDefault();
+  uploadZone.classList.remove('drag-over');
+  handleImageFile(e.dataTransfer.files[0]);
+});
+
+// Preload the bundled example brush tip so the image type works out of the box
+fetch('../example/brush_tips/brush.jpg')
+  .then(r => r.blob())
+  .then(blob => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      params.imageDataUrl = e.target.result;
+      params.imageSrc = './brush.jpg';
+      document.getElementById('upload-label').textContent = 'brush.jpg (example — replace with yours)';
+      const zone = document.getElementById('upload-zone');
+      zone.classList.add('has-image');
+      zone.querySelector('.upload-icon').textContent = '✓';
+      // trigger rebuild if already in image mode
+      if (params.type === 'image') { needsRebuild = true; updateCode(); }
+    };
+    reader.readAsDataURL(blob);
+  })
+  .catch(() => {}); // silently fail if served without the example asset
+
+// ─────────────────────────────────────────────
+// p5 sketch
+// ─────────────────────────────────────────────
+const CANVAS_W = 600;
+const CANVAS_H = 600;
+
+const sketch = (p) => {
+  brush.instance(p);
+
+  p.setup = () => {
+    const cnv = p.createCanvas(CANVAS_W, CANVAS_H, p.WEBGL);
+    cnv.parent('canvas-wrap');
+    p.pixelDensity(2);
+    p.angleMode(p.DEGREES);
+    brush.load();
+    brush.scaleBrushes(3);
+    p.frameRate(30);
+  };
+
+  async function rebuildBrush() {
+    const pr = params.pressure3pt
+      ? [params.pressStart, params.pressMid, params.pressEnd]
+      : [params.pressStart, params.pressEnd];
+
+    const cfg = {
+      type:     params.type,
+      weight:   params.weight,
+      scatter:  params.scatter,
+      opacity:  params.opacity,
+      spacing:  params.spacing,
+      pressure: pr,
+      rotate:   params.rotate,
+    };
+
+    if (params.type === 'default' || params.type === 'spray') {
+      cfg.sharpness = params.sharpness;
+      cfg.grain     = params.grain;
+    }
+
+    if (params.type === 'custom') {
+      const tipLines = params.tipBody.split('\n').map(l => l.trim()).filter(Boolean).map(l => `_m.${l}`).join('\n');
+      try { cfg.tip = new Function('_m', tipLines); } catch(e) { cfg.tip = (_m) => {}; }
+    }
+
+    if (params.type === 'image') {
+      if (!params.imageDataUrl) return; // no image yet, skip
+      cfg.image = { src: params.imageDataUrl };
+      brushReady = false;
+      await brush.add(params.name, cfg);
+      brushReady = true;
+    } else {
+      brush.add(params.name, cfg);
+    }
+  }
+
+  p.draw = () => {
+    p.randomSeed(42);
+    p.noiseSeed(42);
+    p.background(params.bgColor);
+    p.translate(-CANVAS_W / 2, -CANVAS_H / 2);
+
+    if (needsRebuild) {
+      needsRebuild = false;
+      rebuildBrush(); // async for image type; sets brushReady = false while loading
+    }
+
+    const W = CANVAS_W;
+    const H = CANVAS_H;
+    const mc = params.multicolor;
+    const c = (i) => mc ? PALETTE[i % PALETTE.length] : params.strokeColor;
+
+    brush.noField();
+    brush.noFill();
+    brush.noHatch();
+
+    // For image type: skip brush strokes if no image uploaded or still loading
+    const canDrawBrush = params.type !== 'image' || (params.imageDataUrl && brushReady);
+    if (!canDrawBrush) {
+      brush.set(params.referenceBrush, params.strokeColor, 1);
+      brush.line(30, H - 30, W - 30, H - 30);
+      return;
+    }
+
+    // ── 1. line() — top strip, full width ─────────
+    for (let i = 0; i < 4; i++) {
+      brush.set(params.name, c(i), 1);
+      brush.line(30, 35 + i * 22, W - 30, 35 + i * 22);
+    }
+    brush.set(params.name, c(4), 1);
+    brush.line(30, 32, W - 30, 125);
+
+    // ── 2. circle() — left middle ─────────────────
+    brush.set(params.name, c(0), 1);
+    brush.noFill();
+    brush.noHatch();
+    brush.circle(110, 260, 130, 0.1);
+
+    // ── 3. rect() stroked — right middle ──────────
+    brush.set(params.name, c(1), 1);
+    brush.noFill();
+    brush.noHatch();
+    brush.rect(270, 175, 240, 160);
+
+    // ── 4. rect() hatched — left bottom ───────────
+    brush.hatchStyle(params.name, c(2), 1);
+    brush.hatch(9, 40, { rand: 0.08 });
+    brush.noStroke();
+    brush.rect(30, 365, 195, 90);
+    brush.noHatch();
+
+    // ── 5. spline() — right bottom ────────────────
+    brush.set(params.name, c(3), 1);
+    brush.noHatch();
+    const sx = 270, sy = 365;
+    brush.spline([
+      [sx,       sy + 70, 1],
+      [sx + 50,  sy + 15, 1],
+      [sx + 100, sy + 75, 1],
+      [sx + 160, sy + 20, 1],
+      [sx + 215, sy + 70, 1],
+    ], 1);
+
+    // ── Reference line ────────────────────────────
+    brush.set(params.referenceBrush, params.strokeColor, 1);
+    brush.noHatch();
+    brush.line(30, H - 30, W - 30, H - 30);
+  };
+};
+
+new p5(sketch);
+</script>
+</body>
+</html>

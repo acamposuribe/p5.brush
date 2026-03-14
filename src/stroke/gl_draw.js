@@ -166,12 +166,24 @@ export function circle(x, y, diameter, alpha) {
   const py = y - Cheight / 2;
 
   const offset = circleCount * 4;
-  circleData[offset] = _ma * px + _mc * py + _mx + Cwidth / 2;
-  circleData[offset + 1] = _mb * px + _md * py + _my + Cheight / 2;
-  // Scale the diameter by the matrix's scale factor (length of the transformed x-axis)
-  circleData[offset + 2] =
+  const screenX = _ma * px + _mc * py + _mx + Cwidth / 2;
+  const screenY = _mb * px + _md * py + _my + Cheight / 2;
+  const radius =
     (Density * diameter * Math.sqrt(_ma * _ma + _mb * _mb)) / 2;
+
+  circleData[offset] = screenX;
+  circleData[offset + 1] = screenY;
+  // Scale the diameter by the matrix's scale factor (length of the transformed x-axis)
+  circleData[offset + 2] = radius;
   circleData[offset + 3] = alpha / 255;
+
+  Mix.markDirtyRect(Mix.glMask, {
+    minX: screenX * Density - radius - 1,
+    minY: screenY * Density - radius - 1,
+    maxX: screenX * Density + radius + 1,
+    maxY: screenY * Density + radius + 1,
+  });
+
   circleCount++;
 }
 

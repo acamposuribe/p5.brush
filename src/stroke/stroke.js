@@ -277,6 +277,52 @@ function currentPointInUserSpace() {
   );
 }
 
+function screenPointFromPosition(x, y) {
+  const point = transformPoint(_strokeTransform, x - Cwidth / 2, y - Cheight / 2);
+  return {
+    x: point.x + Cwidth / 2,
+    y: point.y + Cheight / 2,
+  };
+}
+
+function markImageTipDirty(rx, ry, scale, angle) {
+  const halfWeight = current.p.weight / 2;
+  const radians = (angle * Math.PI) / 180;
+  const cosAngle = Math.cos(radians);
+  const sinAngle = Math.sin(radians);
+  const userCenterX = _position.x + rx;
+  const userCenterY = _position.y + ry;
+  const corners = [
+    [-halfWeight, -halfWeight],
+    [halfWeight, -halfWeight],
+    [halfWeight, halfWeight],
+    [-halfWeight, halfWeight],
+  ];
+
+  let minX = Infinity,
+    minY = Infinity,
+    maxX = -Infinity,
+    maxY = -Infinity;
+
+  for (const [x, y] of corners) {
+    const lx = scale * (cosAngle * x - sinAngle * y);
+    const ly = scale * (sinAngle * x + cosAngle * y);
+    const point = screenPointFromPosition(userCenterX + lx, userCenterY + ly);
+
+    minX = Math.min(minX, point.x * Renderer.pixelDensity());
+    minY = Math.min(minY, point.y * Renderer.pixelDensity());
+    maxX = Math.max(maxX, point.x * Renderer.pixelDensity());
+    maxY = Math.max(maxY, point.y * Renderer.pixelDensity());
+  }
+
+  Mix.markDirtyRect(Mix.glMask, {
+    minX: minX - 2,
+    minY: minY - 2,
+    maxX: maxX + 2,
+    maxY: maxY + 2,
+  });
+}
+
 /**
  * Defines a clipping region for strokes.
  * The region uses the same coordinate space as brush drawing commands,
@@ -393,9 +439,10 @@ function saveState() {
 
   // Ensure GL is ready and blend state
   isReady();
-  if (isInsideClippingArea()) Mix.blend(State.stroke.color);
-  if (Mix.isBrush === false) Mix.justChanged = true;
+  const switchingToBrush = Mix.isBrush !== true;
   Mix.isBrush = true;
+  if (switchingToBrush) Mix.justChanged = true;
+  if (isInsideClippingArea()) Mix.blend(State.stroke.color);
 
   // Set additional state values
   current.alpha = calculateAlpha();
@@ -613,9 +660,16 @@ function drawTip(pressure, alpha, vibrate = true) {
   const rx = vibrate ? vibration * rr(-1, 1) : 0;
   const ry = vibrate ? vibration * rr(-1, 1) : 0;
   Mask.translate(_position.x + rx - Cwidth, _position.y + ry - Cheight);
-  adjustSizeAndRotation(State.stroke.weight * pressure, alpha);
+  const scale = State.stroke.weight * pressure;
+  const angle = adjustSizeAndRotation(scale, alpha);
   current.p.tip(Mask);
   Mask.pop();
+
+  if (current.p.type === "image") {
+    markImageTipDirty(rx, ry, scale, angle);
+  } else {
+    Mix.markFull(Mix.glMask);
+  }
 }
 
 /**
@@ -671,6 +725,7 @@ function adjustSizeAndRotation(pressure, alpha) {
       (_plot ? -_plot.angle(_position.plotted) : -_dir) + _position.angle();
   }
   Mask.rotate(angle);
+  return angle;
 }
 
 /**
@@ -824,7 +879,7 @@ const _standard_brushes = [
     "marker",
     [
       2,
-      0.12,
+      0.2,
       null,
       null,
       1,
@@ -840,6 +895,21 @@ for (let s of _standard_brushes) {
   for (let i = 0; i < s[1].length; i++) obj[_vals[i]] = s[1][i];
   add(s[0], obj);
 }
+
+add("diamond", {
+  type: "custom",
+  weight: 0.78,
+  scatter: 0.1,
+  opacity: 17,
+  spacing: 1.3,
+  pressure: [1.2, 0.82],
+  rotate: "none",
+  tip: (_m) => {
+    _m.rotate(45);
+    _m.rect(-4, -4, 8, 8);
+    _m.rect(2, 2, 3, 3);
+  },
+});
 
 // ---------------------------------------------------------------------------
 // Extensions to Polygon and Plot Prototypes

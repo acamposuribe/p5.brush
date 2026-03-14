@@ -291,7 +291,6 @@ Functions for managing brush behaviors and properties.
       - `grain`: Controls how dense the texture is. Higher = smoother, more continuous line. Only matters for `"default"` type.
       - `opacity`: How opaque each mark is, from 0 to 255. Pressure also affects this.
       - `spacing`: Gap between brush tip stamps along the stroke. `1` means no overlap, lower values create denser strokes.
-      - `blend`: `true` or `false`. Enables realistic paint mixing. On by default for `"marker"`, `"custom"`, and `"image"` types.
       - `pressure`: Controls how the brush size changes from start to end of a stroke. Use a simple array — the easiest way:
          - `[start, end]` — e.g. `[2, 0.5]` starts thick and gets thin.
          - `[start, middle, end]` — e.g. `[0.5, 2, 0.5]` starts thin, swells in the middle, ends thin.
@@ -314,7 +313,6 @@ Functions for managing brush behaviors and properties.
             scatter: 2,
             opacity: 30,
             spacing: 1.5,
-            blend: true,
             pressure: [1, 0.5],   // starts thick, ends thin
             image: { src: "./brush_tips/brush.jpg" },
             rotate: "random",
@@ -332,7 +330,6 @@ Functions for managing brush behaviors and properties.
         scatter: 0.08,
         opacity: 23,
         spacing: 0.6,
-        blend: true,
         pressure: [0.5, 1.5, 0.5],   // thin → thick → thin
         tip: (_m) => {
             // Draw inside _m using normal p5.js drawing commands

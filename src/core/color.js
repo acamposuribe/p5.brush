@@ -95,6 +95,91 @@ const needsMixBuffers = () =>
   Renderer.glMask.width !== Cwidth ||
   Renderer.glMask.height !== Cheight;
 
+const DIRTY_BRUSH_PADDING = 2;
+const DIRTY_FILL_PADDING = 4;
+
+const getTargetPixelSize = () => ({
+  width: Math.max(1, Math.round(Cwidth * Density)),
+  height: Math.max(1, Math.round(Cheight * Density)),
+});
+
+const expandDirtyRect = (rect, padding = 0) =>
+  rect
+    ? {
+        minX: rect.minX - padding,
+        minY: rect.minY - padding,
+        maxX: rect.maxX + padding,
+        maxY: rect.maxY + padding,
+      }
+    : null;
+
+const normalizeDirtyRect = (rect) => {
+  if (!rect) return null;
+
+  const { width, height } = getTargetPixelSize();
+  const minX = Math.max(0, Math.floor(Math.min(rect.minX, rect.maxX)));
+  const minY = Math.max(0, Math.floor(Math.min(rect.minY, rect.maxY)));
+  const maxX = Math.min(width, Math.ceil(Math.max(rect.minX, rect.maxX)));
+  const maxY = Math.min(height, Math.ceil(Math.max(rect.minY, rect.maxY)));
+
+  if (maxX <= minX || maxY <= minY) return null;
+
+  return { minX, minY, maxX, maxY };
+};
+
+const unionDirtyRect = (a, b) => {
+  if (!a) return b;
+  if (!b) return a;
+
+  return {
+    minX: Math.min(a.minX, b.minX),
+    minY: Math.min(a.minY, b.minY),
+    maxX: Math.max(a.maxX, b.maxX),
+    maxY: Math.max(a.maxY, b.maxY),
+  };
+};
+
+const getFullDirtyRect = () => {
+  const { width, height } = getTargetPixelSize();
+  return { minX: 0, minY: 0, maxX: width, maxY: height };
+};
+
+const toScissorBox = (rect) => {
+  const normalized = normalizeDirtyRect(rect);
+  if (!normalized) return null;
+
+  const { height } = getTargetPixelSize();
+  return {
+    x: normalized.minX,
+    y: height - normalized.maxY,
+    width: normalized.maxX - normalized.minX,
+    height: normalized.maxY - normalized.minY,
+  };
+};
+
+const withScissor = (gl, rect, draw) => {
+  const box = toScissorBox(rect);
+  if (!box) return false;
+
+  const wasEnabled = gl.isEnabled(gl.SCISSOR_TEST);
+  const prevBox = gl.getParameter(gl.SCISSOR_BOX);
+
+  gl.enable(gl.SCISSOR_TEST);
+  gl.scissor(box.x, box.y, box.width, box.height);
+
+  try {
+    draw();
+  } finally {
+    if (wasEnabled) {
+      gl.scissor(prevBox[0], prevBox[1], prevBox[2], prevBox[3]);
+    } else {
+      gl.disable(gl.SCISSOR_TEST);
+    }
+  }
+
+  return true;
+};
+
 /**
  * Loads and initializes a canvas for the drawing system.
  * @param {p5.Graphics|p5.Framebuffer|false} [buffer=false] - Optional offscreen target.
@@ -172,7 +257,42 @@ export const Mix = {
   isBlending: false,
   cachedColor: new Object(),
 
-  captureBlendSource() {
+  markDirtyRect(target, rect) {
+    const normalized = normalizeDirtyRect(rect);
+    if (!target || !normalized) return;
+
+    target.dirtyRect = unionDirtyRect(target.dirtyRect, normalized);
+    target.isDrawn = true;
+  },
+
+  markFull(target) {
+    if (!target) return;
+
+    target.dirtyRect = getFullDirtyRect();
+    target.isDrawn = true;
+  },
+
+  clearMask(target) {
+    if (!target) return;
+
+    target.clear();
+    target.isDrawn = false;
+    target.dirtyRect = null;
+  },
+
+  getCompositeRect(target, isBrushMask) {
+    if (!target) return null;
+    if (!target.dirtyRect) return getFullDirtyRect();
+
+    return normalizeDirtyRect(
+      expandDirtyRect(
+        target.dirtyRect,
+        isBrushMask ? DIRTY_BRUSH_PADDING : DIRTY_FILL_PADDING,
+      ),
+    );
+  },
+
+  captureBlendSource(dirtyRect) {
     const activeFramebuffer = getActiveFramebuffer();
 
     if (!activeFramebuffer) return Renderer._renderer;
@@ -192,13 +312,17 @@ export const Mix = {
     const source = Renderer.blendSourceFramebuffer;
 
     source.draw(() => {
-      Renderer.clear();
-      Renderer.push();
-      if (typeof Renderer.imageMode === "function") {
-        Renderer.imageMode(Renderer.CENTER ?? Renderer._renderer?._pInst?.CENTER);
-      }
-      Renderer.image(activeFramebuffer, 0, 0, Cwidth, Cheight);
-      Renderer.pop();
+      withScissor(Renderer.drawingContext, dirtyRect, () => {
+        Renderer.clear();
+        Renderer.push();
+        if (typeof Renderer.imageMode === "function") {
+          Renderer.imageMode(
+            Renderer.CENTER ?? Renderer._renderer?._pInst?.CENTER,
+          );
+        }
+        Renderer.image(activeFramebuffer, 0, 0, Cwidth, Cheight);
+        Renderer.pop();
+      });
     });
 
     return source;
@@ -230,6 +354,8 @@ export const Mix = {
       this.mask.pixelDensity(Density);
       this.mask.clear();
       this.mask.angleMode(Renderer.DEGREES);
+      this.mask.dirtyRect = null;
+      this.mask.isDrawn = false;
 
       this.ctx = this.mask.drawingContext;
 
@@ -238,10 +364,16 @@ export const Mix = {
       this.glMask.clear();
       this.glMask.angleMode(this.glMask.DEGREES);
       this.glMask.drawingContext.lineWidth = 0;
+      this.glMask.dirtyRect = null;
+      this.glMask.isDrawn = false;
     } else {
       this.mask = Renderer.mask;
       this.glMask = Renderer.glMask;
       this.ctx = this.mask.drawingContext;
+      this.mask.dirtyRect ??= null;
+      this.mask.isDrawn ??= false;
+      this.glMask.dirtyRect ??= null;
+      this.glMask.isDrawn ??= false;
     }
 
     // Link Matrix of GL mask to main Renderer
@@ -258,8 +390,16 @@ export const Mix = {
   blend(_color = false, _isLast = false) {
     isMixReady();
 
-    const mask = this.isBrush ? this.glMask : this.mask;
-    const no_mask = this.isBrush ? this.mask : this.glMask;
+    const activeIsBrush = this.isBrush === true;
+    const mask = activeIsBrush ? this.glMask : this.mask;
+    const no_mask = activeIsBrush ? this.mask : this.glMask;
+    const nextColor = _color?._array;
+    const colorChanged =
+      !!nextColor &&
+      (this.cachedColor[0] !== nextColor[0] ||
+        this.cachedColor[1] !== nextColor[1] ||
+        this.cachedColor[2] !== nextColor[2] ||
+        this.cachedColor[3] !== nextColor[3]);
 
     // Perf gains are minimal but let's keep it for now
     if (disable) {
@@ -274,32 +414,40 @@ export const Mix = {
     }
 
     // Initialize blending if not already active
-    if (!this.isBlending && _color) {
+    if (!this.isBlending && nextColor) {
       this.isBlending = true;
-      this.cachedColor = _color._array;
+      this.cachedColor = nextColor;
       // Force p5 to bind its internal render target for glMask,
       // so the first glDraw() writes to the correct framebuffer.
       this.glMask.clear();
     }
 
-    if (_isLast || this.cachedColor[0] !== _color._array[0] || this.cachedColor[1] !== _color._array[1] || this.cachedColor[2] !== _color._array[2] || this.cachedColor[3] !== _color._array[3]) {
+    if (_isLast || colorChanged) {
       if (this.justChanged) {
-        this.applyShader(no_mask);
+        this.applyShader(no_mask, !activeIsBrush);
         this.justChanged = false;
       }
       if (this.isBlending) {
-        this.applyShader(mask);
+        this.applyShader(mask, activeIsBrush);
       }
-      this.cachedColor = _color._array;
+      if (nextColor) this.cachedColor = nextColor;
       if (_isLast) this.isBlending = false;
     }
   },
 
-  applyShader(mask) {
+  applyShader(mask, isBrushMask) {
+    if (!mask?.isDrawn) return;
+
+    const dirtyRect = this.getCompositeRect(mask, isBrushMask);
+    if (!dirtyRect) {
+      this.clearMask(mask);
+      return;
+    }
+
     let shader = Renderer.shaderProgram;
     const gl = Renderer.drawingContext;
     const targetIsFramebuffer = !!getActiveFramebuffer();
-    const source = this.captureBlendSource();
+    const source = this.captureBlendSource(dirtyRect);
 
     // Disable depth test for this compositing draw so the fullscreen rect
     // does not write Z=0 into the depth buffer — which would cause any
@@ -316,15 +464,17 @@ export const Mix = {
 
     // Set shader uniforms
     shader.setUniform("u_source", source);
-    shader.setUniform("u_isBrush", this.isBrush);
+    shader.setUniform("u_isBrush", isBrushMask);
     shader.setUniform("u_flipOutputY", targetIsFramebuffer);
     shader.setUniform("u_mask", mask);
     shader.setUniform("u_color", this.cachedColor);
 
     // Draw a rectangle covering the whole canvas to apply the shader
-    Renderer.fill(0, 0, 0, 0);
-    Renderer.noStroke();
-    Renderer.rect(-Cwidth / 2, -Cheight / 2, Cwidth, Cheight);
+    withScissor(gl, dirtyRect, () => {
+      Renderer.fill(0, 0, 0, 0);
+      Renderer.noStroke();
+      Renderer.rect(-Cwidth / 2, -Cheight / 2, Cwidth, Cheight);
+    });
 
     // Finish and clear mask
     Renderer.pop();
@@ -333,7 +483,6 @@ export const Mix = {
     // Restore depth test state
     if (hadDepthTest) gl.enable(gl.DEPTH_TEST);
 
-    mask.clear();
-    mask.isDrawn = false;
+    this.clearMask(mask);
   },
 };
