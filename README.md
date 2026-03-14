@@ -72,10 +72,8 @@ const sketch = (p) => {
   brush.instance(p);
 
   p.setup = () => {
-    // Canvas must be in WEBGL mode
+    // Canvas must be in WEBGL mode — brush initializes automatically
     p.createCanvas(700, 410, p.WEBGL);
-    // Initialize p5.brush after canvas is created
-    brush.load();
   };
 
   p.draw = () => {
@@ -810,7 +808,7 @@ This section covers functions for initializing the drawing system, preloading re
 > **Seeding**: p5.brush automatically hooks into p5's `randomSeed()` and `noiseSeed()`. Calling either of those functions seeds both p5 and the library simultaneously — no separate `brush.seed()` call is needed.
 
 - `brush.load(buffer)`
-  - **Description**: Initialize the library on the current canvas. If a `p5.Graphics` buffer is passed, the library will target that buffer instead. If a `p5.Framebuffer` is passed, it must belong to the active sketch; call `brush.load(framebuffer)` while that framebuffer is active inside `begin()` / `end()` or `draw()`. Framebuffers created from `p5.Graphics` are not supported. Call `brush.load()` again (with no argument) to switch back to the main canvas.
+  - **Description**: Redirects brush drawing to a secondary canvas target. **Not needed for the main canvas** — the library initializes automatically when `createCanvas()` is called. Pass a `p5.Graphics` buffer or an active `p5.Framebuffer` to draw into that target instead; call `brush.load()` with no argument to switch back to the main canvas. Framebuffers created from `p5.Graphics` are not supported.
   - **Parameters**:
     - `buffer` (p5.Graphics | p5.Framebuffer): Optional. An offscreen target to draw into.
   - **How to use it**:

@@ -237,7 +237,7 @@ export const instance = (inst) => {
  * Ensures the Mix object is initialized and ready for blending.
  */
 export const isMixReady = () => {
-  if (!Renderer.loaded) {
+  if (!Renderer?.loaded) {
     isCanvasReady();
     Mix.load();
   }

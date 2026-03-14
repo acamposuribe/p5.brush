@@ -16,22 +16,21 @@ import * as brush from 'p5.brush'
 
 ## Setup
 
-The canvas **must use WEBGL mode**. Call `brush.load()` after `createCanvas()`.
+The canvas **must use WEBGL mode**. The library initializes automatically when `createCanvas()` is called — no `brush.load()` needed for the main canvas.
 
 ```js
 async function setup() {
   createCanvas(600, 600, WEBGL)
-  brush.load()
   brush.scaleBrushes(1.5) // optional: scale all default brushes
 }
 ```
 
-In **instance mode**, call `brush.instance(p)` before setup:
+In **instance mode**, call `brush.instance(p)` before setup — auto-initialization still applies:
 
 ```js
 const sketch = (p) => {
   brush.instance(p)
-  p.setup = () => { p.createCanvas(600, 600, p.WEBGL); brush.load() }
+  p.setup = () => { p.createCanvas(600, 600, p.WEBGL) }
 }
 new p5(sketch)
 ```
@@ -54,7 +53,7 @@ Exception: `brush.addField(name, fn, { angleMode })` lets custom field generator
 
 ### Configuration
 
-- `brush.load(buffer?)` — Initialize on the current canvas, on a `p5.Graphics` buffer, or on an active `p5.Framebuffer` from the current sketch. For `p5.Graphics`, create the buffer in `WEBGL`, call `brush.load(pg)`, draw, then call `brush.load()` before presenting it with `image(pg, ...)`. For framebuffers, call `brush.load(framebuffer)` only while that framebuffer is active inside `begin()` / `end()` or `draw()`, then call `brush.load()` again after leaving that scope. `brush.load(...)` only changes p5.brush's target; native p5 drawing calls still need to be directed at the same target explicitly. Framebuffers created from `p5.Graphics` are not supported. Call again with no args to return to the main canvas.
+- `brush.load(buffer?)` — Only needed when targeting a secondary canvas. Pass a `p5.Graphics` buffer or an active `p5.Framebuffer` to redirect all brush drawing to that target. Call `brush.load()` with no args to return to the main canvas. For `p5.Graphics`, create the buffer in `WEBGL`, call `brush.load(pg)`, draw, then call `brush.load()` before presenting it with `image(pg, ...)`. For framebuffers, call `brush.load(framebuffer)` only while that framebuffer is active inside `begin()` / `end()` or `draw()`, then call `brush.load()` again after leaving that scope. `brush.load(...)` only changes p5.brush's target; native p5 drawing calls still need to be directed at the same target explicitly. Framebuffers created from `p5.Graphics` are not supported.
 - `brush.scaleBrushes(scale)` — Scale all currently registered brushes by `scale`. Call once in setup; if you only want the built-ins scaled, call it before adding custom brushes.
 - `brush.instance(p)` — Use when p5 is in instance mode. Call before setup/draw.
 - `brush.preload()` — Compatibility helper for preloading image tips. Usually unnecessary in v2 if you `await brush.add(...)` for image brushes.
@@ -239,7 +238,6 @@ pos.plotTo(plot, length, stepLength, scale)
 ```js
 async function setup() {
   createCanvas(600, 600, WEBGL)
-  brush.load()
   brush.scaleBrushes(2)
   angleMode(DEGREES)
   background("#fffceb")
@@ -297,7 +295,7 @@ pop()
 - Canvas **must be WEBGL** — `createCanvas(w, h, WEBGL)`.
 - In WEBGL mode the origin is at the center. Use `translate(-width/2, -height/2)` at the start of `draw()` to work in top-left coordinates.
 - `brush.circle()` can be stroked, hatched, and filled. `brush.arc()` is stroke-only.
-- `brush.load()` must be called after `createCanvas()`, not before.
+- `brush.load()` is **not needed** for the main canvas — it initializes automatically on `createCanvas()`. Only call it when switching to a `p5.Graphics` or `p5.Framebuffer` target.
 - For image brushes, `setup()` must be `async` and you must `await brush.add(...)`.
 - `randomSeed()` and `noiseSeed()` seed the library automatically — no separate brush seed call needed.
 - `brush.flowLine()` direction and `brush.hatch()` angles follow the current `angleMode()`.
