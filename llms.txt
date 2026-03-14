@@ -43,8 +43,10 @@ p5.brush hooks into p5 automatically:
 - `translate()`, `rotate()`, `scale()` — all p5 transforms apply to brush strokes
 - `randomSeed(n)` — seeds both p5 and the brush library
 - `noiseSeed(n)` — seeds both p5 noise and the brush library
+- `angleMode(mode)` — public brush APIs that accept angles follow p5's current angle mode; with no `angleMode()` call, this defaults to radians just like p5
 
 No separate `brush.push()`, `brush.translate()`, or `brush.seed()` calls are needed.
+Exception: `brush.addField(name, fn, { angleMode })` lets custom field generators declare whether returned angles are in degrees or radians before the library stores them internally in degrees.
 
 ---
 
@@ -52,10 +54,10 @@ No separate `brush.push()`, `brush.translate()`, or `brush.seed()` calls are nee
 
 ### Configuration
 
-- `brush.load(buffer?)` — Initialize on the current canvas, or on a `p5.Graphics` buffer. Call again with no args to return to the main canvas.
-- `brush.scaleBrushes(scale)` — Multiply all default brush sizes by `scale`. Call once in setup.
+- `brush.load(buffer?)` — Initialize on the current canvas, on a `p5.Graphics` buffer, or on an active `p5.Framebuffer` from the current sketch. For `p5.Graphics`, create the buffer in `WEBGL`, call `brush.load(pg)`, draw, then call `brush.load()` before presenting it with `image(pg, ...)`. For framebuffers, call `brush.load(framebuffer)` only while that framebuffer is active inside `begin()` / `end()` or `draw()`, then call `brush.load()` again after leaving that scope. `brush.load(...)` only changes p5.brush's target; native p5 drawing calls still need to be directed at the same target explicitly. Framebuffers created from `p5.Graphics` are not supported. Call again with no args to return to the main canvas.
+- `brush.scaleBrushes(scale)` — Scale all currently registered brushes by `scale`. Call once in setup; if you only want the built-ins scaled, call it before adding custom brushes.
 - `brush.instance(p)` — Use when p5 is in instance mode. Call before setup/draw.
-- `brush.preload()` — Legacy. Not needed in v2.
+- `brush.preload()` — Compatibility helper for preloading image tips. Usually unnecessary in v2 if you `await brush.add(...)` for image brushes.
 
 ---
 
@@ -73,7 +75,7 @@ No separate `brush.push()`, `brush.translate()`, or `brush.seed()` calls are nee
 
 Fill simulates watercolor — soft edges, bleed, texture layering.
 
-- `brush.fill(color, opacity)` or `brush.fill(r, g, b, opacity)` — Set fill color. Opacity is 0–255. Enables fill.
+- `brush.fill(color, opacity)` or `brush.fill(r, g, b, opacity)` — Set fill color. Opacity uses p5-style alpha values (typically 0–255). Enables fill.
 - `brush.noFill()` — Disable fill.
 - `brush.fillBleed(strength, direction?)` — Edge bleed amount, 0–1. Direction: `"out"` or `"in"`.
 - `brush.fillTexture(textureStrength, borderIntensity)` — Texture and border, both 0–1.
@@ -84,7 +86,7 @@ Fill simulates watercolor — soft edges, bleed, texture layering.
 
 Hatching draws parallel lines inside shapes. Activate before drawing a shape, disable after.
 
-- `brush.hatch(dist, angle, options?)` — Enable hatching. `dist` = spacing in canvas units, `angle` = line angle (respects `angleMode()`). Options: `{rand: 0–1, continuous: bool, gradient: 0–1}`.
+- `brush.hatch(dist, angle, options?)` — Enable hatching. `dist` = spacing in canvas units, `angle` is interpreted using the current `angleMode()` when `brush.hatch()` is called. Options: `{rand: 0–1, continuous: bool, gradient: 0–1}`.
 - `brush.noHatch()` — Disable hatching.
 - `brush.hatchStyle(name, color, weight)` — Set brush used for hatching (independent of stroke brush).
 - `brush.hatchArray(polygons)` — Apply current hatch style directly to a `brush.Polygon` or array of polygons.
@@ -102,7 +104,7 @@ Built-in fields: `"hand"`, `"curved"`, `"zigzag"`, `"waves"`, `"seabed"`, `"spir
 - `brush.wiggle(intensity)` — Shorthand for activating `"hand"` field with a given wobble strength (e.g. 1–10).
 - `brush.listFields()` — Returns array of all field names.
 - `brush.refreshField(t)` — Update field values using its time-dependent generator. Call in draw loop.
-- `brush.addField(name, fn)` — Create a custom field. `fn(t, field)` fills a 2D angle grid and returns it.
+- `brush.addField(name, fn, options?)` — Create a custom field. `fn(t, field)` fills a 2D angle grid and returns it. By default the grid values are degrees; pass `{ angleMode: "radians" }` if your generator writes radians.
 
 ```js
 brush.addField("diagonal", (t, field) => {
@@ -121,7 +123,7 @@ brush.field("diagonal")
 #### Lines (stroke only, no fill/hatch)
 
 - `brush.line(x1, y1, x2, y2)` — Straight line with current brush.
-- `brush.flowLine(x, y, length, dir)` — Line that follows the active vector field. `dir` is initial angle.
+- `brush.flowLine(x, y, length, dir)` — Line that follows the active vector field. `dir` is the initial angle and follows the current `angleMode()`.
 - `brush.spline(points, curvature?)` — Smooth curve through `[[x,y], [x,y,pressure], ...]`. Curvature 0–1.
 
 #### Manual strokes (stroke only)
@@ -136,8 +138,8 @@ brush.endStroke(angle, pressure)
 #### Shapes (affected by stroke + fill + hatch)
 
 - `brush.rect(x, y, w, h, mode?)` — Rectangle. `mode`: `"corner"` (default) or `"center"`.
-- `brush.circle(x, y, radius, r?)` — Circle outline. `r` = hand-drawn irregularity (0–1). **Fill is not applied to circles** — use `brush.polygon()` for filled circles.
-- `brush.arc(x, y, radius, start, end)` — Arc in radians. Stroke only.
+- `brush.circle(x, y, radius, r?)` — Circle. `r` = hand-drawn irregularity (0–1). Circles can be stroked, hatched, and filled.
+- `brush.arc(x, y, radius, start, end)` — Arc. `start` and `end` follow the current `angleMode()`. Stroke only.
 - `brush.polygon(pointsArray)` — Polygon from `[[x,y], ...]`. Not affected by vector fields.
 - `brush.beginShape(curvature?)` / `brush.vertex(x, y, pressure?)` / `brush.endShape(close?)` — Custom shape.
 
@@ -146,7 +148,7 @@ brush.endStroke(angle, pressure)
 ### Brush Management
 
 - `brush.box()` — Returns array of all brush names.
-- `brush.clip([x1, y1, x2, y2])` — Clip all strokes to a rectangle.
+- `brush.clip([x1, y1, x2, y2])` — Clip all strokes to a rectangle in the same coordinate space as brush drawing calls. The current p5 transform is captured when you call it.
 - `brush.noClip()` — Remove clipping.
 - `brush.add(name, params)` — Define a custom brush.
 
@@ -225,7 +227,7 @@ Point that can move through a vector field.
 
 ```js
 let pos = new brush.Position(x, y)
-pos.moveTo(length, dir, stepLength, isFlow)
+pos.moveTo(dir, length, stepLength) // direction follows the current angleMode()
 pos.plotTo(plot, length, stepLength, scale)
 ```
 
@@ -260,6 +262,7 @@ function draw() {
 ### Vector field + flowLine
 
 ```js
+angleMode(DEGREES)
 brush.field("waves")
 brush.set("charcoal", "white", 1)
 for (let i = 0; i < 40; i++)
@@ -294,9 +297,10 @@ pop()
 
 - Canvas **must be WEBGL** — `createCanvas(w, h, WEBGL)`.
 - In WEBGL mode the origin is at the center. Use `translate(-width/2, -height/2)` at the start of `draw()` to work in top-left coordinates.
-- `brush.circle()` draws a stroke outline only — fill is not applied. Use `brush.polygon()` with many points for a filled circle.
+- `brush.circle()` can be stroked, hatched, and filled. `brush.arc()` is stroke-only.
 - `brush.load()` must be called after `createCanvas()`, not before.
 - For image brushes, `setup()` must be `async` and you must `await brush.add(...)`.
 - `randomSeed()` and `noiseSeed()` seed the library automatically — no separate brush seed call needed.
+- `brush.flowLine()` direction and `brush.hatch()` angles follow the current `angleMode()`.
 - `brush.rect()` mode uses strings: `"corner"` or `"center"` — not p5 constants.
-- Fill opacity is 0–255, not 0–100.
+- Fill opacity follows p5-style alpha values, not 0–100.

@@ -131,7 +131,7 @@ p5.brush.js provides a comprehensive API for creating complex drawings and effec
 |                                            | brush.stroke()      |   |                                            | brush.endShape()    |
 |                                            | brush.noStroke()    |   |                                            | brush.polygon()     |
 |                                            | brush.strokeWeight()|   | [Configuration](#optional-configuration)   | brush.load()        |
-| [Fill Operations](#fill-operations)        | brush.fill()        |   |                                            | brush.preload()     |
+| [Fill Operations](#fill-operations)        | brush.fill()        |   |                                            |      |
 |                                            | brush.noFill()      |   |                                            | brush.scaleBrushes()|
 |                                            | brush.fillBleed()   |   |                                            | brush.instance()    |
 |                                            | brush.fillTexture() |   |                                            |                     |
@@ -147,6 +147,8 @@ p5.brush.js provides a comprehensive API for creating complex drawings and effec
 ---
  
 > **Note for users upgrading from older versions**: `brush.push()`, `brush.pop()`, `brush.translate()`, `brush.rotate()`, and `brush.scale()` are no longer needed. The library now automatically hooks into p5's `push()` and `pop()`, so brush state (stroke, fill, hatch settings) is saved and restored alongside p5's own state. Likewise, p5's `translate()`, `rotate()`, and `scale()` are automatically inherited by all brush strokes and fills.
+
+> Public brush APIs that accept angles also inherit p5's current `angleMode()`. With no `angleMode()` call, that means radians by default, matching p5 itself. The main exception is `brush.addField(name, fn, { angleMode })`, which lets custom field generators declare how returned angles should be interpreted before they are stored internally in degrees.
 
 ---
 
@@ -230,12 +232,14 @@ Vector Fields allow for dynamic control over brush stroke behavior, enabling the
 
 ---
 
-- `brush.addField(name, generatorFunction)`
+- `brush.addField(name, generatorFunction, options)`
   - **Description**: Creates your own custom vector field. A vector field is just a grid of angles — each cell tells the brush "point in this direction". You give the field a name and a function that fills the grid. Once added, activate it with `brush.field(name)` just like any built-in field.
   - **Parameters**:
     - `name` (String): Any name you want, e.g. `"myField"`.
-    - `generatorFunction` (Function): A function `(t, field) => field` that fills every cell of the grid with an angle **in degrees** and returns it. `t` is a time value you can use for animation (pass it via `brush.refreshField(t)`).
-  - **How the grid works**: `field` is a 2D array — `field[column][row]`. You loop through every column and row and set each cell to an angle in degrees. Small angles (±10°) make subtle curves; large ones (±90° or more) make dramatic bends.
+    - `generatorFunction` (Function): A function `(t, field) => field` that fills every cell of the grid with an angle and returns it. `t` is a time value you can use for animation (pass it via `brush.refreshField(t)`).
+    - `options` (Object): Optional configuration for custom field angles.
+      - `angleMode`: `"degrees"` (default) or `"radians"`. This controls how the values written into `field[column][row]` are interpreted.
+  - **How the grid works**: `field` is a 2D array — `field[column][row]`. You loop through every column and row and set each cell to an angle. By default those angles are interpreted as degrees. Small angles (±10°) make subtle curves; large ones (±90° or more) make dramatic bends.
   - **Simplest example** — a diagonal flow that slowly rotates over time:
     ```javascript
     brush.addField("diagonal", function(t, field) {
@@ -343,7 +347,7 @@ Functions for managing brush behaviors and properties.
 ---
 
 - `brush.clip(clippingRegion)`
-  - **Description**: Sets a rectangular clipping region for all subsequent brush strokes. When this clipping region is active, brush strokes outside this area will not be rendered. This is particularly useful for ensuring that strokes, such as lines and curves, are contained within a specified area. The clipping affects only stroke and hatch operations, not fill operations. The clipping remains in effect for all strokes drawn after the call to `brush.clip()` until `brush.noClip()` is used.
+  - **Description**: Sets a rectangular clipping region for all subsequent brush strokes. When this clipping region is active, brush strokes outside this area will not be rendered. This is particularly useful for ensuring that strokes, such as lines and curves, are contained within a specified area. The clipping affects only stroke and hatch operations, not fill operations. The region is interpreted in the same coordinate space as your brush drawing calls, with the current p5 transform captured when `brush.clip()` is called. The clipping remains in effect for all strokes drawn after the call to `brush.clip()` until `brush.noClip()` is used.
   - **Parameters**:
     - `clippingRegion` (Array): An array defining the clipping region as `[x1, y1, x2, y2]`, with `(x1, y1)` and `(x2, y2)` being the corners of the clipping rectangle.
   - **Usage**:
@@ -523,7 +527,7 @@ The Hatching section focuses on creating and drawing hatching patterns, which in
   - **Description**: Activates hatching with specified parameters for subsequent geometries. This function enables the drawing of hatching patterns with controlled line spacing, angle, and additional stylistic options.
   - **Parameters**:
     - `dist` (Number): The distance between hatching lines, in canvas units.
-    - `angle` (Number): The angle at which hatching lines are drawn. The angle mode (degrees or radians) is set by p5's `angleMode()`.
+    - `angle` (Number): The angle at which hatching lines are drawn. It is interpreted using p5's current `angleMode()` when `brush.hatch()` is called.
     - `options` (Object): Optional settings to affect the hatching style, including:
       - `rand`: Randomness in line placement (0 to 1 or false).
       - `continuous`: Whether to connect the end of a line with the start of the next.
@@ -621,7 +625,7 @@ The following functions are only affected by stroke() operations, completely ign
     - `x` (Number): The x-coordinate of the starting point.
     - `y` (Number): The y-coordinate of the starting point.
     - `length` (Number): The length of the line.
-    - `dir` (Number): The direction in which to draw the line, measured anticlockwise from the x-axis.
+    - `dir` (Number): The direction in which to draw the line, measured anticlockwise from the x-axis and interpreted using the current p5 `angleMode()`.
   - **Usage**:
     ```javascript
     // Set a vector field and draw a flow line
@@ -711,12 +715,12 @@ The following functions are affected by stroke(), fill() and hatch() operations.
 ---
 
 - `brush.circle(x, y, radius, r)`
-  - **Description**: Draw a circle outline using the current brush settings. Circles are affected by vector fields. Note: `circle()` draws only the stroke outline — `fill()` is not applied. To draw a filled circle, use `brush.polygon()` with many vertices approximating a circle.
+  - **Description**: Draw a circle using the current stroke, fill, and hatch settings. Circles are affected by vector fields, so their outlines follow the active field just like other field-aware shapes.
   - **Parameters**:
     - `x` (Number): The x-coordinate of the circle's center.
     - `y` (Number): The y-coordinate of the circle's center.
     - `radius` (Number): The radius of the circle.
-    - `r` (Boolean): Optional. When true, applies a hand-drawn style to the circle.
+    - `r` (Number|Boolean): Optional. Hand-drawn irregularity amount. Values around `0` to `1` give subtle variation; `true` behaves like a strong irregularity.
   - **Usage**:
     ```javascript
     brush.circle(100, 150, 75, true);
@@ -730,8 +734,8 @@ The following functions are affected by stroke(), fill() and hatch() operations.
     - `x` (Number): The x-coordinate of the center.
     - `y` (Number): The y-coordinate of the center.
     - `radius` (Number): The radius of the arc.
-    - `start` (Number): Start angle in radians.
-    - `end` (Number): End angle in radians.
+    - `start` (Number): Start angle interpreted using the current p5 `angleMode()`.
+    - `end` (Number): End angle interpreted using the current p5 `angleMode()`.
   - **Usage**:
     ```javascript
     brush.arc(200, 200, 50, 0, Math.PI);
@@ -806,9 +810,14 @@ This section covers functions for initializing the drawing system, preloading re
 > **Seeding**: p5.brush automatically hooks into p5's `randomSeed()` and `noiseSeed()`. Calling either of those functions seeds both p5 and the library simultaneously — no separate `brush.seed()` call is needed.
 
 - `brush.load(buffer)`
-  - **Description**: Initialize the library on the current canvas. If a `p5.Graphics` buffer is passed, the library will target that buffer instead. Call `brush.load()` again (with no argument) to switch back to the main canvas.
+  - **Description**: Initialize the library on the current canvas. If a `p5.Graphics` buffer is passed, the library will target that buffer instead. If a `p5.Framebuffer` is passed, it must belong to the active sketch; call `brush.load(framebuffer)` while that framebuffer is active inside `begin()` / `end()` or `draw()`. Framebuffers created from `p5.Graphics` are not supported. Call `brush.load()` again (with no argument) to switch back to the main canvas.
   - **Parameters**:
-    - `buffer` (p5.Graphics): Optional. A p5.Graphics buffer to draw into.
+    - `buffer` (p5.Graphics | p5.Framebuffer): Optional. An offscreen target to draw into.
+  - **How to use it**:
+    - `p5.Graphics`: create it with `WEBGL`, call `brush.load(pg)`, draw with brush functions, then call `brush.load()` to restore the main canvas before presenting it with `image(pg, ...)`.
+    - `p5.Framebuffer`: create it from the main sketch with `createFramebuffer(...)`, enter its `draw()` or `begin()` / `end()` scope, call `brush.load(fb)` while it is active, draw with brush functions, then call `brush.load()` again after leaving the framebuffer scope.
+    - `brush.load(...)` only changes the target used by p5.brush. If you also use native p5 drawing calls, call them on the same target yourself, for example `pg.background(...)` for `p5.Graphics`.
+    - `pg.createFramebuffer()` is not supported.
   - **Example (draw into a buffer)**:
     ```javascript
     function setup() {
@@ -828,32 +837,61 @@ This section covers functions for initializing the drawing system, preloading re
       brush.load();
     }
     ```
-
----
-
-- `brush.preload()`
-  - **Description**: Kept for backward compatibility. Image brushes no longer require a separate `preload()` call — they auto-load when you use `await brush.add()` with `type: "image"`. You only need this function if you are working with older code that relied on the previous loading approach.
-  - **Parameters**: None
-  - **Example**:
+  - **Example (draw into a framebuffer)**:
     ```javascript
-    function preload() {
-      brush.preload(); // only needed for backward compatibility
+    function setup() {
+      createCanvas(400, 400, WEBGL);
+      brush.load();
+
+      const layer = createFramebuffer({ width: 200, height: 200 });
+
+      layer.draw(() => {
+        brush.load(layer);
+        brush.set("HB", "black", 1);
+        brush.circle(100, 100, 80);
+      });
+
+      brush.load();
+      image(layer, 20, 20);
     }
+    ```
+
+  - **Typical workflows**:
+    ```javascript
+    // p5.Graphics
+    const pg = createGraphics(300, 200, WEBGL);
+    pg.background(250);
+    brush.load(pg);
+    brush.set("HB", "black", 1);
+    brush.circle(150, 100, 70);
+    brush.load();
+    image(pg, 20, 20);
+
+    // p5.Framebuffer
+    const fb = createFramebuffer({ width: 300, height: 200 });
+    fb.draw(() => {
+      background(250);
+      brush.load(fb);
+      brush.set("HB", "black", 1);
+      brush.circle(150, 100, 70);
+    });
+    brush.load();
+    image(fb, 20, 240);
     ```
 
 ---
 
 - `brush.scaleBrushes(scale)`
-  - **Description**: Adjusts the global scale of all standard brush parameters, including weight, vibration, and spacing, based on the given scaling factor. This function is specifically designed to affect default brushes only, allowing for uniform scaling across various brush types.
+  - **Description**: Adjusts the global scale of all currently registered brush parameters, including weight, scatter, and spacing, based on the given scaling factor.
   - **Parameters**:
     - `scale` (Number): The scaling factor to be applied to the brush parameters.
-  - **Note**: This function only impacts the default brushes. Custom brushes may not be affected by this scaling, since they are defined per case basis.
+  - **Note**: This affects the brushes that already exist when you call it. If you only want the built-in brushes scaled, call it before adding custom brushes. If you add custom brushes later, call `brush.scaleBrushes()` again to scale them too.
   - **Usage**:
     ```javascript
     // Scale all standard brushes by a factor of 1.5
     brush.scaleBrushes(1.5);
     ```
-    Using `brush.scaleBrushes()`, you can easily adjust the size and spacing characteristics of standard brushes in your project, providing a convenient way to adapt to different canvas sizes or artistic styles.
+    Using `brush.scaleBrushes()`, you can easily adjust the size and spacing characteristics of brushes in your project, providing a convenient way to adapt to different canvas sizes or artistic styles.
     
 ---
 
@@ -984,13 +1022,13 @@ Exposed Classes provide foundational elements for creating and manipulating shap
     - `y` (Number): The initial y-coordinate.
 
 - **Methods**:
-  - `.moveTo(_length, _dir, _step_length, isFlow)`
+  - `.moveTo(_dir, _length, _step_length)`
     - Moves the position along the flow field by a specified length.
     - Parameters:
-      - `_length` (Number): The length to move along the field.
       - `_dir` (Number): The direction of movement, with angles measured anticlockwise from the x-axis.
+        It is interpreted using the current p5 `angleMode()`.
+      - `_length` (Number): The length to move along the field.
       - `_step_length` (Number): The length of each step.
-      - `isFlow` (Boolean): Whether to use the flow field for movement.
   - `.plotTo(_plot, _length, _step_length, _scale)`
     - Plots a point to another position within the flow field, following a given `Plot` object.
     - Parameters:

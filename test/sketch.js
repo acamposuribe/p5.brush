@@ -4,7 +4,7 @@
 // Opens a canvas that exercises every public API function.
 // Error-message tests are logged to the browser console.
 //
-// Run:  open test/index.html  (after npm run build)
+// Run:  open test/visual_suite.html
 // ============================================================
 
 // ---- Layout constants ----

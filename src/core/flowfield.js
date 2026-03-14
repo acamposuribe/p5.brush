@@ -1,5 +1,5 @@
 import { isMixReady, Cwidth, Cheight, State, Renderer } from "./color.js";
-import { randInt, noise, rr, sin, cos, map } from "./utils.js";
+import { randInt, noise, rr, sin, cos, map, toDegreesSigned } from "./utils.js";
 
 // =============================================================================
 // Section: Matrix transformations
@@ -109,7 +109,7 @@ export class Position {
 
   /**
    * Calculates the angle of the flow field at the position's current coordinates.
-   * @returns {number} - The angle in radians, or 0 if the position is not in the flow field or if the flow field is not active.
+   * @returns {number} - The internal flow angle in degrees, or 0 if the position is not in the field or if no field is active.
    */
   angle() {
     return this.isIn() && State.field.isActive
@@ -119,11 +119,18 @@ export class Position {
 
   /**
    * Moves the position along the flow field by a certain length.
+   * @param {number} _dir - The direction of movement, interpreted using the current p5 angle mode.
    * @param {number} _length - The length to move along the field.
-   * @param {number} _dir - The direction of movement.
    * @param {number} _step_length - The length of each step.
    */
   moveTo(_dir, _length, _step_length = 1) {
+    this.movePos(toDegreesSigned(_dir), _length, _step_length);
+  }
+
+  /**
+   * Internal variant of moveTo() that expects a degree value already normalized to the library's internal representation.
+   */
+  _moveToDegrees(_dir, _length, _step_length = 1) {
     this.movePos(_dir, _length, _step_length);
   }
 
@@ -204,6 +211,7 @@ State.field = {
 // Internal variables for field configuration
 let list = new Map();
 let resolution, left_x, top_y, num_columns, num_rows;
+const FIELD_ANGLE_MODES = new Set(["degrees", "radians"]);
 
 /**
  * Initializes the field grid and sets up the vector field's structure based on the renderer's dimensions.
@@ -225,6 +233,36 @@ function flow_field() {
   return list.get(State.field.current).field;
 }
 
+function normalizeFieldAngleMode(options = {}) {
+  const config =
+    typeof options === "string" ? { angleMode: options } : options || {};
+  const angleMode = config.angleMode ?? "degrees";
+
+  if (!FIELD_ANGLE_MODES.has(angleMode)) {
+    throw new Error(
+      `Invalid field angle mode "${angleMode}". Use "degrees" or "radians".`,
+    );
+  }
+
+  return angleMode;
+}
+
+function normalizeFieldAngles(field, angleMode) {
+  if (angleMode !== "radians") return field;
+
+  for (let c = 0; c < field.length; c++) {
+    for (let r = 0; r < field[c].length; r++) {
+      field[c][r] = toDegreesSigned(field[c][r], true);
+    }
+  }
+
+  return field;
+}
+
+function generateField(entry, t) {
+  return normalizeFieldAngles(entry.gen(t, genField()), entry.angleMode);
+}
+
 /**
  * Regenerates the current vector field using its associated generator function.
  * @param {number} [t=0] - An optional time parameter that can affect field generation.
@@ -236,7 +274,7 @@ export function refreshField(t = 0) {
     );
   }
   const currentField = list.get(State.field.current);
-  currentField.field = currentField.gen(t, genField());
+  currentField.field = generateField(currentField, t);
 }
 
 /**
@@ -267,7 +305,7 @@ export function field(a) {
   State.field.isActive = true;
   State.field.current = a;
   const entry = list.get(a);
-  if (!entry.field) entry.field = entry.gen(0, genField());
+  if (!entry.field) entry.field = generateField(entry, 0);
 }
 
 /**
@@ -282,9 +320,15 @@ export function noField() {
  * Adds a new vector field to the field list with a unique name and a generator function.
  * @param {string} name - The unique name for the new vector field.
  * @param {Function} funct - The function that generates the field values.
+ * @param {object} [options] - Optional field configuration.
+ * @param {"degrees"|"radians"} [options.angleMode="degrees"] - How the generator's output angles should be interpreted.
  */
-export function addField(name, funct) {
-  list.set(name, { gen: funct, field: null });
+export function addField(name, funct, options = {}) {
+  list.set(name, {
+    gen: funct,
+    field: null,
+    angleMode: normalizeFieldAngleMode(options),
+  });
 }
 
 /**

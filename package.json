@@ -1,6 +1,6 @@
 {
   "name": "p5.brush",
-  "version": "2.0.0-alpha",
+  "version": "2.0.0-beta",
   "description": "Unlock custom brushes, natural fill effects and intuitive hatching in p5.js",
   "main": "src/index.js",
   "module": "src/index.js",
@@ -10,7 +10,7 @@
     "test:watch": "vitest",
     "build": "rollup --config -w"
   },
-  "sideEffects": "false",
+  "sideEffects": false,
   "type": "module",
   "repository": {
     "type": "git",

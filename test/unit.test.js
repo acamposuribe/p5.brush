@@ -5,21 +5,55 @@
 // Run:  npm test
 // ============================================================
 
-import { describe, it, expect, vi, beforeAll } from "vitest";
+import { describe, it, expect, vi, beforeAll, beforeEach } from "vitest";
+
+const { currentAngleMode, mockState, plotInstances } = vi.hoisted(() => ({
+  currentAngleMode: { value: "radians" },
+  mockState: {},
+  plotInstances: [],
+}));
 
 // Mock color.js (pulls in GLSL shaders and WebGL — not available in Node)
 vi.mock("../src/core/color.js", () => ({
   Renderer: {
-    angleMode: () => "radians",
+    angleMode: () => currentAngleMode.value,
     RADIANS: "radians",
     DEGREES: "degrees",
+    _renderer: {
+      uModelMatrix: {
+        mat4: [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1],
+      },
+    },
   },
   Mix: {},
-  State: {},
+  State: mockState,
   Cwidth: 800,
   Cheight: 600,
   isCanvasReady: () => {},
   isMixReady: () => {},
+}));
+
+vi.mock("../src/stroke/stroke.js", () => ({
+  BrushState: () => ({}),
+  BrushSetState: () => {},
+  set: () => {},
+  line: () => {},
+}));
+
+vi.mock("../src/core/polygon.js", () => ({
+  Polygon: class Polygon {},
+}));
+
+vi.mock("../src/core/plot.js", () => ({
+  Plot: class Plot {
+    constructor(type) {
+      this.type = type;
+      this.addSegment = vi.fn();
+      this.endPlot = vi.fn();
+      this.draw = vi.fn();
+      plotInstances.push(this);
+    }
+  },
 }));
 
 import {
@@ -34,7 +68,28 @@ import {
   randInt,
   seed,
   weightedRand,
+  toDegreesSigned,
 } from "../src/core/utils.js";
+import { arc } from "../src/core/primitives.js";
+import { Position, addField, field as activateField, noField } from "../src/core/flowfield.js";
+import { hatch } from "../src/hatch/hatch.js";
+
+beforeEach(() => {
+  currentAngleMode.value = "radians";
+  plotInstances.length = 0;
+  if (mockState.field) {
+    mockState.field.isActive = false;
+    mockState.field.current = null;
+    mockState.field.wiggle = 1;
+  }
+  if (mockState.hatch) {
+    mockState.hatch.isActive = false;
+    mockState.hatch.dist = 5;
+    mockState.hatch.angle = 45;
+    mockState.hatch.options = {};
+    mockState.hatch.hBrush = false;
+  }
+});
 
 // ---- map() ----
 describe("map()", () => {
@@ -119,6 +174,17 @@ describe("cos() and sin()", () => {
 
   it("handles angles > 360", () => {
     expect(cos(450)).toBeCloseTo(cos(90));
+  });
+});
+
+describe("toDegreesSigned()", () => {
+  it("matches p5's default radians mode when angleMode() has not been changed", () => {
+    expect(toDegreesSigned(Math.PI / 2)).toBeCloseTo(90);
+  });
+
+  it("converts radians without wrapping signed angles", () => {
+    currentAngleMode.value = "radians";
+    expect(toDegreesSigned(-Math.PI / 4)).toBeCloseTo(-45);
   });
 });
 
@@ -261,5 +327,94 @@ describe("weightedRand()", () => {
     }
     // common should win more than 98% of the time
     expect(counts.common).toBeGreaterThan(480);
+  });
+});
+
+describe("hatch()", () => {
+  it("captures the hatch angle using the current angle mode at call time", () => {
+    currentAngleMode.value = "radians";
+    hatch(8, Math.PI / 2);
+    expect(mockState.hatch.angle).toBeCloseTo(90);
+
+    currentAngleMode.value = "degrees";
+    expect(mockState.hatch.angle).toBeCloseTo(90);
+  });
+});
+
+describe("arc()", () => {
+  it("matches p5-style top-half arc geometry in degrees mode", () => {
+    currentAngleMode.value = "degrees";
+
+    arc(100, 120, 40, 20, 145);
+
+    const plot = plotInstances.at(-1);
+    expect(plot).toBeTruthy();
+    expect(plot.addSegment).toHaveBeenCalledTimes(2);
+    expect(plot.addSegment.mock.calls[0][0]).toBeCloseTo(110);
+    expect(plot.addSegment.mock.calls[1][0]).toBeCloseTo(172.5);
+    expect(plot.endPlot).toHaveBeenCalledWith(235, 1, true);
+    expect(plot.draw.mock.calls[0][0]).toBeCloseTo(100 + 40 * cos(20));
+    expect(plot.draw.mock.calls[0][1]).toBeCloseTo(120 - 40 * sin(20));
+  });
+
+  it("uses equivalent geometry in radians mode", () => {
+    currentAngleMode.value = "radians";
+
+    arc(100, 120, 40, (20 * Math.PI) / 180, (145 * Math.PI) / 180);
+
+    const plot = plotInstances.at(-1);
+    expect(plot).toBeTruthy();
+    expect(plot.addSegment).toHaveBeenCalledTimes(2);
+    expect(plot.addSegment.mock.calls[0][0]).toBeCloseTo(110);
+    expect(plot.endPlot).toHaveBeenCalledWith(235, 1, true);
+    expect(plot.draw.mock.calls[0][0]).toBeCloseTo(100 + 40 * cos(20));
+    expect(plot.draw.mock.calls[0][1]).toBeCloseTo(120 - 40 * sin(20));
+  });
+});
+
+describe("Position.moveTo()", () => {
+  it("interprets its public direction argument using the current angle mode", () => {
+    currentAngleMode.value = "radians";
+    noField();
+
+    const pos = new Position(400, 300);
+    pos.moveTo(Math.PI / 2, 10, 10);
+
+    expect(pos.x).toBeCloseTo(400, 3);
+    expect(pos.y).toBeCloseTo(290, 3);
+  });
+
+  it("keeps the internal degree-based path stable", () => {
+    currentAngleMode.value = "radians";
+    noField();
+
+    const pos = new Position(400, 300);
+    pos._moveToDegrees(90, 10, 10);
+
+    expect(pos.x).toBeCloseTo(400, 3);
+    expect(pos.y).toBeCloseTo(290, 3);
+  });
+});
+
+describe("addField()", () => {
+  it("supports custom fields declared in radians without losing signed direction", () => {
+    addField(
+      "neg-radians-test",
+      (_t, field) => {
+        for (let c = 0; c < field.length; c++) {
+          for (let r = 0; r < field[c].length; r++) {
+            field[c][r] = -Math.PI / 4;
+          }
+        }
+        return field;
+      },
+      { angleMode: "radians" },
+    );
+
+    activateField("neg-radians-test");
+    mockState.field.wiggle = 2;
+
+    const pos = new Position(400, 300);
+    expect(pos.angle()).toBeCloseTo(-90, 3);
   });
 });

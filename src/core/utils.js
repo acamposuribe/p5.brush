@@ -15,6 +15,15 @@ import { prng_alea } from "esm-seedrandom";
 /** @type {RNG} */
 let rng = prng_alea(Math.random());
 
+const _seedCallbacks = [];
+
+/**
+ * Register a callback to be called whenever seed() is invoked.
+ * Used internally by modules that maintain gaussian pools.
+ * @param {Function} cb
+ */
+export const _onSeed = (cb) => _seedCallbacks.push(cb);
+
 /**
  * Seed the random number generator.
  * @param {number|string} s – The seed value.
@@ -22,6 +31,9 @@ let rng = prng_alea(Math.random());
  */
 export const seed = (s) => {
   rng = prng_alea(s);
+  for (const callback of _seedCallbacks) {
+    callback();
+  }
 };
 
 /**
@@ -53,18 +65,6 @@ export const rr = (e = 0, r = 1) => e + rng() * (r - e);
  * @returns {T}
  */
 export const rArray = (array) => array[~~(rng() * array.length)];
-
-/**
- * Generates a random number or picks a random array element.
- * @param {number|Array} [minOrArr=0]
- * @param {number} [max=1]
- * @returns {number}
- */
-export function random(e = 0, r = 1) {
-  if (Array.isArray(e)) return rArray(e);
-  if (arguments.length === 1) return rng() * e;
-  return rr(e, r);
-}
 
 /**
  * Returns a random integer in [min, max).
@@ -201,14 +201,34 @@ export const sin = (angle) => {
  * @returns {number}
  */
 export const toDegrees = (rad, isRad = false) => {
+  const usesRadians =
+    isRad ||
+    (Renderer &&
+      typeof Renderer.angleMode === "function" &&
+      Renderer.angleMode() === Renderer.RADIANS);
   // Only if Renderer.angleMode() is set to radians
-  if (Renderer.angleMode() === Renderer.RADIANS || isRad) {
+  if (usesRadians) {
     let angle = ((rad * 180) / Math.PI) % 360;
     return angle < 0 ? angle + 360 : angle;
   } else {
     return rad;
   }
 };
+
+/**
+ * Converts radians to degrees without wrapping the result.
+ * Preserves signed angles so downstream scaling keeps its direction.
+ * @param {number} angle
+ * @param {boolean} [isRad=false]
+ * @returns {number}
+ */
+export const toDegreesSigned = (angle, isRad = false) =>
+  isRad ||
+  (Renderer &&
+    typeof Renderer.angleMode === "function" &&
+    Renderer.angleMode() === Renderer.RADIANS)
+    ? (angle * 180) / Math.PI
+    : angle;
 
 // =============================================================================
 // Section: Geometry & Transforms

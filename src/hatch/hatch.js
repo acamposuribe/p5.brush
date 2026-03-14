@@ -15,7 +15,7 @@
  */
 
 import { State } from "../core/color.js";
-import { toDegrees, map, cos, sin, rr } from "../core/utils.js";
+import { toDegreesSigned, map, cos, sin, rr } from "../core/utils.js";
 import { Polygon } from "../core/polygon.js";
 import { Plot } from "../core/plot.js";
 import { BrushState, BrushSetState, set, line } from "../stroke/stroke.js";
@@ -59,7 +59,7 @@ export function HatchSetState(state) {
  * Activates hatching for subsequent geometries.
  *
  * @param {number} dist - The distance between hatching lines.
- * @param {number} angle - The angle (in degrees) at which hatching lines are drawn.
+ * @param {number} angle - The hatch angle, interpreted using the current p5 angle mode.
  * @param {object} options - Optional parameters to affect the hatching style:
  *                           - rand: Number value to introduce randomness.
  *                           - continuous: Boolean to connect adjacent lines.
@@ -73,7 +73,7 @@ export function hatch(
   let s = State.hatch;
   s.isActive = true;
   s.dist = dist;
-  s.angle = angle;
+  s.angle = toDegreesSigned(angle);
   s.options = options;
 }
 
@@ -107,7 +107,7 @@ export function noHatch() {
  */
 export function createHatch(polygons) {
   let dist = State.hatch.dist;
-  let angle = toDegrees(State.hatch.angle) % 180; // normalize to [0, 180)
+  let angle = ((State.hatch.angle % 180) + 180) % 180;
   let options = State.hatch.options;
 
   // Save current stroke state
@@ -249,7 +249,7 @@ function computeOverallBoundingBox(polygons) {
  * Then, if hatch is active, applies the hatching pattern.
  *
  * @param {number} [_dist] - The distance between hatch lines.
- * @param {number} _angle - The angle (in degrees) for hatching.
+ * @param {number} _angle - The hatch angle, interpreted using the current p5 angle mode.
  * @param {object} _options - Optional hatch options.
  */
 Polygon.prototype.hatch = function (_dist = false, _angle, _options) {

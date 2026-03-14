@@ -206,8 +206,8 @@ void main(void) {
     vec2 uv1 = vec2(uv.x, 1.0 - uv.y);
     
     // Get source and mask colors
-    vec4 source = texture(u_source, uv1);
-    vec4 maskColor = texture(u_mask, uv1);
+  vec4 source = texture(u_source, uv1);
+  vec4 maskColor = texture(u_mask, uv1);
     
     if (maskColor.a == 0.0) {
         outColor = source;
@@ -234,8 +234,8 @@ void main(void) {
         float blurEdge = 0.0;
         for (int i = -2; i <= 2; i += 2) {
             for (int j = -2; j <= 2; j += 2) {
-                vec2 sampleUV = uv1 + vec2(float(i), float(j)) * texelSize;
-                float neighborAlpha = texture(u_mask, sampleUV).a * 15.0;
+            vec2 neighborUV = uv1 + vec2(float(i), float(j)) * texelSize;
+            float neighborAlpha = texture(u_mask, neighborUV).a * 15.0;
                 blurEdge += smoothstep(EDGE_MIN, EDGE_MAX, 
                           length(vec2(dFdx(neighborAlpha), dFdy(neighborAlpha))));
             }

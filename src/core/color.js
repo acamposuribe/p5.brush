@@ -10,22 +10,100 @@ import fragSrc from "./gl/shader.frag";
  * provides utilities for saving and restoring states.
  */
 
-const Canvases = {}; // Stores canvas instances by ID
-export let cID, Cwidth, Cheight, Instance, Renderer, Density; // Global canvas properties
+export let Cwidth, Cheight, Instance, Renderer, Density; // Global canvas properties
+
+const isFramebufferTarget = (target) =>
+  !!target &&
+  typeof target.begin === "function" &&
+  typeof target.end === "function" &&
+  !!target.renderer &&
+  !!target.renderer._pInst;
+
+const getSketchRenderer = () =>
+  _isInstanced ? Instance : window.self.p5.instance;
+
+const isSupportedFramebufferTarget = (target) =>
+  isFramebufferTarget(target) && target.renderer._pInst === getSketchRenderer();
+
+const resolveTarget = (buffer = false) => {
+  if (_isInstanced && !buffer) {
+    return {
+      renderer: Instance,
+      width: Instance.width,
+      height: Instance.height,
+    };
+  }
+
+  if (!buffer) {
+    const renderer = getSketchRenderer();
+    return {
+      renderer,
+      width: renderer.width,
+      height: renderer.height,
+    };
+  }
+
+  if (isFramebufferTarget(buffer)) {
+    if (!isSupportedFramebufferTarget(buffer)) {
+      throw new Error(
+        "p5.brush only supports p5.Framebuffer targets created from the active sketch. Framebuffers created from p5.Graphics are not supported.",
+      );
+    }
+
+    return {
+      renderer: getSketchRenderer(),
+      width: buffer.width,
+      height: buffer.height,
+    };
+  }
+
+  return {
+    renderer: buffer,
+    width: buffer.width,
+    height: buffer.height,
+  };
+};
+
+const removeTargetBuffer = (buffer) => {
+  if (buffer && typeof buffer.remove === "function") {
+    buffer.remove();
+  }
+};
+
+const getGraphicsFactory = () =>
+  typeof Renderer.createGraphics === "function" ? Renderer : Renderer._pInst;
+
+const getActiveFramebuffer = () =>
+  Renderer &&
+  Renderer._renderer &&
+  typeof Renderer._renderer.activeFramebuffer === "function"
+    ? Renderer._renderer.activeFramebuffer()
+    : null;
+
+const needsBlendSourceFramebuffer = (framebuffer) =>
+  !framebuffer ||
+  framebuffer.width !== Cwidth ||
+  framebuffer.height !== Cheight ||
+  (typeof framebuffer.pixelDensity === "function" &&
+    framebuffer.pixelDensity() !== Density);
+
+const needsMixBuffers = () =>
+  !Renderer.mask ||
+  !Renderer.glMask ||
+  Renderer.mask.width !== Cwidth ||
+  Renderer.mask.height !== Cheight ||
+  Renderer.glMask.width !== Cwidth ||
+  Renderer.glMask.height !== Cheight;
 
 /**
  * Loads and initializes a canvas for the drawing system.
- * @param {string|boolean} [canvasID=false] - Optional ID of the canvas element to use.
- *                                            If false, it uses the current window as the rendering context.
+ * @param {p5.Graphics|p5.Framebuffer|false} [buffer=false] - Optional offscreen target.
+ * Pass a framebuffer only while drawing inside its begin()/end() or draw() scope.
+ * Framebuffers created from p5.Graphics are not supported.
  */
 export const load = (buffer = false) => {
-  // Set renderer to specificed Buffer, Instance,, or Window
-  Renderer =
-    _isInstanced && !buffer
-      ? Instance
-      : !buffer
-        ? window.self.p5.instance
-        : buffer;
+  const target = resolveTarget(buffer);
+  Renderer = target.renderer;
 
   // Check if Rendrer is webgl and throw error if it's not
 
@@ -33,8 +111,8 @@ export const load = (buffer = false) => {
     throw new Error("p5.brush requires a WEBGL canvas");
   }
 
-  Cwidth = Renderer.width;
-  Cheight = Renderer.height;
+  Cwidth = target.width;
+  Cheight = target.height;
 
   _isReady = true;
   if (Renderer.loaded) Mix.load();
@@ -92,28 +170,61 @@ const disable = false;
  */
 export const Mix = {
   isBlending: false,
-  isBlendingGL: false,
-  isWaterColor: false,
   cachedColor: new Object(),
-  cachedColorGL: new Object(),
-  masks: [],
+
+  captureBlendSource() {
+    const activeFramebuffer = getActiveFramebuffer();
+
+    if (!activeFramebuffer) return Renderer._renderer;
+
+    if (needsBlendSourceFramebuffer(Renderer.blendSourceFramebuffer)) {
+      removeTargetBuffer(Renderer.blendSourceFramebuffer);
+      Renderer.blendSourceFramebuffer = Renderer.createFramebuffer({
+        width: Cwidth,
+        height: Cheight,
+        density: Density,
+        antialias: false,
+        depth: false,
+        stencil: false,
+      });
+    }
+
+    const source = Renderer.blendSourceFramebuffer;
+
+    source.draw(() => {
+      Renderer.clear();
+      Renderer.push();
+      if (typeof Renderer.imageMode === "function") {
+        Renderer.imageMode(Renderer.CENTER ?? Renderer._renderer?._pInst?.CENTER);
+      }
+      Renderer.image(activeFramebuffer, 0, 0, Cwidth, Cheight);
+      Renderer.pop();
+    });
+
+    return source;
+  },
 
   /**
    * Loads necessary resources and prepares the mask buffer and shader for colour blending.
    */
   load() {
-    // Create Renderer masks
-    if (!Renderer.loaded) {
-      Renderer.mask = Renderer.createGraphics(Cwidth, Cheight, Renderer.P2D);
-      Renderer.glMask = Renderer.createGraphics(
+    Density = Renderer.pixelDensity();
+    const graphicsFactory = getGraphicsFactory();
+    const p2dMode = graphicsFactory.P2D ?? Renderer.P2D;
+    const webglMode = graphicsFactory.WEBGL ?? Renderer.WEBGL;
+
+    if (!Renderer.loaded || needsMixBuffers()) {
+      removeTargetBuffer(Renderer.mask);
+      removeTargetBuffer(Renderer.glMask);
+
+      Renderer.mask = graphicsFactory.createGraphics(Cwidth, Cheight, p2dMode);
+      Renderer.glMask = graphicsFactory.createGraphics(
         Cwidth,
         Cheight,
-        Renderer.WEBGL,
+        webglMode,
       );
       Renderer.loaded = true;
-      Renderer.shaderProgram = Renderer.createShader(vertSrc, fragSrc);
-
-      Density = Renderer.pixelDensity();
+      Renderer.shaderProgram ??= Renderer.createShader(vertSrc, fragSrc);
 
       this.mask = Renderer.mask;
       this.mask.pixelDensity(Density);
@@ -127,9 +238,14 @@ export const Mix = {
       this.glMask.clear();
       this.glMask.angleMode(this.glMask.DEGREES);
       this.glMask.drawingContext.lineWidth = 0;
-      // Link Matrix of GL mask to main Renderer
-      this.glMask._renderer.uModelMatrix = Renderer._renderer.uModelMatrix;
+    } else {
+      this.mask = Renderer.mask;
+      this.glMask = Renderer.glMask;
+      this.ctx = this.mask.drawingContext;
     }
+
+    // Link Matrix of GL mask to main Renderer
+    this.glMask._renderer.uModelMatrix = Renderer._renderer.uModelMatrix;
   },
 
   /**
@@ -182,6 +298,8 @@ export const Mix = {
   applyShader(mask) {
     let shader = Renderer.shaderProgram;
     const gl = Renderer.drawingContext;
+    const targetIsFramebuffer = !!getActiveFramebuffer();
+    const source = this.captureBlendSource();
 
     // Disable depth test for this compositing draw so the fullscreen rect
     // does not write Z=0 into the depth buffer — which would cause any
@@ -197,8 +315,9 @@ export const Mix = {
     Renderer.shader(shader);
 
     // Set shader uniforms
-    shader.setUniform("u_source", Renderer._renderer);
+    shader.setUniform("u_source", source);
     shader.setUniform("u_isBrush", this.isBrush);
+    shader.setUniform("u_flipOutputY", targetIsFramebuffer);
     shader.setUniform("u_mask", mask);
     shader.setUniform("u_color", this.cachedColor);
 

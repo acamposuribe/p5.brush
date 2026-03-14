@@ -33,6 +33,8 @@ let isLoaded = false,
   vao,
   buf,
   program;
+let loadedWidth = 0,
+  loadedHeight = 0;
 const Attr = {},
   Frag = {};
 
@@ -67,9 +69,14 @@ let gpuBufferSize = INITIAL_CAPACITY * 4 * 4; // bytes allocated on GPU
  * Initializes WebGL objects if not done already.
  */
 export function isReady() {
-  if (!isLoaded) {
-    isMixReady();
-    gl = Mix.glMask.drawingContext;
+  isMixReady();
+
+  const nextGl = Mix.glMask.drawingContext;
+  const needsContextRefresh = !isLoaded || gl !== nextGl;
+  const needsProjectionRefresh =
+    needsContextRefresh || loadedWidth !== Cwidth || loadedHeight !== Cheight;
+
+  if (needsProjectionRefresh) {
     projMatrix = new Float32Array([
       2 / Cwidth,
       0,
@@ -88,42 +95,49 @@ export function isReady() {
       0,
       1,
     ]);
-
-    // Create shader program and initialize
-    program = createProgram(gl, vertSrc, fragSrc);
-    gl.useProgram(program);
-    gl.enable(gl.BLEND);
-    gl.blendFunc(gl.ONE_MINUS_DST_ALPHA, gl.ONE);
-
-    // Cache attribute and uniform locations
-    ["a_position", "a_radius", "a_alpha"].forEach(
-      (n) => (Attr[n] = gl.getAttribLocation(program, n)),
-    );
-    ["u_matrix", "u_color"].forEach(
-      (n) => (Frag[n] = gl.getUniformLocation(program, n)),
-    );
-
-    // Create persistent VAO and VBO
-    vao = gl.createVertexArray();
-    gl.bindVertexArray(vao);
-
-    buf = gl.createBuffer();
-    gl.bindBuffer(gl.ARRAY_BUFFER, buf);
-    gl.bufferData(gl.ARRAY_BUFFER, circleData.byteLength, gl.DYNAMIC_DRAW);
-
-    // Set up vertex attributes (only needs to happen once with persistent VAO)
-    const stride = 16; // 4 floats × 4 bytes
-    gl.enableVertexAttribArray(Attr.a_position);
-    gl.vertexAttribPointer(Attr.a_position, 2, gl.FLOAT, false, stride, 0);
-    gl.enableVertexAttribArray(Attr.a_radius);
-    gl.vertexAttribPointer(Attr.a_radius, 1, gl.FLOAT, false, stride, 8);
-    gl.enableVertexAttribArray(Attr.a_alpha);
-    gl.vertexAttribPointer(Attr.a_alpha, 1, gl.FLOAT, false, stride, 12);
-
-    gl.bindVertexArray(null);
-
-    isLoaded = true;
+    loadedWidth = Cwidth;
+    loadedHeight = Cheight;
   }
+
+  if (!needsContextRefresh) return;
+
+  gl = nextGl;
+
+  // Create shader program and initialize
+  program = createProgram(gl, vertSrc, fragSrc);
+  gl.useProgram(program);
+  gl.enable(gl.BLEND);
+  gl.blendFunc(gl.ONE_MINUS_DST_ALPHA, gl.ONE);
+
+  // Cache attribute and uniform locations
+  ["a_position", "a_radius", "a_alpha"].forEach(
+    (n) => (Attr[n] = gl.getAttribLocation(program, n)),
+  );
+  ["u_matrix", "u_color"].forEach(
+    (n) => (Frag[n] = gl.getUniformLocation(program, n)),
+  );
+
+  // Create persistent VAO and VBO
+  vao = gl.createVertexArray();
+  gl.bindVertexArray(vao);
+
+  buf = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+  gl.bufferData(gl.ARRAY_BUFFER, circleData.byteLength, gl.DYNAMIC_DRAW);
+  gpuBufferSize = circleData.byteLength;
+
+  // Set up vertex attributes (only needs to happen once with persistent VAO)
+  const stride = 16; // 4 floats × 4 bytes
+  gl.enableVertexAttribArray(Attr.a_position);
+  gl.vertexAttribPointer(Attr.a_position, 2, gl.FLOAT, false, stride, 0);
+  gl.enableVertexAttribArray(Attr.a_radius);
+  gl.vertexAttribPointer(Attr.a_radius, 1, gl.FLOAT, false, stride, 8);
+  gl.enableVertexAttribArray(Attr.a_alpha);
+  gl.vertexAttribPointer(Attr.a_alpha, 1, gl.FLOAT, false, stride, 12);
+
+  gl.bindVertexArray(null);
+
+  isLoaded = true;
 }
 
 // =============================================================================

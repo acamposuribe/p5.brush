@@ -4,6 +4,7 @@ import {
   sin,
   cos,
   toDegrees,
+  toDegreesSigned,
   constrain,
   dist,
   calcAngle,
@@ -96,21 +97,27 @@ export function circle(x, y, radius, r = false) {
  * @param {number} x - Center x.
  * @param {number} y - Center y.
  * @param {number} radius - Radius.
- * @param {number} start - Radian start angle.
- * @param {number} end - Radian end angle.
+ * @param {number} start - Start angle in the current p5 angle mode.
+ * @param {number} end - End angle in the current p5 angle mode.
  */
 export function arc(x, y, radius, start, end) {
+  const startDeg = toDegreesSigned(start);
+  const endDeg = toDegreesSigned(end);
+  const sweepDeg = ((endDeg - startDeg) % 360 + 360) % 360;
+  if (sweepDeg === 0) return;
+
   const p = new Plot("curve");
-  const startAngle = 270 - toDegrees(start);
-  const endAngle = 270 - toDegrees(end);
-  const arcAngle = toDegrees(end - start);
-  const arcLength = (Math.PI * radius * arcAngle) / 180;
+  const segmentCount = Math.max(1, Math.ceil(sweepDeg / 90));
+  const segmentSweep = sweepDeg / segmentCount;
+  const arcLength = (Math.PI * radius * segmentSweep) / 180;
 
-  p.addSegment(startAngle, arcLength, 1, true);
-  p.endPlot(endAngle, 1, true);
+  for (let i = 0; i < segmentCount; i++) {
+    p.addSegment(startDeg + i * segmentSweep + 90, arcLength, 1, true);
+  }
+  p.endPlot(startDeg + sweepDeg + 90, 1, true);
 
-  const startX = x + radius * cos(-startAngle - 90);
-  const startY = y + radius * sin(-startAngle - 90);
+  const startX = x + radius * cos(startDeg);
+  const startY = y - radius * sin(startDeg);
   p.draw(startX, startY, 1);
 }
 

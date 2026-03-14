@@ -25,7 +25,7 @@
  *
  * // Use the custom brush for a vector-field line:
  * brush.field('field_name') // Pick a flowfield
- * brush.flowLine(50, 50, 100, PI / 4); // Draw a line within the vector-field
+ * brush.flowLine(50, 50, 100, PI / 4); // Draw a line within the vector-field; angle follows p5 angleMode()
  *
  * // Fill textures:
  * brush.noStroke();
@@ -107,7 +107,6 @@ export {
   noClip,
   line,
   flowLine,
-  preload,
 } from "./stroke/stroke.js";
 
 // Section: Hatching

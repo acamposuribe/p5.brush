@@ -29,6 +29,7 @@ import {
   gaussian,
   rArray,
   noise,
+  _onSeed,
 } from "../core/utils.js";
 import { Position, Matrix, isFieldReady } from "../core/flowfield.js";
 import { Polygon } from "../core/polygon.js";
@@ -54,6 +55,14 @@ State.stroke = {
 let list = new Map();
 
 let Mask = null;
+let _strokeTransform = {
+  a: 1,
+  b: 0,
+  c: 0,
+  d: 1,
+  tx: 0,
+  ty: 0,
+};
 
 /**
  * Retrieves a shallow copy of the current stroke state.
@@ -218,12 +227,74 @@ export function noStroke() {
   State.stroke.isActive = false;
 }
 
+function snapshotTransform() {
+  return {
+    a: Matrix.a(),
+    b: Matrix.b(),
+    c: Matrix.c(),
+    d: Matrix.d(),
+    tx: Matrix.x(),
+    ty: Matrix.y(),
+  };
+}
+
+function invertTransform(transform) {
+  const det = transform.a * transform.d - transform.b * transform.c;
+  if (Math.abs(det) < 1e-12) return null;
+
+  return {
+    a: transform.d / det,
+    b: -transform.b / det,
+    c: -transform.c / det,
+    d: transform.a / det,
+    tx: (transform.c * transform.ty - transform.d * transform.tx) / det,
+    ty: (transform.b * transform.tx - transform.a * transform.ty) / det,
+  };
+}
+
+function transformPoint(transform, x, y) {
+  return {
+    x: transform.a * x + transform.c * y + transform.tx,
+    y: transform.b * x + transform.d * y + transform.ty,
+  };
+}
+
+function normalizeRegion(region) {
+  const [x1, y1, x2, y2] = region;
+  return {
+    minX: Math.min(x1, x2),
+    minY: Math.min(y1, y2),
+    maxX: Math.max(x1, x2),
+    maxY: Math.max(y1, y2),
+  };
+}
+
+function currentPointInUserSpace() {
+  return transformPoint(
+    _strokeTransform,
+    _position.x - Cwidth / 2,
+    _position.y - Cheight / 2,
+  );
+}
+
 /**
  * Defines a clipping region for strokes.
+ * The region uses the same coordinate space as brush drawing commands,
+ * with the current p5 transform captured at call time.
  * @param {number[]} region - Array as [x1, y1, x2, y2] defining the clipping region.
  */
 export function clip(region) {
-  State.stroke.clipWindow = region;
+  isCanvasReady();
+  const inverse = invertTransform(snapshotTransform());
+  if (!inverse) {
+    throw new Error(
+      "brush.clip() cannot be used with a non-invertible transform.",
+    );
+  }
+  State.stroke.clipWindow = {
+    bounds: normalizeRegion(region),
+    inverse,
+  };
 }
 
 /**
@@ -231,14 +302,6 @@ export function clip(region) {
  */
 export function noClip() {
   State.stroke.clipWindow = null;
-}
-
-/**
- * Sets the brush density by scaling standard brushes.
- * @param {number} d - Density factor.
- */
-export function setDensity(d) {
-  scaleBrushes(d);
 }
 
 // ---------------------------------------------------------------------------
@@ -257,6 +320,7 @@ const current = {};
  */
 function initializeDrawingState(x, y, length, plot = false) {
   snapshotMatrix();
+  _strokeTransform = snapshotTransform();
   _position = new Position(x + Cwidth / 2, y + Cheight / 2);
   _length = length;
   _plot = plot;
@@ -264,6 +328,10 @@ function initializeDrawingState(x, y, length, plot = false) {
 }
 
 const gaussians = [];
+
+_onSeed(() => {
+  gaussians.length = 0;
+});
 
 /**
  * Executes the drawing operation.
@@ -291,7 +359,7 @@ function draw(angleScale, isPlot) {
           angleScale,
           i < 10 ? true : false,
         )
-      : _position.moveTo(angleScale, stepSize, stepSize);
+      : _position._moveToDegrees(angleScale, stepSize, stepSize);
   }
   restoreState();
 }
@@ -447,21 +515,30 @@ function calculateAlpha() {
  * @returns {boolean} True if inside clipping area; false otherwise.
  */
 function isInsideClippingArea() {
-  if (State.stroke.clipWindow)
-    return (
-      _position.x >= State.stroke.clipWindow[0] &&
-      _position.x <= State.stroke.clipWindow[2] &&
-      _position.y >= State.stroke.clipWindow[1] &&
-      _position.y <= State.stroke.clipWindow[3]
+  const point = currentPointInUserSpace();
+
+  if (State.stroke.clipWindow) {
+    const local = transformPoint(
+      State.stroke.clipWindow.inverse,
+      point.x,
+      point.y,
     );
-  else {
-    let w = Cwidth,
-      h = Cheight,
-      o = Cwidth * 0.05;
-    let x = _position.x + Matrix.x();
-    let y = _position.y + Matrix.y();
-    return x >= -o && x <= w + o && y >= -o && y <= h + o;
+    const { bounds } = State.stroke.clipWindow;
+    return (
+      local.x >= bounds.minX &&
+      local.x <= bounds.maxX &&
+      local.y >= bounds.minY &&
+      local.y <= bounds.maxY
+    );
   }
+
+  let o = Cwidth * 0.05;
+  return (
+    point.x >= -Cwidth / 2 - o &&
+    point.x <= Cwidth / 2 + o &&
+    point.y >= -Cheight / 2 - o &&
+    point.y <= Cheight / 2 + o
+  );
 }
 
 /**
@@ -646,7 +723,7 @@ export function line(x1, y1, x2, y2) {
  * @param {number} x - Starting x-coordinate.
  * @param {number} y - Starting y-coordinate.
  * @param {number} length - Length of the stroke.
- * @param {number} dir - Direction (in radians, anticlockwise from the x-axis).
+ * @param {number} dir - Direction, interpreted using the current p5 angle mode.
  */
 export function flowLine(x, y, length, dir) {
   if (!State.stroke.isActive || !State.stroke.color) {
