@@ -1,0 +1,414 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Canvas Upload Benchmark</title>
+    <style>
+      :root {
+        --bg: #f4efe6;
+        --panel: #fffaf1;
+        --ink: #1f2d3a;
+        --muted: #6a7684;
+        --line: #d8ccba;
+        --accent: #234e70;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        background:
+          radial-gradient(circle at top left, rgba(35, 78, 112, 0.08), transparent 28%),
+          linear-gradient(180deg, #fbf8f1 0%, var(--bg) 100%);
+        color: var(--ink);
+        font-family: "Iowan Old Style", "Palatino Linotype", Palatino, serif;
+      }
+
+      main {
+        width: min(1080px, calc(100vw - 40px));
+        margin: 0 auto;
+        padding: 32px 0 48px;
+      }
+
+      h1 {
+        margin: 0 0 10px;
+        font-size: clamp(32px, 4vw, 52px);
+        line-height: 0.95;
+        letter-spacing: -0.04em;
+      }
+
+      p {
+        margin: 0;
+        color: var(--muted);
+        line-height: 1.55;
+      }
+
+      .panel {
+        margin-top: 24px;
+        border: 1px solid var(--line);
+        border-radius: 20px;
+        background: var(--panel);
+        padding: 20px;
+        box-shadow: 0 18px 40px rgba(41, 34, 24, 0.06);
+      }
+
+      .controls {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        align-items: end;
+      }
+
+      label {
+        display: grid;
+        gap: 6px;
+        color: var(--muted);
+        font-size: 14px;
+      }
+
+      input,
+      button {
+        font: inherit;
+      }
+
+      input {
+        width: 120px;
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        padding: 10px 12px;
+        background: white;
+        color: var(--ink);
+      }
+
+      button {
+        border: 0;
+        border-radius: 999px;
+        padding: 11px 18px;
+        background: var(--accent);
+        color: white;
+        cursor: pointer;
+      }
+
+      button:disabled {
+        opacity: 0.6;
+        cursor: wait;
+      }
+
+      .status {
+        margin-top: 14px;
+        min-height: 22px;
+        color: var(--accent);
+        font-size: 14px;
+      }
+
+      .results {
+        margin-top: 18px;
+        overflow-x: auto;
+      }
+
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        font-family: Menlo, Monaco, "Courier New", monospace;
+        font-size: 13px;
+      }
+
+      th,
+      td {
+        padding: 10px 12px;
+        border-bottom: 1px solid var(--line);
+        text-align: left;
+        white-space: nowrap;
+      }
+
+      th {
+        color: var(--muted);
+        font-weight: 600;
+      }
+
+      .canvases {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+        gap: 16px;
+        margin-top: 20px;
+      }
+
+      .canvas-card {
+        border: 1px solid var(--line);
+        border-radius: 16px;
+        padding: 12px;
+        background: rgba(255, 255, 255, 0.7);
+      }
+
+      .canvas-card h2 {
+        margin: 0 0 10px;
+        font-size: 15px;
+        color: var(--muted);
+        letter-spacing: 0.02em;
+      }
+
+      canvas {
+        width: 100%;
+        height: auto;
+        aspect-ratio: 1 / 1;
+        display: block;
+        border-radius: 12px;
+        background: #0f1720;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Canvas Upload Benchmark</h1>
+      <p>
+        Compares texture upload cost from a CPU-style 2D canvas versus a GPU-backed WEBGL canvas
+        in this browser. Results are also printed with <code>console.table()</code>.
+      </p>
+
+      <section class="panel">
+        <div class="controls">
+          <label>
+            Canvas size
+            <input id="size" type="number" min="64" step="64" value="1024" />
+          </label>
+          <label>
+            Iterations
+            <input id="iterations" type="number" min="10" step="10" value="120" />
+          </label>
+          <button id="run">Run benchmark</button>
+        </div>
+        <div class="status" id="status"></div>
+        <div class="results" id="results"></div>
+      </section>
+
+      <section class="canvases">
+        <article class="canvas-card">
+          <h2>2D source</h2>
+          <canvas id="source2d"></canvas>
+        </article>
+        <article class="canvas-card">
+          <h2>WEBGL source</h2>
+          <canvas id="sourcegl"></canvas>
+        </article>
+        <article class="canvas-card">
+          <h2>Destination uploader canvas</h2>
+          <canvas id="uploadgl"></canvas>
+        </article>
+      </section>
+    </main>
+
+    <script>
+      const sizeInput = document.getElementById("size");
+      const iterationsInput = document.getElementById("iterations");
+      const runButton = document.getElementById("run");
+      const statusEl = document.getElementById("status");
+      const resultsEl = document.getElementById("results");
+
+      const source2dCanvas = document.getElementById("source2d");
+      const sourceGlCanvas = document.getElementById("sourcegl");
+      const uploadCanvas = document.getElementById("uploadgl");
+
+      const ctx2d = source2dCanvas.getContext("2d", { alpha: true });
+      const srcGl =
+        sourceGlCanvas.getContext("webgl2", { antialias: false, alpha: true }) ||
+        sourceGlCanvas.getContext("webgl", { antialias: false, alpha: true });
+      const uploadGl =
+        uploadCanvas.getContext("webgl2", { antialias: false, alpha: true }) ||
+        uploadCanvas.getContext("webgl", { antialias: false, alpha: true });
+
+      if (!ctx2d || !srcGl || !uploadGl) {
+        statusEl.textContent = "This browser could not create the required canvas contexts.";
+        runButton.disabled = true;
+      }
+
+      function resizeCanvases(size) {
+        source2dCanvas.width = size;
+        source2dCanvas.height = size;
+        sourceGlCanvas.width = size;
+        sourceGlCanvas.height = size;
+        uploadCanvas.width = size;
+        uploadCanvas.height = size;
+        if (srcGl) srcGl.viewport(0, 0, size, size);
+        if (uploadGl) uploadGl.viewport(0, 0, size, size);
+      }
+
+      function draw2dFrame(iteration, size) {
+        const t = iteration * 0.07;
+        ctx2d.clearRect(0, 0, size, size);
+
+        const gradient = ctx2d.createLinearGradient(0, 0, size, size);
+        gradient.addColorStop(0, `hsl(${(iteration * 9) % 360} 70% 60%)`);
+        gradient.addColorStop(1, `hsl(${(iteration * 9 + 120) % 360} 55% 40%)`);
+        ctx2d.fillStyle = gradient;
+        ctx2d.fillRect(0, 0, size, size);
+
+        ctx2d.globalCompositeOperation = "destination-out";
+        ctx2d.beginPath();
+        ctx2d.arc(
+          size * (0.5 + Math.cos(t) * 0.18),
+          size * (0.5 + Math.sin(t * 1.7) * 0.2),
+          size * 0.18,
+          0,
+          Math.PI * 2,
+        );
+        ctx2d.fill();
+
+        ctx2d.globalCompositeOperation = "source-over";
+        ctx2d.fillStyle = "rgba(255,255,255,0.82)";
+        ctx2d.font = `${Math.max(24, Math.round(size * 0.09))}px Georgia`;
+        ctx2d.fillText(`2D ${iteration}`, size * 0.08, size * 0.18);
+
+        for (let i = 0; i < 10; i += 1) {
+          const x = ((i * 0.13 + t * 0.11) % 1) * size;
+          const y = ((i * 0.19 + t * 0.07) % 1) * size;
+          ctx2d.fillStyle = `hsla(${(iteration * 11 + i * 27) % 360} 80% 52% / 0.65)`;
+          ctx2d.fillRect(x, y, size * 0.16, size * 0.03);
+        }
+      }
+
+      function drawWebglFrame(iteration, size) {
+        const gl = srcGl;
+        const t = iteration * 0.05;
+
+        gl.disable(gl.SCISSOR_TEST);
+        gl.clearColor(
+          0.25 + 0.25 * Math.sin(t),
+          0.2 + 0.2 * Math.sin(t * 1.3 + 1.0),
+          0.28 + 0.24 * Math.cos(t * 0.9),
+          1,
+        );
+        gl.clear(gl.COLOR_BUFFER_BIT);
+
+        gl.enable(gl.SCISSOR_TEST);
+        for (let i = 0; i < 8; i += 1) {
+          const x = Math.floor((((i * 0.17) + t * 0.09) % 1) * size);
+          const y = Math.floor((((i * 0.21) + t * 0.13) % 1) * size);
+          const w = Math.max(1, Math.floor(size * (0.08 + ((i % 3) * 0.03))));
+          const h = Math.max(1, Math.floor(size * (0.06 + ((i % 4) * 0.02))));
+          gl.scissor(x, y, w, h);
+          gl.clearColor(
+            0.5 + 0.5 * Math.sin(t + i),
+            0.5 + 0.5 * Math.cos(t * 1.4 + i * 0.3),
+            0.5 + 0.5 * Math.sin(t * 1.8 + i * 0.7),
+            0.85,
+          );
+          gl.clear(gl.COLOR_BUFFER_BIT);
+        }
+        gl.disable(gl.SCISSOR_TEST);
+        gl.flush();
+      }
+
+      function makeTexture(gl, size) {
+        const texture = gl.createTexture();
+        gl.bindTexture(gl.TEXTURE_2D, texture);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+        gl.texImage2D(
+          gl.TEXTURE_2D,
+          0,
+          gl.RGBA,
+          size,
+          size,
+          0,
+          gl.RGBA,
+          gl.UNSIGNED_BYTE,
+          null,
+        );
+        return texture;
+      }
+
+      function measureUpload(label, sourceCanvas, prepareFrame, size, iterations) {
+        const gl = uploadGl;
+        const texture = makeTexture(gl, size);
+        let total = 0;
+        let min = Number.POSITIVE_INFINITY;
+        let max = 0;
+
+        for (let i = 0; i < 6; i += 1) {
+          prepareFrame(i, size);
+          gl.bindTexture(gl.TEXTURE_2D, texture);
+          gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, sourceCanvas);
+        }
+        gl.finish();
+
+        for (let i = 0; i < iterations; i += 1) {
+          prepareFrame(i + 10, size);
+          const start = performance.now();
+          gl.bindTexture(gl.TEXTURE_2D, texture);
+          gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, sourceCanvas);
+          gl.finish();
+          const elapsed = performance.now() - start;
+          total += elapsed;
+          if (elapsed < min) min = elapsed;
+          if (elapsed > max) max = elapsed;
+        }
+
+        gl.deleteTexture(texture);
+
+        return {
+          source: label,
+          total_ms: total.toFixed(2),
+          avg_ms: (total / iterations).toFixed(4),
+          min_ms: min.toFixed(4),
+          max_ms: max.toFixed(4),
+          iterations,
+        };
+      }
+
+      function renderResults(rows) {
+        const html = [
+          "<table>",
+          "<thead><tr><th>source</th><th>total_ms</th><th>avg_ms</th><th>min_ms</th><th>max_ms</th><th>iterations</th></tr></thead>",
+          "<tbody>",
+          ...rows.map(
+            (row) =>
+              `<tr><td>${row.source}</td><td>${row.total_ms}</td><td>${row.avg_ms}</td><td>${row.min_ms}</td><td>${row.max_ms}</td><td>${row.iterations}</td></tr>`,
+          ),
+          "</tbody></table>",
+        ].join("");
+        resultsEl.innerHTML = html;
+      }
+
+      async function runBenchmark() {
+        const size = Math.max(64, Number(sizeInput.value) || 1024);
+        const iterations = Math.max(10, Number(iterationsInput.value) || 120);
+
+        resizeCanvases(size);
+        runButton.disabled = true;
+        statusEl.textContent = "Running benchmark...";
+        resultsEl.innerHTML = "";
+
+        await new Promise((resolve) => requestAnimationFrame(resolve));
+
+        const rows = [
+          measureUpload("2d canvas", source2dCanvas, draw2dFrame, size, iterations),
+          measureUpload("webgl canvas", sourceGlCanvas, drawWebglFrame, size, iterations),
+        ];
+
+        rows.sort((a, b) => Number(a.avg_ms) - Number(b.avg_ms));
+        renderResults(rows);
+        console.log("[canvas upload benchmark]", { size, iterations });
+        console.table(rows);
+
+        const ratio =
+          Number(rows[1].avg_ms) > 0
+            ? (Number(rows[1].avg_ms) / Number(rows[0].avg_ms)).toFixed(2)
+            : "n/a";
+        statusEl.textContent =
+          `${rows[0].source} is faster in this run. Ratio: ${ratio}x against ${rows[1].source}.`;
+        runButton.disabled = false;
+      }
+
+      runButton.addEventListener("click", runBenchmark);
+      resizeCanvases(Number(sizeInput.value) || 1024);
+      draw2dFrame(0, Number(sizeInput.value) || 1024);
+      drawWebglFrame(0, Number(sizeInput.value) || 1024);
+    </script>
+  </body>
+</html>

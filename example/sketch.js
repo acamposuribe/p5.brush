@@ -65,14 +65,18 @@ async function setup() {
     // Try the interactive Brush Maker to design your own:
     // https://acamposuribe.github.io/p5.brush/tools/brush-maker.html
     brush.add("watercolor", {
-        type:     "custom",
-        weight:   5,
-        scatter:  1,          // sideways spread of each stamp
-        opacity:  10,         // very transparent — builds up like real watercolour
-        spacing:  0.4,        // stamps placed close together for a smooth wash
-        pressure: [0.78, 1.3],// stroke grows from start to end
-        tip:      (_m) => { _m.rect(-5, -5, 10, 10); _m.rect(5, 5, 4, 4); },
-        rotate:   "natural"   // tip rotates to follow the stroke direction
+        type:    "custom",
+        weight:  10,
+        scatter: 1.05,
+        opacity: 9,
+        spacing: 0.3,
+        pressure: [0.8, 1.3],
+        rotate:  "natural",
+        tip: (_m) => {
+            _m.fill(0, 200)
+            _m.rect(-20, -20, 50, 50)
+            _m.rect(25, 25, 20, 20)
+        },
     });
 
     // Fill the seeds array with stable randoms for deterministic drawing.

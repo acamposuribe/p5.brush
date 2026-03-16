@@ -17,6 +17,7 @@ import {
   Cheight,
   State,
   Renderer,
+  Instance,
   isCanvasReady,
 } from "../core/color.js";
 import {
@@ -34,7 +35,15 @@ import {
 import { Position, Matrix, isFieldReady } from "../core/flowfield.js";
 import { Polygon } from "../core/polygon.js";
 import { Plot } from "../core/plot.js";
-import { isReady, glDraw, circle, snapshotMatrix } from "./gl_draw.js";
+import {
+  isReady,
+  glDraw,
+  glDrawImages,
+  circle,
+  stampImage,
+  invalidateTexEntry,
+  snapshotMatrix,
+} from "./gl_draw.js";
 
 // ---------------------------------------------------------------------------
 // Brush State and Helpers
@@ -53,8 +62,6 @@ State.stroke = {
 };
 
 let list = new Map();
-
-let Mask = null;
 let _strokeTransform = {
   a: 1,
   b: 0,
@@ -62,6 +69,17 @@ let _strokeTransform = {
   d: 1,
   tx: 0,
   ty: 0,
+};
+
+function getBrushFactory() {
+  return Renderer ?? Instance ?? window.self.p5.instance;
+}
+
+const DEFAULT_CUSTOM_PRESSURE_VARIATION = {
+  offset: 0.08,
+  scale: 0.08,
+  warp: 0.06,
+  tilt: 0.06,
 };
 
 /**
@@ -95,12 +113,44 @@ export function BrushSetState(state) {
  *   [start, end]         — linear ramp between two pressure values
  *   [start, mid, end]    — piecewise linear (e.g. [1.5, 0.5, 1.5] for U-curve)
  *   (t) => value         — custom function, t ∈ [0,1], return value ∈ [0,1]
- *   { type, min_max, curve } — old internal format, passed through unchanged
+ *   { mode: "gaussian", curve, min_max } — advanced built-in pressure profile
+ *   { curve, min_max }   — legacy gaussian format, preserved for compatibility
  */
-function normalizePressure(p) {
-  if (!p || (typeof p === "object" && !Array.isArray(p))) return p;
+export function normalizePressure(p) {
+  if (!p) return p;
   if (typeof p === "function")
-    return { type: "custom", min_max: [0, 1], curve: p };
+    return {
+      type: "custom",
+      min_max: [0, 1],
+      curve: p,
+      variation: { ...DEFAULT_CUSTOM_PRESSURE_VARIATION },
+    };
+  if (typeof p === "object" && !Array.isArray(p)) {
+    if (p.type === "custom" || p.mode === "custom") {
+      const { mode, ...rest } = p;
+      return {
+        ...rest,
+        type: "custom",
+        variation: {
+          ...DEFAULT_CUSTOM_PRESSURE_VARIATION,
+          ...(rest.variation ?? {}),
+        },
+      };
+    }
+    if (
+      p.type === "gaussian" ||
+      p.mode === "gaussian" ||
+      (Array.isArray(p.curve) && Array.isArray(p.min_max))
+    ) {
+      return {
+        ...p,
+        type: "gaussian",
+        curve: p.curve,
+        min_max: p.min_max,
+      };
+    }
+    return p;
+  }
   if (Array.isArray(p)) {
     const [s, m, e] = p.length === 2 ? [p[0], (p[0] + p[1]) / 2, p[1]] : p;
     const min = Math.min(s, m, e),
@@ -114,6 +164,7 @@ function normalizePressure(p) {
     return {
       type: "custom",
       min_max: [min, max],
+      variation: { ...DEFAULT_CUSTOM_PRESSURE_VARIATION },
       curve: (t) =>
         t < 0.5 ? ns + (nm - ns) * t * 2 : nm + (ne - nm) * (t - 0.5) * 2,
     };
@@ -131,6 +182,32 @@ export function add(name, params) {
   if (params.quality !== undefined && params.grain === undefined)
     params.grain = params.quality;
   params.pressure = normalizePressure(params.pressure);
+  if (params.type === "custom") {
+    if (typeof params.tip !== "function") {
+      throw new Error(`Brush "${name}" is type "custom" but is missing a tip function.`);
+    }
+    // Rasterise the tip once into a 500×500 P2D buffer.
+    // Users draw in a 100×100 coordinate space (origin at centre);
+    // dark fills/strokes → high opacity, light/white → transparent.
+    const key = `custom::${name}`;
+    invalidateTexEntry(key); // discard stale GPU texture if tip changed
+    const factory = getBrushFactory();
+    const g = factory.createGraphics(500, 500);
+    g.pixelDensity(1);
+    g.background(255);
+    g.noSmooth();
+    g.push();
+    g.translate(250, 250); // centre origin
+    g.scale(5); // 100 user units → 500 px
+    g.noStroke();
+    params.tip(g);
+    g.pop();
+    T.imageToWhite(g); // dark → high alpha, RGB → white for tint
+    T.tips.set(key, g);
+    params.tipKey = key;
+    list.set(name, { param: params, colors: [], buffers: [] });
+    return;
+  }
   if (params.type === "image") {
     if (!params.image || !params.image.src) {
       throw new Error(
@@ -138,15 +215,6 @@ export function add(name, params) {
       );
     }
     T.add(params.image.src);
-    params.tip = () => {
-      Mask.image(
-        T.tips.get(current.p.image.src),
-        -current.p.weight / 2,
-        -current.p.weight / 2,
-        current.p.weight,
-        current.p.weight,
-      );
-    };
     list.set(name, { param: params, colors: [], buffers: [] });
     return T.load(); // returns a Promise; only loads images not yet loaded
   }
@@ -252,13 +320,6 @@ function invertTransform(transform) {
   };
 }
 
-function transformPoint(transform, x, y) {
-  return {
-    x: transform.a * x + transform.c * y + transform.tx,
-    y: transform.b * x + transform.d * y + transform.ty,
-  };
-}
-
 function normalizeRegion(region) {
   const [x1, y1, x2, y2] = region;
   return {
@@ -267,60 +328,6 @@ function normalizeRegion(region) {
     maxX: Math.max(x1, x2),
     maxY: Math.max(y1, y2),
   };
-}
-
-function currentPointInUserSpace() {
-  return transformPoint(
-    _strokeTransform,
-    _position.x - Cwidth / 2,
-    _position.y - Cheight / 2,
-  );
-}
-
-function screenPointFromPosition(x, y) {
-  const point = transformPoint(_strokeTransform, x - Cwidth / 2, y - Cheight / 2);
-  return {
-    x: point.x + Cwidth / 2,
-    y: point.y + Cheight / 2,
-  };
-}
-
-function markImageTipDirty(rx, ry, scale, angle) {
-  const halfWeight = current.p.weight / 2;
-  const radians = (angle * Math.PI) / 180;
-  const cosAngle = Math.cos(radians);
-  const sinAngle = Math.sin(radians);
-  const userCenterX = _position.x + rx;
-  const userCenterY = _position.y + ry;
-  const corners = [
-    [-halfWeight, -halfWeight],
-    [halfWeight, -halfWeight],
-    [halfWeight, halfWeight],
-    [-halfWeight, halfWeight],
-  ];
-
-  let minX = Infinity,
-    minY = Infinity,
-    maxX = -Infinity,
-    maxY = -Infinity;
-
-  for (const [x, y] of corners) {
-    const lx = scale * (cosAngle * x - sinAngle * y);
-    const ly = scale * (sinAngle * x + cosAngle * y);
-    const point = screenPointFromPosition(userCenterX + lx, userCenterY + ly);
-
-    minX = Math.min(minX, point.x * Renderer.pixelDensity());
-    minY = Math.min(minY, point.y * Renderer.pixelDensity());
-    maxX = Math.max(maxX, point.x * Renderer.pixelDensity());
-    maxY = Math.max(maxY, point.y * Renderer.pixelDensity());
-  }
-
-  Mix.markDirtyRect(Mix.glMask, {
-    minX: minX - 2,
-    minY: minY - 2,
-    maxX: maxX + 2,
-    maxY: maxY + 2,
-  });
 }
 
 /**
@@ -361,8 +368,7 @@ const current = {};
  * @param {number} x - Starting x-coordinate.
  * @param {number} y - Starting y-coordinate.
  * @param {number} length - Length of stroke.
- * @param {boolean} flow - Flag for vector-field following.
- * @param {Object|boolean} plot - Plot object or false.
+ * @param {Plot|false} [plot=false] - Plot object for path-following strokes.
  */
 function initializeDrawingState(x, y, length, plot = false) {
   snapshotMatrix();
@@ -419,13 +425,22 @@ function saveState() {
   if (!param) return;
   current.p = param;
 
-  Mask = Mix.glMask;
-
   // Set pressure values for the stroke
   const { pressure } = param;
   current.a = pressure.type !== "custom" ? rr(-1, 1) : 0;
   current.b = pressure.type !== "custom" ? rr(1, 1.5) : 0;
-  current.cp = pressure.type !== "custom" ? rr(3, 3.5) : rr(-0.2, 0.2);
+  if (pressure.type !== "custom") {
+    current.cp = rr(3, 3.5);
+    current.ct = 0;
+    current.cs = 1;
+    current.ck = 0;
+  } else {
+    const variation = pressure.variation ?? DEFAULT_CUSTOM_PRESSURE_VARIATION;
+    current.cp = rr(-variation.offset, variation.offset);
+    current.ct = rr(-variation.warp, variation.warp);
+    current.cs = rr(1 - variation.scale, 1 + variation.scale);
+    current.ck = rr(-variation.tilt, variation.tilt);
+  }
   [current.min, current.max] = pressure.min_max;
 
   current.noiseoffset = 0.03;
@@ -442,10 +457,38 @@ function saveState() {
   const switchingToBrush = Mix.isBrush !== true;
   Mix.isBrush = true;
   if (switchingToBrush) Mix.justChanged = true;
-  if (isInsideClippingArea()) Mix.blend(State.stroke.color);
+  Mix.blend(State.stroke.color);
 
   // Set additional state values
   current.alpha = calculateAlpha();
+
+  // Pre-compute clip-check coefficients so isInsideClippingArea() needs no
+  // temporary objects and only one matrix×vector multiply per step instead of two.
+  {
+    const cw2 = Cwidth / 2, ch2 = Cheight / 2;
+    const T = _strokeTransform;
+    if (State.stroke.clipWindow) {
+      const { inverse: I, bounds: B } = State.stroke.clipWindow;
+      // Compose (I ∘ T) and fold the -cw2/-ch2 position offset into the translation
+      const ca = I.a * T.a + I.c * T.b, cc = I.a * T.c + I.c * T.d;
+      const cb = I.b * T.a + I.d * T.b, cd = I.b * T.c + I.d * T.d;
+      current.clipA  = ca; current.clipB  = cb;
+      current.clipC  = cc; current.clipD  = cd;
+      current.clipTX = I.a * T.tx + I.c * T.ty + I.tx - ca * cw2 - cc * ch2;
+      current.clipTY = I.b * T.tx + I.d * T.ty + I.ty - cb * cw2 - cd * ch2;
+      current.clipMinX = B.minX; current.clipMaxX = B.maxX;
+      current.clipMinY = B.minY; current.clipMaxY = B.maxY;
+    } else {
+      const o = Cwidth * 0.05;
+      current.clipA  = T.a; current.clipB  = T.b;
+      current.clipC  = T.c; current.clipD  = T.d;
+      current.clipTX = T.tx - T.a * cw2 - T.c * ch2;
+      current.clipTY = T.ty - T.b * cw2 - T.d * ch2;
+      current.clipMinX = -cw2 - o; current.clipMaxX = cw2 + o;
+      current.clipMinY = -ch2 - o; current.clipMaxY = ch2 + o;
+    }
+  }
+
   markerTip();
 }
 
@@ -453,26 +496,27 @@ function saveState() {
  * Restores drawing state after completing a stroke.
  */
 function restoreState() {
-  glDraw();
   markerTip();
+  glDraw();
+  const type = current.p?.type;
+  if (type === "image") glDrawImages(T.tips.get(current.p.image.src), current.p.image.src);
+  else if (type === "custom") glDrawImages(T.tips.get(current.p.tipKey), current.p.tipKey);
 }
 
 /**
  * Renders the brush tip based on current pressure and position.
- * @param {number} [customPressure=false] - Optional custom pressure.
  */
-function tip(customPressure = false) {
-  if (!isInsideClippingArea()) return;
-  let pressure = customPressure || calculatePressure();
-
-  let lineNoise = map(
+function tip() {
+  const insideClip = isInsideClippingArea();
+  if (!insideClip) return;
+  const pressure = calculatePressure();
+  const lineNoise = map(
     noise(current.seed + _position.plotted * 0.002, 0),
     0,
     1,
     1 - current.noiseoffset,
     1 + current.noiseoffset,
   );
-
   switch (current.p.type) {
     case "spray":
       drawSpray(pressure * lineNoise);
@@ -482,7 +526,7 @@ function tip(customPressure = false) {
       break;
     case "custom":
     case "image":
-      drawTip(pressure * lineNoise, current.alpha);
+      drawImageTip(pressure * lineNoise);
       break;
     default:
       drawDefault(pressure * lineNoise);
@@ -505,9 +549,19 @@ function calculatePressure() {
  * @returns {number} Simulated pressure value.
  */
 function simPressure() {
-  return current.p.pressure.type === "custom"
+  const value = current.p.pressure.type === "custom"
     ? map(
-        current.p.pressure.curve(_position.plotted / _length) + current.cp,
+        current.p.pressure.curve(
+          Math.max(
+            0,
+            Math.min(
+              1,
+              0.5 + ((_position.plotted / _length) - 0.5 + current.ct) * current.cs,
+            ),
+          ),
+        ) +
+          current.cp +
+          current.ck * ((_position.plotted / _length) - 0.5),
         0,
         1,
         current.min,
@@ -515,6 +569,7 @@ function simPressure() {
         true,
       )
     : gauss();
+  return value;
 }
 
 /**
@@ -559,33 +614,15 @@ function calculateAlpha() {
 
 /**
  * Checks if the current drawing position is within the clipping region.
+ * Uses coefficients pre-computed in saveState() — no object allocations,
+ * one fused matrix×vector multiply (both transforms composed at setup time).
  * @returns {boolean} True if inside clipping area; false otherwise.
  */
 function isInsideClippingArea() {
-  const point = currentPointInUserSpace();
-
-  if (State.stroke.clipWindow) {
-    const local = transformPoint(
-      State.stroke.clipWindow.inverse,
-      point.x,
-      point.y,
-    );
-    const { bounds } = State.stroke.clipWindow;
-    return (
-      local.x >= bounds.minX &&
-      local.x <= bounds.maxX &&
-      local.y >= bounds.minY &&
-      local.y <= bounds.maxY
-    );
-  }
-
-  let o = Cwidth * 0.05;
-  return (
-    point.x >= -Cwidth / 2 - o &&
-    point.x <= Cwidth / 2 + o &&
-    point.y >= -Cheight / 2 - o &&
-    point.y <= Cheight / 2 + o
-  );
+  const lx = current.clipA * _position.x + current.clipC * _position.y + current.clipTX;
+  if (lx < current.clipMinX || lx > current.clipMaxX) return false;
+  const ly = current.clipB * _position.x + current.clipD * _position.y + current.clipTY;
+  return ly >= current.clipMinY && ly <= current.clipMaxY;
 }
 
 /**
@@ -639,37 +676,28 @@ function drawMarker(pressure, vibrate = true, alpha = current.alpha) {
     _position.x + rx,
     _position.y + ry,
     State.stroke.weight * current.p.weight * pressure,
-    alpha,
+    alpha * Math.max(0.8, pressure) * rr(0.9,1.1),
   );
 }
 
 /**
- * Draws a custom or image-based brush tip.
+ * Queues a stamp for instanced GL rendering.
+ * Handles both "image" and "custom" tip types.
  * @param {number} pressure - Current pressure.
- * @param {number} alpha - Alpha (opacity) for drawing.
- * @param {boolean} [vibrate=true] - Whether to apply vibration.
+ * @param {number} alpha - Opacity [0..255].
  */
-function drawTip(pressure, alpha, vibrate = true) {
-  Mix.glMask.isDrawn = true;
-  Mask.push();
-  Mask.noStroke();
-  let color = State.stroke.color;
-  color.setAlpha(alpha);
-  Mask.fill(State.stroke.color);
-  const vibration = vibrate ? State.stroke.weight * current.p.scatter : 0;
-  const rx = vibrate ? vibration * rr(-1, 1) : 0;
-  const ry = vibrate ? vibration * rr(-1, 1) : 0;
-  Mask.translate(_position.x + rx - Cwidth, _position.y + ry - Cheight);
-  const scale = State.stroke.weight * pressure;
-  const angle = adjustSizeAndRotation(scale, alpha);
-  current.p.tip(Mask);
-  Mask.pop();
-
-  if (current.p.type === "image") {
-    markImageTipDirty(rx, ry, scale, angle);
-  } else {
-    Mix.markFull(Mix.glMask);
+function drawImageTip(pressure, alpha = current.alpha) {
+  const vibration = State.stroke.weight * current.p.scatter;
+  const rx = vibration * rr(-1, 1);
+  const ry = vibration * rr(-1, 1);
+  const size = current.p.weight * State.stroke.weight * pressure;
+  let angle = 0;
+  if (current.p.rotate === "random") {
+    angle = randInt(0, 360) * (Math.PI / 180);
+  } else if (current.p.rotate === "natural") {
+    angle = ((_plot ? -_plot.angle(_position.plotted) : -_dir) + _position.angle()) * (Math.PI / 180);
   }
+  stampImage(_position.x + rx, _position.y + ry, size, angle, alpha * Math.max(0.8, pressure) * rr(0.9,1.1));
 }
 
 /**
@@ -684,7 +712,8 @@ function drawDefault(pressure, wiggle = 1) {
     current.p.scatter *
     (current.p.sharpness +
       ((1 - current.p.sharpness) * rArray(gaussians)) / pressure);
-  if (rr(0, current.p.grain * pressure) > 0.4) {
+  const passesGate = rr(0, current.p.grain * pressure) > 0.4;
+  if (passesGate) {
     let dx, dy;
     if (_plot) {
       dx = 0.7 * vibration * rr(-1, 1);
@@ -695,37 +724,20 @@ function drawDefault(pressure, wiggle = 1) {
       dx = perp * -current.sin + along * current.cos;
       dy = perp * current.cos + along * current.sin;
     }
+    const diameter =
+      pressure *
+      pressure *
+      current.p.weight *
+      rr(0.85, 1.15) *
+      State.stroke.weight;
+    const alpha = Math.max(0.9, pressure) * current.alpha * rr(0.75, 1.1);
     circle(
       _position.x + dx,
       _position.y + dy,
-      pressure *
-        pressure *
-        current.p.weight *
-        rr(0.85, 1.15) *
-        State.stroke.weight,
-      Math.max(0.9, pressure) * current.alpha * rr(0.75, 1.1),
+      diameter,
+      alpha,
     );
   }
-}
-
-/**
- * Adjusts the size and rotation of the brush tip before rendering.
- * @param {number} pressure - Pressure-based scaling factor.
- * @param {number} alpha - Opacity value.
- */
-function adjustSizeAndRotation(pressure, alpha) {
-  Mask.scale(pressure);
-  if (current.p.type === "image") {
-    Mask.tint(255, 0, 0, alpha / 2);
-  }
-  let angle = 0;
-  if (current.p.rotate === "random") angle = randInt(0, 360);
-  else if (current.p.rotate === "natural") {
-    angle =
-      (_plot ? -_plot.angle(_position.plotted) : -_dir) + _position.angle();
-  }
-  Mask.rotate(angle);
-  return angle;
 }
 
 /**
@@ -734,15 +746,14 @@ function adjustSizeAndRotation(pressure, alpha) {
 function markerTip() {
   if (isInsideClippingArea()) {
     let pressure = calculatePressure();
-    let alpha = calculateAlpha(pressure);
+    let alpha = current.alpha;
     if (current.p.type === "marker") {
       for (let s = 1; s < 10; s++) {
-        drawMarker((pressure * s) / 10, false, alpha * 5);
+        drawMarker((pressure * s) / 10, true, alpha * 8);
       }
-      glDraw();
     } else if (current.p.type === "custom" || current.p.type === "image") {
       for (let s = 1; s < 5; s++) {
-        drawTip((pressure * s) / 5, alpha, false);
+        drawImageTip((pressure * s) / 10, alpha * 2);
       }
     }
   }
@@ -810,7 +821,7 @@ function plot(p, x, y, scale) {
 
 /**
  * Defines a set of standard brushes with specific characteristics. Each brush is defined
- * with properties such as weight, vibration, definition, quality, opacity, spacing, and
+ * with properties such as weight, scatter, sharpness, grain, opacity, spacing, and
  * pressure sensitivity. Some brushes have additional properties like type, tip, and rotate.
  */
 const _vals = [
@@ -952,7 +963,7 @@ const T = {
    * @param {string} src - The source URL of the image.
    */
   add(src) {
-    this.tips.set(src, false);
+    if (!this.tips.has(src)) this.tips.set(src, false);
   },
 
   /**
@@ -983,7 +994,8 @@ const T = {
           new Promise((resolve, reject) => {
             const nativeImg = new window.Image();
             nativeImg.onload = () => {
-              const p5img = Renderer.createImage(
+              const factory = getBrushFactory();
+              const p5img = factory.createImage(
                 nativeImg.naturalWidth,
                 nativeImg.naturalHeight,
               );
@@ -1001,15 +1013,3 @@ const T = {
     );
   },
 };
-
-/**
- * Loads all registered image tips. Must be awaited before setup/draw.
- * @returns {Promise}
- *
- * @example
- * // In your sketch:
- * await brush.preload();
- */
-export async function preload() {
-  await T.load();
-}

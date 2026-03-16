@@ -201,20 +201,17 @@ const float DARKEN_THRESHOLD = 0.7;
 const float EDGE_MIN = 0.05, EDGE_MAX = 0.35;
 
 void main(void) {
-    // Calculate UV coordinates
     vec2 uv = 0.5 * p + 0.5;
     vec2 uv1 = vec2(uv.x, 1.0 - uv.y);
     
-    // Get source and mask colors
-  vec4 source = texture(u_source, uv1);
-  vec4 maskColor = texture(u_mask, uv1);
+    vec4 source = texture(u_source, uv1);
+    vec4 maskColor = texture(u_mask, uv1);
     
     if (maskColor.a == 0.0) {
         outColor = source;
         return;
     }
     
-    // Set up pigment color
     vec4 pigment = vec4(u_color.xyz, 1.0);
     if (maskColor.a > DARKEN_THRESHOLD) {
         float blacken = 0.5 * (min(maskColor.a, 1.0) - DARKEN_THRESHOLD);
@@ -222,15 +219,12 @@ void main(void) {
         pigment.rgb = max(pigment.rgb, vec3(0.0));
     }
 
-    // Determine blend intensity — clamp to [0,1] to prevent NaN in spectral math
     float mixIntensity = min(maskColor.a, 1.0);
     
-    // Apply edge detection for better blending
     if (!u_isBrush) {
         vec2 texelSize = 1.0 / vec2(textureSize(u_mask, 0));
         float scaledAlpha = maskColor.a * 15.0;
         
-        // Calculate edge factor from 9 samples
         float blurEdge = 0.0;
         for (int i = -2; i <= 2; i += 2) {
             for (int j = -2; j <= 2; j += 2) {
@@ -244,9 +238,6 @@ void main(void) {
         mixIntensity = clamp(maskColor.a + blurEdge * 0.1, 0.0, 1.0);
     }
     
-    // Transparent background pixels are treated as white paper
     vec3 bgColor = mix(vec3(1.0), source.rgb, source.a);
-
-    // Perform the spectral color mixing
     outColor = vec4(spectral_mix(bgColor, pigment.rgb, mixIntensity), 1.0);
 }

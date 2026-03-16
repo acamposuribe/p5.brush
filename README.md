@@ -296,6 +296,9 @@ Functions for managing brush behaviors and properties.
          - `[start, end]` — e.g. `[2, 0.5]` starts thick and gets thin.
          - `[start, middle, end]` — e.g. `[0.5, 2, 0.5]` starts thin, swells in the middle, ends thin.
          - Or a function `(t) => value` where `t` goes from 0 (start) to 1 (end), for full control.
+         - These simple/custom pressure modes include a subtle amount of per-stroke variation automatically, so repeated strokes feel less mechanical.
+         - Advanced option for power users: use the library's built-in Gaussian pressure profile explicitly with an object like `{ mode: "gaussian", curve: [0.15, 0.2], min_max: [1.1, 0.9] }`.
+           `curve` adjusts the wobble and asymmetry of the pressure envelope, while `min_max` sets the mapped pressure range. This is the same family of pressure logic used by the built-in brushes.
       - `tip`: Only for `"custom"` type. A function where you draw the tip shape using p5.js commands inside a small graphics buffer `_m`.
       - `image`: Only for `"image"` type. An object with a `src` property pointing to your image file: `{ src: "./tip.jpg" }`.
       - `rotate`: How the tip rotates as it moves. `"none"` keeps it fixed, `"natural"` follows the stroke direction, `"random"` spins randomly.
@@ -338,6 +341,23 @@ Functions for managing brush behaviors and properties.
             _m.rect(-1.5, -1.5, 3, 3);
         },
         rotate: "natural",
+    });
+
+    // Advanced: explicitly use the built-in Gaussian pressure mode
+    brush.add("soft-pencil", {
+        type: "default",
+        weight: 0.3,
+        scatter: 0.6,
+        sharpness: 0.3,
+        grain: 10,
+        opacity: 170,
+        spacing: 0.1,
+        pressure: {
+            mode: "gaussian",
+            curve: [0.15, 0.2],
+            min_max: [1.1, 0.9],
+        },
+        rotate: "none",
     });
     ```
     **Image brushes only**: `brush.add()` returns a Promise when `type` is `"image"` — you must `await` it so the image finishes loading before you start drawing. For this to work, your `setup()` function must be declared `async`. For all other brush types, no `await` is needed.
@@ -803,7 +823,7 @@ These three functions perform similarly to the p5.js beginShape(), vertex(), and
 <sub>[back to table](#table-of-functions)</sub>
 ### Optional: Configuration
 
-This section covers functions for initializing the drawing system, preloading required assets, and configuring system behavior. By default, the library works without executing these functions, but you might want to configure them to your liking.
+This section covers functions for initializing the drawing system and configuring system behavior. By default, the library works without executing these functions, but you might want to configure them to your liking.
 
 > **Seeding**: p5.brush automatically hooks into p5's `randomSeed()` and `noiseSeed()`. Calling either of those functions seeds both p5 and the library simultaneously — no separate `brush.seed()` call is needed.
 

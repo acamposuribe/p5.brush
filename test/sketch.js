@@ -20,6 +20,9 @@ let currentY = MARGIN;
 let labelBuf; // P2D overlay for labels (composited at the end)
 
 const palette = ["#002185", "#c0392b", "#27ae60", "#8e44ad", "#e67e22"];
+const query = new URLSearchParams(window.location.search);
+const nativeDebugStage = query.get("nativeDebug");
+
 function col(i) {
   return palette[i % palette.length];
 }
@@ -573,6 +576,6 @@ async function setup() {
 function draw() {
   // WEBGL resets transforms each frame; re-translate to top-left
   translate(-width / 2, -height / 2);
-  image(labelBuf, 0, 0, width, height);
+  if (!nativeDebugStage) image(labelBuf, 0, 0, width, height);
   noLoop(); // static sketch — draw only once
 }

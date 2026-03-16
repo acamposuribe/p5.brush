@@ -202,19 +202,24 @@
       margin: 14px 0;
     }
 
-    /* ── Code output ─────────────────────────────────────────── */
+    /* ── Code output (right column) ───────────────────────────── */
     #code-panel {
+      width: 260px;
       flex-shrink: 0;
-      border-top: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      border-left: 1px solid var(--border);
       background: var(--panel);
+      overflow: hidden;
     }
 
     #code-header {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      padding: 8px 16px;
+      padding: 10px 16px;
       border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
     }
 
     #code-header span {
@@ -242,6 +247,7 @@
     #copy-btn.copied { background: #5cb85c; color: white; }
 
     #code-output {
+      flex: 1;
       margin: 0;
       padding: 12px 16px;
       font-family: var(--font);
@@ -250,8 +256,7 @@
       color: #9cdcfe;
       background: transparent;
       white-space: pre;
-      overflow-x: auto;
-      max-height: 170px;
+      overflow: auto;
     }
 
     /* ── Right: viewport ─────────────────────────────────────── */
@@ -471,6 +476,15 @@
     <div class="section-label">Pressure</div>
     <div class="pressure-group">
       <div class="control-row">
+        <label>mode</label>
+        <select id="pressure-mode">
+          <option value="simple">simple</option>
+          <option value="gaussian">gaussian</option>
+        </select>
+      </div>
+
+      <div id="pressure-simple">
+      <div class="control-row">
         <label>start</label>
         <input type="range" id="press-start" min="0.1" max="3" step="0.02" value="1.1" />
         <span class="val" id="press-start-val">1.1</span>
@@ -492,15 +506,49 @@
           <span class="slider-track"></span>
         </label>
       </div>
+      </div>
+
+      <div id="pressure-gaussian" style="display:none">
+        <div class="control-row">
+          <label>curve a</label>
+          <input type="range" id="gauss-curve-a" min="0" max="0.6" step="0.01" value="0.15" />
+          <span class="val" id="gauss-curve-a-val">0.15</span>
+        </div>
+        <div class="control-row">
+          <label>curve b</label>
+          <input type="range" id="gauss-curve-b" min="0" max="0.6" step="0.01" value="0.2" />
+          <span class="val" id="gauss-curve-b-val">0.2</span>
+        </div>
+        <div class="control-row">
+          <label>min</label>
+          <input type="range" id="gauss-min" min="0.1" max="2" step="0.01" value="1.1" />
+          <span class="val" id="gauss-min-val">1.1</span>
+        </div>
+        <div class="control-row">
+          <label>max</label>
+          <input type="range" id="gauss-max" min="0.1" max="2" step="0.01" value="0.9" />
+          <span class="val" id="gauss-max-val">0.9</span>
+        </div>
+      </div>
     </div>
 
     <!-- Tip function (custom type only) -->
     <div id="tip-section" style="display:none">
       <div class="section-label">Tip Function</div>
-      <p style="font-size:9px;color:var(--text-dim);margin-bottom:6px;line-height:1.5">Write p5 commands. Each line becomes <span style="color:#9cdcfe">_m.command</span></p>
-      <textarea id="tip-body" spellcheck="false">rotate(45);
+      <p style="font-size:9px;color:var(--text-dim);margin-bottom:6px;line-height:1.6">
+        Draw in a <span style="color:var(--accent)">100×100</span> coord space, origin at centre.<br>
+        Write plain p5 commands — <span style="color:#9cdcfe">fill()</span>, <span style="color:#9cdcfe">rect()</span>, etc.<br>
+        <span style="color:#666">Dark = opaque ink · Light/white = transparent</span>
+      </p>
+      <textarea id="tip-body" spellcheck="false">fill(0);
+rotate(45);
 rect(-4, -4, 8, 8);
 rect(2, 2, 2, 2);</textarea>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px;margin-bottom:4px">
+        <span style="font-size:9px;color:var(--text-dim);letter-spacing:0.08em;text-transform:uppercase;font-weight:700">Preview</span>
+        <span id="tip-preview-error" style="font-size:9px;color:#f66;display:none">syntax error</span>
+      </div>
+      <div id="tip-preview-wrap" style="width:100px;height:100px;border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;"></div>
     </div>
 
     <!-- Image upload (image type only) -->
@@ -515,17 +563,9 @@ rect(2, 2, 2, 2);</textarea>
 
   </div><!-- /controls -->
 
-  <!-- Code output -->
-  <div id="code-panel">
-    <div id="code-header">
-      <span>Generated Code</span>
-      <button id="copy-btn">COPY</button>
-    </div>
-    <pre id="code-output"></pre>
-  </div>
 </div><!-- /panel -->
 
-<!-- ── Right viewport ────────────────────────────────────────── -->
+<!-- ── Centre viewport ───────────────────────────────────────── -->
 <div id="viewport">
   <div id="viewport-header">
     <span>Preview</span>
@@ -542,6 +582,15 @@ rect(2, 2, 2, 2);</textarea>
   </div>
 </div>
 
+<!-- ── Right code panel ──────────────────────────────────────── -->
+<div id="code-panel">
+  <div id="code-header">
+    <span>Generated Code</span>
+    <button id="copy-btn">COPY</button>
+  </div>
+  <pre id="code-output"></pre>
+</div>
+
 <script>
 // ─────────────────────────────────────────────
 // State
@@ -556,13 +605,18 @@ const params = {
   opacity:   170,
   spacing:   0.3,
   rotate:    'natural',
+  pressureMode: 'simple',
   pressStart: 1.1,
   pressMid:   1.5,
   pressEnd:   0.9,
   pressure3pt: false,
+  gaussCurveA: 0.15,
+  gaussCurveB: 0.2,
+  gaussMin: 1.1,
+  gaussMax: 0.9,
   multicolor: false,
   referenceBrush: 'HB',
-  tipBody: 'rotate(45);\nrect(-4, -4, 8, 8);\nrect(2, 2, 2, 2);',
+  tipBody: 'fill(0);\nrotate(45);\nrect(-4, -4, 8, 8);\nrect(2, 2, 2, 2);',
   imageDataUrl: null,
   imageSrc: './your-image.jpg',
   bgColor:    '#fffceb',
@@ -571,15 +625,19 @@ const params = {
 
 let needsRebuild = true;
 let brushReady = true;
+let loadedImageSrc = null; // tracks which src is already uploaded to the GPU
+let previewTipFn = (_m) => {};
 
 // ─────────────────────────────────────────────
 // Code generator
 // ─────────────────────────────────────────────
 function generateCode() {
   const p = params;
-  const pressure = p.pressure3pt
-    ? `[${p.pressStart}, ${p.pressMid}, ${p.pressEnd}]`
-    : `[${p.pressStart}, ${p.pressEnd}]`;
+  const pressure = p.pressureMode === 'gaussian'
+    ? `{\n    mode: "gaussian",\n    curve: [${p.gaussCurveA}, ${p.gaussCurveB}],\n    min_max: [${p.gaussMin}, ${p.gaussMax}],\n  }`
+    : (p.pressure3pt
+      ? `[${p.pressStart}, ${p.pressMid}, ${p.pressEnd}]`
+      : `[${p.pressStart}, ${p.pressEnd}]`);
 
   const typeSpecific = p.type === 'default' || p.type === 'spray'
     ? `  sharpness: ${p.sharpness},\n  grain:     ${p.grain},\n`
@@ -640,6 +698,10 @@ wire('spacing',   'spacing',   v => Math.max(0.001, Math.round(parseFloat(v) * 1
 wire('press-start','pressStart', v => Math.round(parseFloat(v) * 100) / 100);
 wire('press-mid',  'pressMid',   v => Math.round(parseFloat(v) * 100) / 100);
 wire('press-end',  'pressEnd',   v => Math.round(parseFloat(v) * 100) / 100);
+wire('gauss-curve-a', 'gaussCurveA', v => Math.round(parseFloat(v) * 100) / 100);
+wire('gauss-curve-b', 'gaussCurveB', v => Math.round(parseFloat(v) * 100) / 100);
+wire('gauss-min', 'gaussMin', v => Math.round(parseFloat(v) * 100) / 100);
+wire('gauss-max', 'gaussMax', v => Math.round(parseFloat(v) * 100) / 100);
 
 // Grain uses custom mapping
 (function() {
@@ -675,16 +737,16 @@ const SLIDER_RANGES = {
     spacing: { min: 0.002, max: 0.5, step: 0.002 },
   },
   custom: {
-    weight:  { min: 0,    max: 3,   step: 0.01 },
-    scatter: { min: 0,    max: 15,  step: 0.05 },
-    opacity: { min: 1,    max: 255, step: 1     },
-    spacing: { min: 0.01, max: 2,   step: 0.01  },
+    weight:  { min: 1,   max: 60,  step: 1    },
+    scatter: { min: 0,   max: 10,  step: 0.05 },
+    opacity: { min: 1,   max: 50,  step: 1    },
+    spacing: { min: 0.1, max: 15,  step: 0.1  },
   },
   image: {
     weight:  { min: 1,   max: 60,  step: 1    },
     scatter: { min: 0,   max: 10,  step: 0.05 },
     opacity: { min: 1,   max: 50,  step: 1    },
-    spacing: { min: 2.5, max: 15,  step: 0.1  },
+    spacing: { min: 0.1, max: 15,  step: 0.1  },
   },
 };
 
@@ -693,29 +755,41 @@ const TYPE_PRESETS = {
   default: {
     weight: 0.9, scatter: 1.8, sharpness: 0.3, grain: 10,
     opacity: 170, spacing: 0.3, pressStart: 1.1, pressEnd: 0.9,
+    gaussCurveA: 0.15, gaussCurveB: 0.2, gaussMin: 1.1, gaussMax: 0.9,
     rotate: 'natural', referenceBrush: 'HB',
   },
   spray: {
     weight: 0.6, scatter: 18, sharpness: null, grain: 40,
     opacity: 90, spacing: 5, pressStart: 0.7, pressEnd: 1,
+    gaussCurveA: 0.2, gaussCurveB: 0.35, gaussMin: 0.7, gaussMax: 1,
     rotate: 'random', referenceBrush: 'spray',
   },
   marker: {
     weight: 6, scatter: 0.36, sharpness: null, grain: null,
     opacity: 1, spacing: 0.09, pressStart: 1.2, pressEnd: 0.85,
+    gaussCurveA: 0.35, gaussCurveB: 0.25, gaussMin: 1.2, gaussMax: 0.85,
     rotate: 'none', referenceBrush: 'marker',
   },
   custom: {
-    weight: 0.6, scatter: 0.15, sharpness: null, grain: null,
-    opacity: 15, spacing: 1.4, pressStart: 1, pressEnd: 1,
+    weight: 40, scatter: 0.15, sharpness: null, grain: null,
+    opacity: 10, spacing: 2.5, pressStart: 0.8, pressEnd: 1.2,
+    gaussCurveA: 0.15, gaussCurveB: 0.2, gaussMin: 1.1, gaussMax: 0.9,
     rotate: 'none', referenceBrush: 'HB',
   },
   image: {
     weight: 40, scatter: 0.15, sharpness: null, grain: null,
     opacity: 10, spacing: 2.5, pressStart: 0.8, pressEnd: 1.2,
+    gaussCurveA: 0.15, gaussCurveB: 0.2, gaussMin: 1.1, gaussMax: 0.9,
     rotate: 'random', referenceBrush: 'HB',
   },
 };
+
+function updatePressureModeUI() {
+  const isGaussian = params.pressureMode === 'gaussian';
+  document.getElementById('pressure-mode').value = params.pressureMode;
+  document.getElementById('pressure-simple').style.display = isGaussian ? 'none' : '';
+  document.getElementById('pressure-gaussian').style.display = isGaussian ? '' : 'none';
+}
 
 function applySliderRange(id, cfg) {
   const el = document.getElementById(id);
@@ -749,6 +823,10 @@ function applyTypePreset(type) {
   params.spacing   = preset.spacing;   applySliderValue('spacing', preset.spacing);
   params.pressStart = preset.pressStart; applySliderValue('press-start', preset.pressStart);
   params.pressEnd   = preset.pressEnd;   applySliderValue('press-end',   preset.pressEnd);
+  params.gaussCurveA = preset.gaussCurveA; applySliderValue('gauss-curve-a', preset.gaussCurveA);
+  params.gaussCurveB = preset.gaussCurveB; applySliderValue('gauss-curve-b', preset.gaussCurveB);
+  params.gaussMin = preset.gaussMin; applySliderValue('gauss-min', preset.gaussMin);
+  params.gaussMax = preset.gaussMax; applySliderValue('gauss-max', preset.gaussMax);
   params.rotate    = preset.rotate;
   params.referenceBrush = preset.referenceBrush;
   document.getElementById('rotate').value = preset.rotate;
@@ -770,7 +848,7 @@ document.getElementById('brush-type').addEventListener('change', e => {
   const isImage       = params.type === 'image';
   const showGrain     = params.type === 'default' || params.type === 'spray';
   const showSharpness = params.type === 'default';
-  document.getElementById('weight-row').style.display    = isCustom             ? 'none' : '';
+  document.getElementById('weight-row').style.display    = '';
   document.getElementById('rotate-row').style.display    = (isCustom || isImage) ? ''    : 'none';
   document.getElementById('sharpness-row').style.display = showSharpness        ? ''     : 'none';
   document.getElementById('grain-row').style.display     = showGrain            ? ''     : 'none';
@@ -783,6 +861,7 @@ document.getElementById('brush-type').addEventListener('change', e => {
 
 document.getElementById('tip-body').addEventListener('input', e => {
   params.tipBody = e.target.value;
+  updatePreviewTipFn();
   needsRebuild = true;
   updateCode();
 });
@@ -803,6 +882,13 @@ document.getElementById('brush-name').addEventListener('input', e => {
 document.getElementById('pressure-3pt').addEventListener('change', e => {
   params.pressure3pt = e.target.checked;
   document.getElementById('pressure-mid-row').style.display = e.target.checked ? 'flex' : 'none';
+  needsRebuild = true;
+  updateCode();
+});
+
+document.getElementById('pressure-mode').addEventListener('change', e => {
+  params.pressureMode = e.target.value;
+  updatePressureModeUI();
   needsRebuild = true;
   updateCode();
 });
@@ -833,6 +919,7 @@ document.getElementById('copy-btn').addEventListener('click', () => {
 });
 
 updateCode();
+updatePressureModeUI();
 
 // ─────────────────────────────────────────────
 // Image upload
@@ -908,9 +995,15 @@ const sketch = (p) => {
   };
 
   async function rebuildBrush() {
-    const pr = params.pressure3pt
-      ? [params.pressStart, params.pressMid, params.pressEnd]
-      : [params.pressStart, params.pressEnd];
+    const pr = params.pressureMode === 'gaussian'
+      ? {
+          mode: 'gaussian',
+          curve: [params.gaussCurveA, params.gaussCurveB],
+          min_max: [params.gaussMin, params.gaussMax],
+        }
+      : (params.pressure3pt
+        ? [params.pressStart, params.pressMid, params.pressEnd]
+        : [params.pressStart, params.pressEnd]);
 
     const cfg = {
       type:     params.type,
@@ -935,9 +1028,16 @@ const sketch = (p) => {
     if (params.type === 'image') {
       if (!params.imageDataUrl) return; // no image yet, skip
       cfg.image = { src: params.imageDataUrl };
-      brushReady = false;
-      await brush.add(params.name, cfg);
-      brushReady = true;
+      if (params.imageDataUrl !== loadedImageSrc) {
+        // New image — must wait for load before drawing
+        brushReady = false;
+        await brush.add(params.name, cfg);
+        loadedImageSrc = params.imageDataUrl;
+        brushReady = true;
+      } else {
+        // Same image, only params changed — update synchronously, no blink
+        brush.add(params.name, cfg);
+      }
     } else {
       brush.add(params.name, cfg);
     }
@@ -1018,6 +1118,52 @@ const sketch = (p) => {
 };
 
 new p5(sketch);
+
+// ─────────────────────────────────────────────
+// Tip preview mini-sketch (custom type)
+// ─────────────────────────────────────────────
+function updatePreviewTipFn() {
+  const tipLines = params.tipBody.split('\n').map(l => l.trim()).filter(Boolean).map(l => `_m.${l}`).join('\n');
+  const errorEl = document.getElementById('tip-preview-error');
+  try {
+    previewTipFn = new Function('_m', tipLines);
+    if (errorEl) errorEl.style.display = 'none';
+  } catch(e) {
+    previewTipFn = (_m) => {};
+    if (errorEl) errorEl.style.display = '';
+  }
+}
+updatePreviewTipFn();
+
+const previewSketch = (p) => {
+  p.setup = () => {
+    const cnv = p.createCanvas(100, 100);
+    cnv.parent('tip-preview-wrap');
+    p.pixelDensity(1);
+    p.angleMode(p.DEGREES);
+    p.frameRate(30);
+  };
+  p.draw = () => {
+    p.background(255);
+    // faint boundary showing the full 100×100 space
+    p.push();
+    p.translate(50, 50);
+    p.stroke(220);
+    p.strokeWeight(0.5);
+    p.noFill();
+    p.rect(-49.5, -49.5, 99, 99);
+    // crosshair
+    p.stroke(235);
+    p.line(-49.5, 0, 49.5, 0);
+    p.line(0, -49.5, 0, 49.5);
+    // tip
+    p.fill(0);
+    p.noStroke();
+    try { previewTipFn(p); } catch(e) {}
+    p.pop();
+  };
+};
+new p5(previewSketch);
 </script>
 </body>
 </html>

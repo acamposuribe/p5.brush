@@ -118,7 +118,12 @@ export {
 } from "./hatch/hatch.js";
 
 // Fill
-export { fill, noFill, fillTexture, fillBleed } from "./fill/fill.js";
+export {
+  fill,
+  noFill,
+  fillTexture,
+  fillBleed,
+} from "./fill/fill.js";
 
 // p5 addon registration
 import { Mix } from "./core/color.js";
