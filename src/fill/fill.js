@@ -42,7 +42,7 @@ import { Plot } from "../core/plot.js";
 // =============================================================================
 
 // Vertex cap for grow() — set to 0 or false to disable
-const GROW_MAX_VERTS = 1024;
+const GROW_MAX_VERTS = 2024;
 
 /**
  * Global fill state settings.
@@ -430,7 +430,7 @@ class FillPoly {
     let fv,
       fm,
       fd;
-    const growCap = GROW_MAX_VERTS / State.fill.texture_strength;
+    const growCap = GROW_MAX_VERTS * Math.max(0.1, 2 * State.fill.bleed_strength);
     if (growCap && idx > growCap) {
       const step = Math.ceil(idx / growCap);
       const kept = Math.ceil(idx / step);
@@ -560,9 +560,9 @@ class FillPoly {
     const halfSizeX = this.sizeX / 1.3;
     const halfSizeY = this.sizeY / 1.3;
     const minSize =
-      Math.min(this.sizeX, this.sizeY) * (1.4 - State.fill.bleed_strength);
-    const minSizeFactor = 0.04 * minSize;
-    const maxSizeFactor = 0.35 * minSize;
+      Math.min(this.sizeX, this.sizeY) * (1.3);
+    const minSizeFactor = 0.03 * minSize;
+    const maxSizeFactor = 0.45 * minSize;
     const { x: midX, y: midY } = this.midP;
 
     Mix.ctx.globalCompositeOperation = "destination-out";

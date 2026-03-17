@@ -446,7 +446,6 @@
         <option value="columns">columns</option>
         <option value="topographic">topographic</option>
         <option value="fan">fan</option>
-        <option value="radial">radial</option>
       </select>
     </div>
 
@@ -609,24 +608,6 @@
       </div>
     </div>
 
-    <div id="type-radial" class="type-controls">
-      <div class="control-row">
-        <label>center x</label>
-        <input type="range" id="radial-center-x" min="0.05" max="0.95" step="0.01" value="0.5" />
-        <span class="val" id="radial-center-x-val">0.5</span>
-      </div>
-      <div class="control-row">
-        <label>center y</label>
-        <input type="range" id="radial-center-y" min="0.05" max="0.95" step="0.01" value="0.5" />
-        <span class="val" id="radial-center-y-val">0.5</span>
-      </div>
-      <div class="control-row">
-        <label>twist</label>
-        <input type="range" id="radial-twist" min="-120" max="120" step="1" value="0" />
-        <span class="val" id="radial-twist-val">0</span>
-      </div>
-    </div>
-
   </div>
 
   <div id="panel-bottom">
@@ -778,10 +759,6 @@ const params = {
   fanSourceY: 1.05,
   fanSpread: 26,
 
-  radialCenterX: 0.5,
-  radialCenterY: 0.5,
-  radialTwist: 0,
-
 };
 
 const TYPE_HELP = {
@@ -793,7 +770,6 @@ const TYPE_HELP = {
   columns: "Vertical stripe families. Frequency sets the band count, amplitude pushes the sway, and rotation tilts the whole field.",
   topographic: "Contour-following flow. It traces the tangent of a drifting noise field, like topographic lines or carved terrain.",
   fan: "Rays opening from a source point. Spread controls how much the rays flare and curl as they travel outward.",
-  radial: "Pure in-out motion from a chosen center, with optional twist to bend it into a pinwheel.",
 };
 
 const THEME_KEY = "p5brush-flowfield-maker-theme";
@@ -1013,18 +989,6 @@ function buildPreviewGenerator() {
         }
         return field;
       };
-    case "radial":
-      return (t, field) => {
-        const cx = params.radialCenterX * field.length;
-        const cy = params.radialCenterY * field[0].length;
-        const twist = params.radialTwist + 18 * Math.sin(t * 0.7);
-        for (let c = 0; c < field.length; c++) {
-          for (let r = 0; r < field[0].length; r++) {
-            field[c][r] = Math.atan2(r - cy, c - cx) * 180 / Math.PI + twist;
-          }
-        }
-        return field;
-      };
     case "curved":
     default:
       return (t, field) => {
@@ -1056,8 +1020,6 @@ function buildCode() {
       return `brush.addField("${name}", (t, field) => {\n  const drift = t * ${params.topographicDrift};\n  const eps = 0.75;\n  for (let c = 0; c < field.length; c++) {\n    for (let r = 0; r < field[0].length; r++) {\n      const x = c * ${params.topographicScale};\n      const y = r * ${params.topographicScale};\n      const dx = noise(x + eps + drift, y + drift) - noise(x - eps + drift, y + drift);\n      const dy = noise(x + drift, y + eps + drift) - noise(x + drift, y - eps + drift);\n      field[c][r] = Math.atan2(dy, dx) * 180 / Math.PI + 90 + ${params.topographicJitter} * Math.sin((x + y) * 5 + t);\n    }\n  }\n  return field;\n});`;
     case "fan":
       return `brush.addField("${name}", (t, field) => {\n  const sx = ${params.fanSourceX} * field.length;\n  const sy = ${params.fanSourceY} * field[0].length;\n  for (let c = 0; c < field.length; c++) {\n    for (let r = 0; r < field[0].length; r++) {\n      const dx = c - sx;\n      const dy = r - sy;\n      const dist = Math.sqrt(dx * dx + dy * dy);\n      const base = Math.atan2(dy, dx) * 180 / Math.PI;\n      field[c][r] = base + ${params.fanSpread} * Math.sin(dist * 0.08 - t * 1.2);\n    }\n  }\n  return field;\n});`;
-    case "radial":
-      return `brush.addField("${name}", (t, field) => {\n  const cx = ${params.radialCenterX} * field.length;\n  const cy = ${params.radialCenterY} * field[0].length;\n  const twist = ${params.radialTwist} + 18 * Math.sin(t * 0.7);\n  for (let c = 0; c < field.length; c++) {\n    for (let r = 0; r < field[0].length; r++) {\n      field[c][r] = Math.atan2(r - cy, c - cx) * 180 / Math.PI + twist;\n    }\n  }\n  return field;\n});`;
     case "curved":
     default:
       return `brush.addField("${name}", (t, field) => {\n  const ar = random(${params.curvedAngleMin}, ${params.curvedAngleMax});\n  for (let c = 0; c < field.length; c++) {\n    for (let r = 0; r < field[0].length; r++) {\n      field[c][r] = 3 * map(noise(c * ${params.curvedScale} + t * 0.09, r * ${params.curvedScale} + t * 0.09), 0, 1, -ar, ar);\n    }\n  }\n  return field;\n});`;
@@ -1276,9 +1238,6 @@ wire("fan-source-x", "fanSourceX");
 wire("fan-source-y", "fanSourceY");
 wire("fan-spread", "fanSpread");
 
-wire("radial-center-x", "radialCenterX");
-wire("radial-center-y", "radialCenterY");
-wire("radial-twist", "radialTwist");
 
 document.getElementById("density").value = params.density;
 document.getElementById("line-len").value = params.lineLen;
