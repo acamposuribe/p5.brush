@@ -6,8 +6,11 @@ p5.brush.js adds natural drawing tools to p5.js — pencils, charcoal, markers, 
 
 [Visit the library website here! (more examples soon)](https://p5-brush.cargo.site/)
 
-> 🎨 **[Try the interactive Brush Maker →](https://acamposuribe.github.io/p5.brush/tools/brush-maker.html)**
+> 🖌️ **[Try the interactive Brush Maker →](https://acamposuribe.github.io/p5.brush/tools/brush-maker.html)**
 > Design custom brushes with live preview and generate ready-to-paste `brush.add()` code.
+
+> ▶️ **[Check the teaser live →](https://editor.p5js.org/acamposuribe/sketches/bkb_CyJyi)**
+> Live on the p5.js Web Editor, where you can read and edit code.
 
 ## Table of Contents
 - [Installation](#installation)
