@@ -135,11 +135,17 @@ function _isLeft(a, b, c) {
  * @returns {Object} The center point {x, y}.
  */
 function _center(pts) {
+  if (pts.length === 0) {
+    return { x: 0, y: 0 };
+  }
+
   if (pts.length < 8) {
     // Simple average for small polygons
-    return pts
-      .reduce((c, p) => ({ x: c.x + p.x, y: c.y + p.y }), { x: 0, y: 0 })
-      .map((v) => v / pts.length);
+    const sum = pts.reduce(
+      (center, point) => ({ x: center.x + point.x, y: center.y + point.y }),
+      { x: 0, y: 0 },
+    );
+    return { x: sum.x / pts.length, y: sum.y / pts.length };
   }
 
   // Close polygon if needed
