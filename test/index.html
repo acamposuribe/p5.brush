@@ -13,12 +13,9 @@
         --card: rgba(255, 252, 245, 0.84);
         --accent-a: #153e5c;
         --accent-b: #8f3a2f;
-        --accent-c: #2d6a5f;
       }
 
-      * {
-        box-sizing: border-box;
-      }
+      * { box-sizing: border-box; }
 
       body {
         margin: 0;
@@ -32,20 +29,26 @@
       }
 
       main {
-        width: min(1120px, calc(100vw - 48px));
+        width: min(980px, calc(100vw - 28px));
         margin: 0 auto;
-        padding: 40px 0 56px;
+        padding: 24px 0 32px;
+        display: grid;
+        justify-items: center;
       }
+
+      main > * { width: 100%; }
 
       header {
         display: grid;
-        gap: 14px;
-        margin-bottom: 28px;
+        gap: 8px;
+        margin-bottom: 16px;
+        justify-items: center;
+        text-align: center;
       }
 
       .eyebrow {
         font-family: Menlo, Monaco, "Courier New", monospace;
-        font-size: 12px;
+        font-size: 11px;
         letter-spacing: 0.18em;
         text-transform: uppercase;
         color: var(--accent-a);
@@ -53,121 +56,107 @@
 
       h1 {
         margin: 0;
-        font-size: clamp(34px, 4vw, 56px);
-        line-height: 0.95;
+        font-size: clamp(28px, 3.6vw, 40px);
+        line-height: 1;
         letter-spacing: -0.04em;
       }
 
       .intro {
-        max-width: 760px;
+        max-width: 640px;
         margin: 0;
         color: var(--muted);
-        font-size: 17px;
-        line-height: 1.55;
-      }
-
-      .bands {
-        display: grid;
-        gap: 18px;
+        font-size: 14px;
+        line-height: 1.45;
       }
 
       .band {
         border: 1px solid var(--line);
-        background: linear-gradient(180deg, rgba(255, 252, 246, 0.82), rgba(248, 241, 230, 0.82));
-        backdrop-filter: blur(6px);
-        border-radius: 22px;
-        padding: 22px;
-        box-shadow: 0 18px 50px rgba(58, 46, 32, 0.08);
+        background: rgba(255, 252, 246, 0.82);
+        border-radius: 10px;
+        padding: 14px;
+      }
+
+      .band-head {
+        display: grid;
+        gap: 4px;
+        margin-bottom: 12px;
+        text-align: center;
       }
 
       .band h2 {
-        margin: 0 0 6px;
-        font-size: 22px;
+        margin: 0;
+        font-size: 18px;
       }
 
       .band p {
-        margin: 0 0 18px;
+        margin: 0;
         color: var(--muted);
-        line-height: 1.5;
+        line-height: 1.45;
+        font-size: 13px;
       }
 
       .grid {
         display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-        gap: 16px;
+        grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+        gap: 10px;
       }
 
       .card {
         display: grid;
-        gap: 8px;
-        min-height: 170px;
-        padding: 18px;
+        gap: 5px;
+        min-width: 0;
+        min-height: 0;
+        padding: 12px;
         text-decoration: none;
         color: inherit;
-        border-radius: 18px;
+        border-radius: 8px;
         border: 1px solid rgba(48, 41, 30, 0.14);
         background: var(--card);
-        transition: transform 160ms ease, box-shadow 160ms ease, border-color 160ms ease;
-        box-shadow: 0 10px 22px rgba(53, 42, 29, 0.06);
+        transition: border-color 160ms ease, background 160ms ease;
       }
 
       .card:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 16px 30px rgba(53, 42, 29, 0.1);
+        background: rgba(255, 252, 245, 0.96);
         border-color: rgba(21, 62, 92, 0.28);
       }
 
       .card h3 {
         margin: 0;
-        font-size: 18px;
+        font-size: 15px;
+        line-height: 1.25;
+        overflow-wrap: anywhere;
       }
 
       .card p {
         margin: 0;
         color: var(--muted);
-        line-height: 1.45;
+        line-height: 1.4;
+        font-size: 12px;
+        overflow-wrap: anywhere;
       }
 
       .path,
-      .tag {
+      .meta {
         font-family: Menlo, Monaco, "Courier New", monospace;
-        font-size: 12px;
+        font-size: 11px;
       }
 
       .path {
         color: var(--accent-a);
+        overflow-wrap: anywhere;
+        word-break: break-word;
       }
 
-      .tag {
-        display: inline-flex;
-        width: fit-content;
-        padding: 4px 8px;
-        border-radius: 999px;
-        letter-spacing: 0.04em;
-        text-transform: uppercase;
-        background: rgba(21, 62, 92, 0.08);
-        color: var(--accent-a);
-      }
-
-      .tag.alt {
-        background: rgba(45, 106, 95, 0.1);
-        color: var(--accent-c);
-      }
-
-      .tag.warn {
-        background: rgba(143, 58, 47, 0.1);
-        color: var(--accent-b);
-      }
+      .meta { color: var(--accent-b); }
 
       @media (max-width: 720px) {
         main {
-          width: min(1120px, calc(100vw - 24px));
-          padding-top: 28px;
+          width: min(980px, calc(100vw - 18px));
+          padding-top: 18px;
         }
 
         .band {
-          padding: 18px;
-          border-radius: 18px;
+          padding: 12px;
         }
       }
     </style>
@@ -178,96 +167,87 @@
         <div class="eyebrow">p5.brush / test</div>
         <h1>Test Index</h1>
         <p class="intro">
-          Browser pages for manual verification plus the automated unit suite.
-          Use this page as the entry point when checking rendering behavior,
-          transforms, angle semantics, and regression coverage.
+          Manual browser pages for rendering, transform, instance-mode, and regression checks.
         </p>
       </header>
 
-      <div class="bands">
-        <section class="band">
+      <section class="band">
+        <div class="band-head">
           <h2>Browser Tests</h2>
-          <p>Open one of these pages to inspect rendering directly in the browser.</p>
-          <div class="grid">
-            <a class="card" href="./visual_suite.html">
-              <span class="tag">Browser</span>
-              <h3>Visual API Suite</h3>
-              <p>Wide coverage page that exercises most public APIs and logs error-message checks to the console.</p>
-              <span class="path">test/visual_suite.html</span>
-            </a>
+          <p>Use these pages to visually inspect behavior directly in the browser.</p>
+        </div>
+        <div class="grid">
+          <a class="card" href="./visual_suite.html">
+            <h3>Visual API Suite</h3>
+            <p>Wide coverage page that exercises most public APIs and logs error-message checks to the console.</p>
+            <span class="meta">Coverage</span>
+            <span class="path">test/visual_suite.html</span>
+          </a>
 
-            <a class="card" href="./angle_mode_test.html">
-              <span class="tag warn">New</span>
-              <h3>Angle Mode Test</h3>
-              <p>Compares degrees, radians, mixed mode changes, stored hatch angles, low-level Position movement, and custom fields.</p>
-              <span class="path">test/angle_mode_test.html</span>
-            </a>
+          <a class="card" href="./fill_issue_43.html">
+            <h3>Fill Issue 43</h3>
+            <p>Replays the reported 30+ fill repro with repeated rect and circle watercolor fills on a WEBGL canvas.</p>
+            <span class="meta">Regression</span>
+            <span class="path">test/fill_issue_43.html</span>
+          </a>
 
-            <a class="card" href="./offscreen_target_test.html">
-              <span class="tag warn">New</span>
-              <h3>Offscreen Targets</h3>
-              <p>Checks brush.load() on p5.Graphics and custom-sized main framebuffers, with pixel-count diagnostics.</p>
-              <span class="path">test/offscreen_target_test.html</span>
-            </a>
+          <a class="card" href="./angle_mode_test.html">
+            <h3>Angle Mode Test</h3>
+            <p>Compares degrees, radians, mixed mode changes, stored hatch angles, low-level Position movement, and custom fields.</p>
+            <span class="meta">Behavior</span>
+            <span class="path">test/angle_mode_test.html</span>
+          </a>
 
-            <a class="card" href="./instance_mode_test.html">
-              <span class="tag warn">New</span>
-              <h3>Instance Mode</h3>
-              <p>Checks brush.instance(p) on the instance canvas, an instance p5.Graphics target, and an instance-owned main framebuffer.</p>
-              <span class="path">test/instance_mode_test.html</span>
-            </a>
+          <a class="card" href="./offscreen_target_test.html">
+            <h3>Offscreen Targets</h3>
+            <p>Checks brush.load() on p5.Graphics and custom-sized main framebuffers, with pixel-count diagnostics.</p>
+            <span class="meta">Targets</span>
+            <span class="path">test/offscreen_target_test.html</span>
+          </a>
 
-            <a class="card" href="./transform_test.html">
-              <span class="tag">Browser</span>
-              <h3>Transform Alignment</h3>
-              <p>Checks that brush strokes and fills align with native p5 reference geometry under translate, rotate, and scale.</p>
-              <span class="path">test/transform_test.html</span>
-            </a>
+          <a class="card" href="./instance_mode_test.html">
+            <h3>Instance Mode</h3>
+            <p>Checks brush.instance(p) on the instance canvas, an instance p5.Graphics target, and an instance-owned main framebuffer.</p>
+            <span class="meta">Instances</span>
+            <span class="path">test/instance_mode_test.html</span>
+          </a>
 
-            <a class="card" href="./pushpop_test.html">
-              <span class="tag">Browser</span>
-              <h3>Push / Pop State</h3>
-              <p>Verifies that p5 push/pop restores stroke, brush, fill, and hatch state correctly.</p>
-              <span class="path">test/pushpop_test.html</span>
-            </a>
+          <a class="card" href="./multi_instance_async_test.html">
+            <h3>Async Multi-Instance</h3>
+            <p>Stress-tests the old multi-instance startup race with many instance-mode sketches and repeated canvas ownership checks.</p>
+            <span class="meta">Regression</span>
+            <span class="path">test/multi_instance_async_test.html</span>
+          </a>
 
-            <a class="card" href="./hatch_test.html">
-              <span class="tag warn">New</span>
-              <h3>Hatch Test</h3>
-              <p>Exercises hatch angles, spacing, rand/continuous/gradient options, cross-hatching, brush types, shapes, and multi-polygon arrays.</p>
-              <span class="path">test/hatch_test.html</span>
-            </a>
+          <a class="card" href="./transform_test.html">
+            <h3>Transform Alignment</h3>
+            <p>Checks that brush strokes and fills align with native p5 reference geometry under translate, rotate, and scale.</p>
+            <span class="meta">Geometry</span>
+            <span class="path">test/transform_test.html</span>
+          </a>
 
-            <a class="card" href="./field_explorer.html">
-              <span class="tag">Browser</span>
-              <h3>Flow Field Explorer</h3>
-              <p>Interactive field inspector for comparing built-in fields with adjustable density and line length.</p>
-              <span class="path">test/field_explorer.html</span>
-            </a>
+          <a class="card" href="./pushpop_test.html">
+            <h3>Push / Pop State</h3>
+            <p>Verifies that p5 push/pop restores stroke, brush, fill, and hatch state correctly.</p>
+            <span class="meta">State</span>
+            <span class="path">test/pushpop_test.html</span>
+          </a>
 
-          </div>
-        </section>
+          <a class="card" href="./hatch_test.html">
+            <h3>Hatch Test</h3>
+            <p>Exercises hatch angles, spacing, rand/continuous/gradient options, cross-hatching, brush types, shapes, and multi-polygon arrays.</p>
+            <span class="meta">Coverage</span>
+            <span class="path">test/hatch_test.html</span>
+          </a>
 
-        <section class="band">
-          <h2>Automated Tests</h2>
-          <p>The browser pages above are visual checks. These files contain the scripted regression suites.</p>
-          <div class="grid">
-            <a class="card" href="./unit.test.js">
-              <span class="tag alt">Automated</span>
-              <h3>Unit Test Source</h3>
-              <p>Utility, angle conversion, hatch capture, Position movement, and custom field angle-mode regression tests.</p>
-              <span class="path">test/unit.test.js</span>
-            </a>
-
-            <a class="card" href="./stroke_pressure.test.js">
-              <span class="tag alt">Automated</span>
-              <h3>Stroke Pressure Tests</h3>
-              <p>Covers `brush.add()` pressure normalization, including the simple custom forms and the explicit Gaussian power-user mode.</p>
-              <span class="path">test/stroke_pressure.test.js</span>
-            </a>
-          </div>
-        </section>
-      </div>
+          <a class="card" href="./field_explorer.html">
+            <h3>Flow Field Explorer</h3>
+            <p>Interactive field inspector for comparing built-in fields with adjustable density and line length.</p>
+            <span class="meta">Explorer</span>
+            <span class="path">test/field_explorer.html</span>
+          </a>
+        </div>
+      </section>
     </main>
   </body>
 </html>

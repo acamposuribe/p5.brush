@@ -143,13 +143,15 @@ async function setup() {
   randomSeed(42);
   noiseSeed(42);
 
-  createCanvas(CANVAS_W, CANVAS_H, WEBGL);
+  const canvas = createCanvas(CANVAS_W, CANVAS_H, WEBGL);
+  canvas.parent("canvas-host");
   brush.load();
   brush.scaleBrushes(5);
   angleMode(DEGREES);
 
   // P2D buffer for labels — transparent background so brush strokes show through
   labelBuf = createGraphics(CANVAS_W, CANVAS_H);
+  labelBuf.pixelDensity(pixelDensity());
   labelBuf.textFont("monospace");
   labelBuf.textLeading(14);
 
@@ -194,25 +196,20 @@ async function setup() {
   const { passed, total } = runErrorTests();
   brush.set("HB", "#000000", 1); // restore clean state
 
-  // ---- Title banner ----
-  labelBuf.noStroke();
-  labelBuf.fill(10);
-  labelBuf.textSize(20);
-  labelBuf.textStyle(BOLD);
-  labelBuf.text("p5.brush  Test Suite", MARGIN, currentY + 22);
-  currentY += 34;
-
   const ok = passed === total;
-  labelBuf.fill(ok ? "#1a7a1a" : "#b03030");
-  labelBuf.textSize(11);
-  labelBuf.textStyle(NORMAL);
-  labelBuf.text(
-    `Error tests: ${passed}/${total} ${ok ? "all passed" : "some FAILED"} - see browser console`,
-    MARGIN,
-    currentY + 14,
-  );
-  currentY += 28;
-  gap();
+  if (!ok) {
+    labelBuf.noStroke();
+    labelBuf.fill("#b03030");
+    labelBuf.textSize(10);
+    labelBuf.textStyle(NORMAL);
+    labelBuf.text(
+      `Error tests: ${passed}/${total} passed. See browser console.`,
+      MARGIN,
+      currentY + 12,
+    );
+    currentY += 20;
+    gap(6);
+  }
 
   // ================================================================
   // SECTION 1 — STANDARD BRUSHES

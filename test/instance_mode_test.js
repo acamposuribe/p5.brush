@@ -234,24 +234,6 @@ const sketch = (p) => {
     }
   }
 
-  function drawHeader() {
-    labelBuf.noStroke()
-    labelBuf.fill(INK)
-    labelBuf.textFont("Iowan Old Style")
-    labelBuf.textSize(34)
-    labelBuf.text("Instance Mode Coverage", MARGIN, 42)
-
-    labelBuf.fill(MUTED)
-    labelBuf.textSize(16)
-    labelBuf.textLeading(24)
-    labelBuf.text(
-      "This entire page is produced by a new p5((p) => {}) sketch. Matching scenes across the three rows indicate that brush.instance(p) works on the instance canvas, on instance p5.Graphics targets, and on instance-owned main framebuffers.",
-      MARGIN,
-      72,
-      CANVAS_W - 2 * MARGIN,
-    )
-  }
-
   p.setup = () => {
     brush.instance(p)
 
@@ -288,10 +270,8 @@ const sketch = (p) => {
     p.translate(-p.width / 2, -p.height / 2)
     labelBuf.clear()
 
-    drawHeader()
-
     const outputX = MARGIN + INFO_W + PANEL_GAP
-    let y = 144
+    let y = MARGIN
 
     for (const result of results) {
       drawCard(result, MARGIN, y, INFO_W, ROW_H)

@@ -13,6 +13,9 @@ import fragSrc from "./gl/shader.frag";
 export let Cwidth, Cheight, Instance, Renderer, Density; // Global canvas properties
 
 let FillMaskUploadCanvas = null;
+let ReadySketch = null;
+let ActiveInstance = null;
+const ActiveInstanceStack = [];
 
 // =============================================================================
 // Section: Target Resolution
@@ -30,12 +33,51 @@ const isFramebufferTarget = (target) =>
   !!target.renderer &&
   !!target.renderer._pInst;
 
+const isFiniteSize = (value) =>
+  typeof value === "number" && Number.isFinite(value) && value > 0;
+
+const safeRead = (getter) => {
+  try {
+    return getter();
+  } catch (_error) {
+    return undefined;
+  }
+};
+
+const isReadyWebGLSketch = (candidate) =>
+  !!candidate &&
+  typeof candidate.pixelDensity === "function" &&
+  typeof candidate.createFramebuffer === "function" &&
+  isFiniteSize(safeRead(() => candidate.width)) &&
+  isFiniteSize(safeRead(() => candidate.height)) &&
+  safeRead(() => candidate.webglVersion) === "webgl2";
+
+const getCurrentP5Instance = () => window.self?.p5?.instance ?? null;
+
+const rememberReadySketch = (candidate) => {
+  if (isReadyWebGLSketch(candidate)) ReadySketch = candidate;
+  return ReadySketch;
+};
+
+const getActiveSketchRenderer = () => {
+  if (!ActiveInstance) return null;
+  if (!isReadyWebGLSketch(ActiveInstance)) return null;
+  return rememberReadySketch(ActiveInstance);
+};
+
 /**
  * Resolves the sketch renderer that owns the current drawing session.
- * @returns {p5|Window["p5"]["instance"]} The active sketch renderer.
+ * Preference order:
+ * 1. the sketch currently executing a p5 lifecycle callback
+ * 2. the explicitly selected instance from brush.instance(p), if ready
+ * 3. the last known-good ready sketch
+ * @returns {p5|Window["p5"]["instance"]|null} The active sketch renderer.
  */
 const getSketchRenderer = () =>
-  _isInstanced ? Instance : window.self.p5.instance;
+  getActiveSketchRenderer() ||
+  rememberReadySketch(getCurrentP5Instance()) ||
+  rememberReadySketch(Instance) ||
+  ReadySketch;
 
 /**
  * Resolves the renderer and pixel size used by `brush.load()`.
@@ -43,34 +85,35 @@ const getSketchRenderer = () =>
  * @returns {{renderer: object, width: number, height: number}} Active renderer info.
  */
 const resolveTarget = (buffer = false) => {
+  const sketchRenderer = getSketchRenderer();
+
   // brush.load() can target the main sketch renderer, a p5.Graphics surface,
   // or an active framebuffer owned by the current sketch.
-  if (_isInstanced && !buffer) {
-    return {
-      renderer: Instance,
-      width: Instance.width,
-      height: Instance.height,
-    };
-  }
-
   if (!buffer) {
-    const renderer = getSketchRenderer();
+    if (!sketchRenderer) {
+      throw new Error(
+        "p5.brush could not resolve an active WEBGL sketch. Call brush.instance(p) and brush.load() after createCanvas(..., WEBGL).",
+      );
+    }
     return {
-      renderer,
-      width: renderer.width,
-      height: renderer.height,
+      renderer: sketchRenderer,
+      width: sketchRenderer.width,
+      height: sketchRenderer.height,
     };
   }
 
   if (isFramebufferTarget(buffer)) {
-    if (buffer.renderer._pInst !== getSketchRenderer()) {
+    const owner = buffer.renderer._pInst;
+    rememberReadySketch(owner);
+
+    if (sketchRenderer && owner !== sketchRenderer) {
       throw new Error(
         "p5.brush only supports p5.Framebuffer targets created from the active sketch",
       );
     }
 
     return {
-      renderer: getSketchRenderer(),
+      renderer: owner,
       width: buffer.width,
       height: buffer.height,
     };
@@ -284,6 +327,7 @@ const withScissor = (gl, rect, draw, flipY = true) => {
 export const load = (buffer = false) => {
   const target = resolveTarget(buffer);
   Renderer = target.renderer;
+  rememberReadySketch(!buffer ? Renderer : getSketchRenderer());
 
   if (Renderer.webglVersion !== "webgl2") {
     throw new Error("p5.brush requires a WEBGL canvas");
@@ -297,7 +341,6 @@ export const load = (buffer = false) => {
 };
 
 let _isReady = false;
-let _isInstanced = false;
 
 /**
  * Ensures the drawing system is ready before any operation.
@@ -313,8 +356,18 @@ export const isCanvasReady = () => {
 export const State = {};
 
 export const instance = (inst) => {
-  _isInstanced = true;
   Instance = inst;
+  rememberReadySketch(inst);
+};
+
+export const activateInstance = (inst) => {
+  ActiveInstanceStack.push(ActiveInstance);
+  ActiveInstance = inst;
+  instance(inst);
+};
+
+export const deactivateInstance = () => {
+  ActiveInstance = ActiveInstanceStack.pop() ?? null;
 };
 /**
  * Handles color blending using WebGL shaders. Implements advanced blending

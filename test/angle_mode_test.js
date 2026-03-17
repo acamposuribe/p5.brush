@@ -379,14 +379,15 @@ function setup() {
   randomSeed(42);
   noiseSeed(42);
 
-  createCanvas(CANVAS_W, CANVAS_H, WEBGL);
+  const canvas = createCanvas(CANVAS_W, CANVAS_H, WEBGL);
+  canvas.parent("canvas-host");
   brush.load();
   brush.scaleBrushes(2.4);
   angleMode(DEGREES);
   noLoop();
 
   labelBuf = createGraphics(CANVAS_W, CANVAS_H);
-  labelBuf.pixelDensity(1);
+  labelBuf.pixelDensity(pixelDensity());
   labelBuf.textFont("monospace");
 
   brush.addField("diagDegreesTest", (_t, field) => {

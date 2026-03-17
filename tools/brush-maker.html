@@ -12,13 +12,35 @@
     :root {
       --bg: #1a1a1a;
       --panel: #242424;
+      --panel-2: #202020;
       --border: #333;
       --accent: #e8c547;
       --text: #d4d4d4;
       --text-dim: #777;
       --input-bg: #1a1a1a;
+      --input-bg-soft: #202020;
+      --canvas-bg: #111;
+      --code-text: #9cdcfe;
+      --success: #5cb85c;
+      --error: #f66;
       --radius: 6px;
       --font: 'JetBrains Mono', 'Fira Code', 'Menlo', monospace;
+    }
+
+    body[data-theme="light"] {
+      --bg: #f4efe5;
+      --panel: #fbf7ef;
+      --panel-2: #f6f0e6;
+      --border: #d8cfbf;
+      --accent: #b8860b;
+      --text: #2a241d;
+      --text-dim: #74695d;
+      --input-bg: #fffdf8;
+      --input-bg-soft: #f6f0e6;
+      --canvas-bg: #ece6da;
+      --code-text: #1f5d8f;
+      --success: #3f8b47;
+      --error: #c44848;
     }
 
     body {
@@ -33,7 +55,7 @@
 
     /* ── Left panel ─────────────────────────────────────────── */
     #panel {
-      width: 280px;
+      width: 340px;
       flex-shrink: 0;
       display: flex;
       flex-direction: column;
@@ -42,9 +64,13 @@
     }
 
     #panel-header {
-      padding: 14px 16px 10px;
+      padding: 14px 16px 12px;
       border-bottom: 1px solid var(--border);
       flex-shrink: 0;
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 12px;
     }
 
     #panel-header h1 {
@@ -60,12 +86,39 @@
       margin-top: 2px;
     }
 
+    #theme-btn {
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--text-dim);
+      font-family: var(--font);
+      font-size: 10px;
+      padding: 5px 8px;
+      border-radius: var(--radius);
+      cursor: pointer;
+      letter-spacing: 0.06em;
+      flex-shrink: 0;
+    }
+
+    #theme-btn:hover {
+      border-color: var(--accent);
+      color: var(--text);
+    }
+
     #controls {
       flex: 1;
       overflow-y: auto;
       padding: 12px 16px;
       scrollbar-width: thin;
       scrollbar-color: var(--border) transparent;
+    }
+
+    #panel-bottom {
+      padding: 12px 16px 16px;
+      border-top: 1px solid var(--border);
+      background: var(--panel);
+      flex-shrink: 0;
+      display: grid;
+      gap: 12px;
     }
 
     /* ── Section headings ────────────────────────────────────── */
@@ -84,7 +137,7 @@
       display: flex;
       align-items: center;
       gap: 8px;
-      margin-bottom: 9px;
+      margin-bottom: 6px;
     }
 
     .control-row label {
@@ -102,11 +155,26 @@
     }
 
     .control-row .val {
-      width: 36px;
-      text-align: right;
-      color: var(--text);
-      font-size: 11px;
+      width: 58px;
       flex-shrink: 0;
+    }
+
+    .val-input {
+      width: 100%;
+      background: transparent;
+      border: 1px solid transparent;
+      color: var(--text);
+      font-family: var(--font);
+      font-size: 10px;
+      text-align: right;
+      padding: 2px 0;
+      border-radius: 0;
+      outline: none;
+    }
+
+    .val-input:focus {
+      border-bottom-color: var(--accent);
+      background: transparent;
     }
 
     .control-row select,
@@ -142,7 +210,7 @@
       display: flex;
       align-items: center;
       gap: 8px;
-      margin-bottom: 9px;
+      margin-bottom: 6px;
     }
 
     .toggle-wrap label {
@@ -186,7 +254,7 @@
     .toggle input:checked + .slider-track::before { transform: translateX(18px); }
 
     /* Pressure row */
-    .pressure-group { margin-bottom: 9px; }
+    .pressure-group { margin-bottom: 6px; }
     .pressure-header {
       display: flex;
       justify-content: space-between;
@@ -204,7 +272,7 @@
 
     /* ── Code output (right column) ───────────────────────────── */
     #code-panel {
-      width: 260px;
+      width: 300px;
       flex-shrink: 0;
       display: flex;
       flex-direction: column;
@@ -248,16 +316,22 @@
 
     #code-output {
       flex: 1;
+      width: 100%;
       margin: 0;
       padding: 12px 16px;
       font-family: var(--font);
       font-size: 10.5px;
       line-height: 1.6;
-      color: #9cdcfe;
+      color: var(--code-text);
       background: transparent;
-      white-space: pre;
+      border: none;
+      resize: none;
+      outline: none;
       overflow: auto;
+      white-space: pre;
     }
+
+    #code-output.invalid { background: rgba(255, 102, 102, 0.06); }
 
     /* ── Right: viewport ─────────────────────────────────────── */
     #viewport {
@@ -318,7 +392,7 @@
       align-items: center;
       justify-content: center;
       overflow: hidden;
-      background: #111;
+      background: var(--canvas-bg);
     }
 
     #canvas-wrap canvas { display: block; }
@@ -339,19 +413,51 @@
 
     #tip-body {
       width: 100%;
-      min-height: 80px;
+      min-height: 150px;
       background: var(--input-bg);
       border: 1px solid var(--border);
       border-radius: var(--radius);
-      color: #9cdcfe;
+      color: var(--code-text);
       font-family: var(--font);
-      font-size: 11px;
+      font-size: 12px;
       line-height: 1.6;
       padding: 8px;
-      resize: vertical;
+      resize: none;
       outline: none;
     }
     #tip-body:focus { border-color: var(--accent); }
+
+    .tip-help {
+      font-size: 10.5px;
+      color: var(--text-dim);
+      margin-bottom: 8px;
+      line-height: 1.7;
+    }
+
+    .tip-layout {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 112px;
+      gap: 10px;
+      align-items: end;
+    }
+
+    .tip-preview-col {
+      display: grid;
+      gap: 6px;
+      align-self: end;
+    }
+
+    .tip-preview-label {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+      font-size: 10px;
+      color: var(--text-dim);
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      font-weight: 700;
+    }
 
     /* Upload zone */
     #upload-zone {
@@ -395,8 +501,11 @@
 <!-- ── Left panel ───────────────────────────────────────────── -->
 <div id="panel">
   <div id="panel-header">
-    <h1>p5.brush · Brush Maker</h1>
-    <p>Adjust params — preview updates live</p>
+    <div>
+      <h1>p5.brush · Brush Maker</h1>
+      <p>Adjust params — preview updates live</p>
+    </div>
+    <button id="theme-btn" type="button">LIGHT</button>
   </div>
 
   <div id="controls">
@@ -532,23 +641,32 @@
       </div>
     </div>
 
+  </div><!-- /controls -->
+
+  <div id="panel-bottom">
     <!-- Tip function (custom type only) -->
     <div id="tip-section" style="display:none">
       <div class="section-label">Tip Function</div>
-      <p style="font-size:9px;color:var(--text-dim);margin-bottom:6px;line-height:1.6">
-        Draw in a <span style="color:var(--accent)">100×100</span> coord space, origin at centre.<br>
-        Write plain p5 commands — <span style="color:#9cdcfe">fill()</span>, <span style="color:#9cdcfe">rect()</span>, etc.<br>
-        <span style="color:#666">Dark = opaque ink · Light/white = transparent</span>
+      <p class="tip-help">
+        This function draws the actual brush tip in a centered <span style="color:var(--accent)">100×100</span> space.
+        Use regular p5 drawing commands like <span style="color:var(--code-text)">fill()</span>,
+        <span style="color:var(--code-text)">rect()</span>, <span style="color:var(--code-text)">circle()</span>,
+        or <span style="color:var(--code-text)">rotate()</span>. Dark marks become opaque ink;
+        light or white marks become transparent.
       </p>
-      <textarea id="tip-body" spellcheck="false">fill(0);
+      <div class="tip-layout">
+        <textarea id="tip-body" spellcheck="false">fill(0);
 rotate(45);
 rect(-4, -4, 8, 8);
 rect(2, 2, 2, 2);</textarea>
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px;margin-bottom:4px">
-        <span style="font-size:9px;color:var(--text-dim);letter-spacing:0.08em;text-transform:uppercase;font-weight:700">Preview</span>
-        <span id="tip-preview-error" style="font-size:9px;color:#f66;display:none">syntax error</span>
+        <div class="tip-preview-col">
+          <div class="tip-preview-label">
+            <span>Preview</span>
+            <span id="tip-preview-error" style="font-size:9px;color:var(--error);display:none">syntax error</span>
+          </div>
+          <div id="tip-preview-wrap" style="width:112px;height:112px;border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;"></div>
+        </div>
       </div>
-      <div id="tip-preview-wrap" style="width:100px;height:100px;border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;"></div>
     </div>
 
     <!-- Image upload (image type only) -->
@@ -560,8 +678,7 @@ rect(2, 2, 2, 2);</textarea>
         <input type="file" id="image-file" accept="image/*" style="display:none" />
       </div>
     </div>
-
-  </div><!-- /controls -->
+  </div>
 
 </div><!-- /panel -->
 
@@ -588,7 +705,7 @@ rect(2, 2, 2, 2);</textarea>
     <span>Generated Code</span>
     <button id="copy-btn">COPY</button>
   </div>
-  <pre id="code-output"></pre>
+  <textarea id="code-output" spellcheck="false"></textarea>
 </div>
 
 <script>
@@ -627,6 +744,73 @@ let needsRebuild = true;
 let brushReady = true;
 let loadedImageSrc = null; // tracks which src is already uploaded to the GPU
 let previewTipFn = (_m) => {};
+const codeOutputEl = document.getElementById('code-output');
+const themeBtn = document.getElementById('theme-btn');
+const rangeBindings = new Map();
+let codeInputTimer = null;
+
+const THEME_KEY = 'p5brush-brush-maker-theme';
+
+function applyTheme(theme) {
+  document.body.dataset.theme = theme;
+  themeBtn.textContent = theme === 'light' ? 'DARK' : 'LIGHT';
+  localStorage.setItem(THEME_KEY, theme);
+}
+
+themeBtn.addEventListener('click', () => {
+  applyTheme(document.body.dataset.theme === 'light' ? 'dark' : 'light');
+});
+
+applyTheme(localStorage.getItem(THEME_KEY) === 'light' ? 'light' : 'dark');
+
+function formatNumber(value) {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return '';
+  if (Math.abs(value - Math.round(value)) < 1e-9) return String(Math.round(value));
+  return String(Number(value.toFixed(3)));
+}
+
+function ensureValueInput(id) {
+  const host = document.getElementById(id + '-val');
+  let input = document.getElementById(id + '-num');
+  if (input) return input;
+
+  input = document.createElement('input');
+  input.type = 'text';
+  input.id = id + '-num';
+  input.className = 'val-input';
+  host.textContent = '';
+  host.appendChild(input);
+  return input;
+}
+
+function snapToStep(value, step, base = 0) {
+  if (!Number.isFinite(step) || step <= 0) return value;
+  const decimals = (String(step).split('.')[1] || '').length;
+  const snapped = Math.round((value - base) / step) * step + base;
+  return Number(snapped.toFixed(decimals));
+}
+
+function clampToRange(rawValue, el) {
+  let value = Number(rawValue);
+  if (!Number.isFinite(value)) return null;
+
+  const min = Number(el.min);
+  const max = Number(el.max);
+  const step = Number(el.step);
+  const base = Number.isFinite(min) ? min : 0;
+
+  if (Number.isFinite(min)) value = Math.max(min, value);
+  if (Number.isFinite(max)) value = Math.min(max, value);
+  value = snapToStep(value, step, base);
+  return value;
+}
+
+function clampGrainValue(rawValue) {
+  let value = Number(rawValue);
+  if (!Number.isFinite(value)) return null;
+  value = Math.max(0, Math.min(500, value));
+  return value <= 30 ? Math.round(value * 2) / 2 : Math.round(value / 10) * 10;
+}
 
 // ─────────────────────────────────────────────
 // Code generator
@@ -660,7 +844,8 @@ function generateCode() {
 }
 
 function updateCode() {
-  document.getElementById('code-output').textContent = generateCode();
+  codeOutputEl.value = generateCode();
+  codeOutputEl.classList.remove('invalid');
 }
 
 // ─────────────────────────────────────────────
@@ -668,14 +853,35 @@ function updateCode() {
 // ─────────────────────────────────────────────
 function wire(id, key, transform = v => v) {
   const el = document.getElementById(id);
-  const valEl = document.getElementById(id + '-val');
-  el.addEventListener('input', () => {
-    params[key] = transform(el.value);
-    if (valEl) valEl.textContent = params[key];
-    needsRebuild = true;
-    updateCode();
+  const valInput = ensureValueInput(id);
+
+  const sync = (rawValue, markDirty = false) => {
+    const clamped = clampToRange(rawValue, el);
+    const nextValue = transform(clamped === null ? params[key] : clamped);
+    params[key] = nextValue;
+    el.value = clamped === null ? params[key] : clamped;
+    valInput.value = formatNumber(nextValue);
+
+    if (markDirty) {
+      needsRebuild = true;
+      updateCode();
+    }
+  };
+
+  el.addEventListener('input', () => sync(el.value, true));
+  valInput.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter') valInput.blur();
   });
-  if (valEl) valEl.textContent = params[key];
+  valInput.addEventListener('blur', () => sync(valInput.value, true));
+  valInput.addEventListener('change', () => sync(valInput.value, true));
+
+  rangeBindings.set(id, {
+    sync(value, markDirty = false) {
+      sync(value, markDirty);
+    },
+  });
+
+  sync(params[key], false);
 }
 
 // Non-linear grain mapping: slider 0–60 → grain 0–30 (step 0.5), slider 60–107 → grain 30–500 (step 10)
@@ -706,14 +912,34 @@ wire('gauss-max', 'gaussMax', v => Math.round(parseFloat(v) * 100) / 100);
 // Grain uses custom mapping
 (function() {
   const el = document.getElementById('grain');
-  const valEl = document.getElementById('grain-val');
-  el.addEventListener('input', () => {
-    params.grain = posToGrain(el.value);
-    valEl.textContent = params.grain;
-    needsRebuild = true;
-    updateCode();
+  const valInput = ensureValueInput('grain');
+
+  const sync = (rawValue, markDirty = false) => {
+    const clamped = clampGrainValue(rawValue);
+    params.grain = clamped === null ? params.grain : clamped;
+    el.value = grainToPos(params.grain);
+    valInput.value = formatNumber(params.grain);
+
+    if (markDirty) {
+      needsRebuild = true;
+      updateCode();
+    }
+  };
+
+  el.addEventListener('input', () => sync(posToGrain(el.value), true));
+  valInput.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter') valInput.blur();
   });
-  valEl.textContent = params.grain;
+  valInput.addEventListener('blur', () => sync(valInput.value, true));
+  valInput.addEventListener('change', () => sync(valInput.value, true));
+
+  rangeBindings.set('grain', {
+    sync(value, markDirty = false) {
+      sync(value, markDirty);
+    },
+  });
+
+  sync(params.grain, false);
 })();
 
 // Per-type slider ranges
@@ -791,30 +1017,41 @@ function updatePressureModeUI() {
   document.getElementById('pressure-gaussian').style.display = isGaussian ? '' : 'none';
 }
 
+function updateTypeUI() {
+  const isCustom = params.type === 'custom';
+  const isImage = params.type === 'image';
+  const showGrain = params.type === 'default' || params.type === 'spray';
+  const showSharpness = params.type === 'default';
+  const ranges = SLIDER_RANGES[params.type];
+
+  document.getElementById('brush-type').value = params.type;
+  document.getElementById('weight-row').style.display = '';
+  document.getElementById('rotate-row').style.display = (isCustom || isImage) ? '' : 'none';
+  document.getElementById('sharpness-row').style.display = showSharpness ? '' : 'none';
+  document.getElementById('grain-row').style.display = showGrain ? '' : 'none';
+  document.getElementById('tip-section').style.display = isCustom ? '' : 'none';
+  document.getElementById('image-section').style.display = isImage ? '' : 'none';
+
+  applySliderRange('weight', ranges.weight);
+  applySliderRange('opacity', ranges.opacity);
+  applySliderRange('spacing', ranges.spacing);
+  if (ranges.scatter) applySliderRange('scatter', ranges.scatter);
+}
+
 function applySliderRange(id, cfg) {
   const el = document.getElementById(id);
-  const valEl = document.getElementById(id + '-val');
   el.min  = cfg.min;
   el.max  = cfg.max;
   el.step = cfg.step;
 }
 
 function applySliderValue(id, value) {
-  const el = document.getElementById(id);
-  const valEl = document.getElementById(id + '-val');
-  el.value = value;
-  if (valEl) valEl.textContent = value;
+  const binding = rangeBindings.get(id);
+  if (binding) binding.sync(value, false);
 }
 
 function applyTypePreset(type) {
   const preset = TYPE_PRESETS[type];
-  const ranges = SLIDER_RANGES[type];
-
-  // Update slider ranges
-  applySliderRange('weight',  ranges.weight);
-  applySliderRange('opacity', ranges.opacity);
-  applySliderRange('spacing', ranges.spacing);
-  if (ranges.scatter) applySliderRange('scatter', ranges.scatter);
 
   // Update param values and slider positions
   params.weight    = preset.weight;    applySliderValue('weight',  preset.weight);
@@ -837,23 +1074,117 @@ function applyTypePreset(type) {
   }
   if (preset.grain !== null) {
     params.grain = preset.grain;
-    document.getElementById('grain').value = grainToPos(preset.grain);
-    document.getElementById('grain-val').textContent = preset.grain;
+    applySliderValue('grain', preset.grain);
   }
+}
+
+function syncControlsFromParams() {
+  document.getElementById('brush-name').value = params.name;
+  updateTypeUI();
+  applySliderValue('weight', params.weight);
+  applySliderValue('scatter', params.scatter);
+  applySliderValue('opacity', params.opacity);
+  applySliderValue('spacing', params.spacing);
+  applySliderValue('press-start', params.pressStart);
+  applySliderValue('press-mid', params.pressMid);
+  applySliderValue('press-end', params.pressEnd);
+  applySliderValue('gauss-curve-a', params.gaussCurveA);
+  applySliderValue('gauss-curve-b', params.gaussCurveB);
+  applySliderValue('gauss-min', params.gaussMin);
+  applySliderValue('gauss-max', params.gaussMax);
+
+  if (params.type === 'default' || params.type === 'spray') {
+    applySliderValue('grain', params.grain);
+  }
+  if (params.type === 'default') {
+    applySliderValue('sharpness', params.sharpness);
+  }
+
+  document.getElementById('rotate').value = params.rotate;
+  document.getElementById('pressure-3pt').checked = params.pressure3pt;
+  document.getElementById('pressure-mid-row').style.display = params.pressure3pt ? 'flex' : 'none';
+  updatePressureModeUI();
+  document.getElementById('tip-body').value = params.tipBody;
+  updatePreviewTipFn();
+}
+
+function extractTipBody(fn) {
+  const source = fn.toString();
+  const match = source.match(/\{([\s\S]*)\}$/);
+  if (!match) return params.tipBody;
+
+  return match[1]
+    .split('\n')
+    .map((line) => line.replace(/^\s*_m\./, '').trim())
+    .filter(Boolean)
+    .join('\n');
+}
+
+function parseGeneratedCode(source) {
+  const match = source.match(/(?:await\s+)?brush\.add\(\s*["'`]([^"'`]+)["'`]\s*,\s*(\{[\s\S]*\})\s*\)\s*;?\s*$/);
+  if (!match) throw new Error('Could not parse brush.add(...)');
+
+  const [, name, objectLiteral] = match;
+  const cfg = new Function(`"use strict"; return (${objectLiteral});`)();
+  return { name, cfg };
+}
+
+function applyGeneratedCode(source, reformat = false) {
+  const { name, cfg } = parseGeneratedCode(source);
+
+  params.name = name || 'myBrush';
+  if (cfg.type) params.type = cfg.type;
+  updateTypeUI();
+
+  if (cfg.weight !== undefined) applySliderValue('weight', cfg.weight);
+  if (cfg.scatter !== undefined) applySliderValue('scatter', cfg.scatter);
+  if (cfg.opacity !== undefined) applySliderValue('opacity', cfg.opacity);
+  if (cfg.spacing !== undefined) applySliderValue('spacing', cfg.spacing);
+  if (cfg.sharpness !== undefined) applySliderValue('sharpness', cfg.sharpness);
+  if (cfg.grain !== undefined) applySliderValue('grain', cfg.grain);
+
+  if (cfg.rotate) params.rotate = cfg.rotate;
+
+  if (Array.isArray(cfg.pressure)) {
+    params.pressureMode = 'simple';
+    params.pressure3pt = cfg.pressure.length === 3;
+    params.pressStart = cfg.pressure[0] ?? params.pressStart;
+    params.pressMid = cfg.pressure[1] ?? params.pressMid;
+    params.pressEnd = cfg.pressure[cfg.pressure.length - 1] ?? params.pressEnd;
+  } else if (cfg.pressure && typeof cfg.pressure === 'object') {
+    params.pressureMode = cfg.pressure.mode === 'gaussian' ? 'gaussian' : 'simple';
+    if (Array.isArray(cfg.pressure.curve)) {
+      params.gaussCurveA = cfg.pressure.curve[0] ?? params.gaussCurveA;
+      params.gaussCurveB = cfg.pressure.curve[1] ?? params.gaussCurveB;
+    }
+    if (Array.isArray(cfg.pressure.min_max)) {
+      params.gaussMin = cfg.pressure.min_max[0] ?? params.gaussMin;
+      params.gaussMax = cfg.pressure.min_max[1] ?? params.gaussMax;
+    }
+  }
+
+  if (typeof cfg.tip === 'function') {
+    params.tipBody = extractTipBody(cfg.tip);
+  }
+
+  if (cfg.image?.src) {
+    params.imageSrc = cfg.image.src;
+    params.imageDataUrl = cfg.image.src;
+    loadedImageSrc = null;
+    document.getElementById('upload-label').textContent = cfg.image.src;
+    document.getElementById('upload-zone').classList.add('has-image');
+    document.querySelector('#upload-zone .upload-icon').textContent = '✓';
+  }
+
+  syncControlsFromParams();
+  needsRebuild = true;
+
+  if (reformat) updateCode();
 }
 
 document.getElementById('brush-type').addEventListener('change', e => {
   params.type = e.target.value;
-  const isCustom      = params.type === 'custom';
-  const isImage       = params.type === 'image';
-  const showGrain     = params.type === 'default' || params.type === 'spray';
-  const showSharpness = params.type === 'default';
-  document.getElementById('weight-row').style.display    = '';
-  document.getElementById('rotate-row').style.display    = (isCustom || isImage) ? ''    : 'none';
-  document.getElementById('sharpness-row').style.display = showSharpness        ? ''     : 'none';
-  document.getElementById('grain-row').style.display     = showGrain            ? ''     : 'none';
-  document.getElementById('tip-section').style.display   = isCustom             ? ''     : 'none';
-  document.getElementById('image-section').style.display = isImage              ? ''     : 'none';
+  updateTypeUI();
   applyTypePreset(params.type);
   needsRebuild = true;
   updateCode();
@@ -910,7 +1241,7 @@ document.getElementById('stroke-color').addEventListener('input', e => {
 });
 
 document.getElementById('copy-btn').addEventListener('click', () => {
-  navigator.clipboard.writeText(generateCode()).then(() => {
+  navigator.clipboard.writeText(codeOutputEl.value).then(() => {
     const btn = document.getElementById('copy-btn');
     btn.textContent = 'COPIED!';
     btn.classList.add('copied');
@@ -918,8 +1249,26 @@ document.getElementById('copy-btn').addEventListener('click', () => {
   });
 });
 
+codeOutputEl.addEventListener('input', () => {
+  clearTimeout(codeInputTimer);
+  codeInputTimer = setTimeout(() => {
+    try {
+      applyGeneratedCode(codeOutputEl.value, false);
+      codeOutputEl.classList.remove('invalid');
+    } catch (_error) {
+      codeOutputEl.classList.add('invalid');
+    }
+  }, 220);
+});
+
+codeOutputEl.addEventListener('blur', () => {
+  try {
+    applyGeneratedCode(codeOutputEl.value, true);
+  } catch (_error) {}
+});
+
+syncControlsFromParams();
 updateCode();
-updatePressureModeUI();
 
 // ─────────────────────────────────────────────
 // Image upload

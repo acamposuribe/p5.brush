@@ -2,57 +2,82 @@
 <html>
   <head>
     <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>p5.brush - Push/Pop Test</title>
     <script src="https://cdn.jsdelivr.net/npm/p5@2.1.1/lib/p5.min.js"></script>
     <script src="../dist/p5.brush.js"></script>
     <style>
-      * {
-        box-sizing: border-box;
-        margin: 0;
-        padding: 0;
-      }
+      * { box-sizing: border-box; }
+
       body {
-        background: #ccc;
-        font-family: monospace;
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        padding: 20px;
-        gap: 10px;
+        margin: 0;
+        color: #22313f;
+        background:
+          radial-gradient(circle at top left, rgba(20, 48, 73, 0.08), transparent 24%),
+          linear-gradient(180deg, #f7f2e7 0%, #ece3d3 100%);
+        font-family: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", Palatino, serif;
       }
+
+      main {
+        width: min(920px, calc(100vw - 24px));
+        margin: 0 auto;
+        padding: 18px 0 24px;
+        display: grid;
+        justify-items: center;
+      }
+
+      main > * { width: 100%; }
+
+      .nav {
+        margin-bottom: 14px;
+        font: 11px/1.2 Menlo, Monaco, "Courier New", monospace;
+      }
+
+      .nav a { color: #153e5c; text-decoration: none; }
+      .nav a:hover { text-decoration: underline; }
+
       h1 {
-        font-size: 13px;
-        color: #333;
-        letter-spacing: 0.05em;
+        margin: 0 0 8px;
+        font-size: clamp(24px, 3.6vw, 34px);
+        letter-spacing: -0.04em;
       }
+
       p {
-        font-size: 11px;
-        color: #555;
         max-width: 760px;
-        text-align: center;
+        margin: 0 0 8px;
+        color: #52616e;
+        line-height: 1.45;
+        font-size: 13px;
       }
+
+      #canvas-host {
+        margin-top: 18px;
+        display: grid;
+        justify-content: center;
+        width: 100%;
+        overflow: hidden;
+      }
+
       canvas {
         display: block;
-        box-shadow: 0 2px 16px rgba(0, 0, 0, 0.25);
+        max-width: 100%;
+        height: auto !important;
       }
     </style>
   </head>
   <body>
-    <h1>PUSH / POP TEST - p5.brush</h1>
-    <p>
-      Each column proves that p5's <b>push()</b> / <b>pop()</b> automatically
-      saves &amp; restores brush state. Inside the push block a different state
-      is set; after pop the original state must be fully restored.<br />
-      Col 1: <b>stroke color</b> &nbsp;|&nbsp; Col 2:
-      <b>stroke weight + brush type</b> &nbsp;|&nbsp; Col 3:
-      <b>fill color + opacity</b><br />
-      Each column shows:
-      <span style="color: #1a3a6a">■ before (blue)</span> &nbsp;—&nbsp;
-      <i>inside push (red, should differ)</i> &nbsp;—&nbsp;
-      <span style="color: #1a3a6a">■ after pop (must match before)</span>
-    </p>
+    <main>
+      <div class="nav"><a href="./index.html">All tests</a></div>
+      <h1>Push / Pop State Test</h1>
+      <p>
+        Each column proves that p5’s <b>push()</b> and <b>pop()</b> automatically save and restore brush state.
+      </p>
+      <p>
+        Column 1 checks stroke color, column 2 checks stroke weight and brush type, and column 3 checks fill color and opacity. The “after pop” row should match the “before” row exactly.
+      </p>
+      <div id="canvas-host"></div>
 
-    <script>
+      <script>
       const CW = 760,
         CH = 500;
       const COLS = 3;
@@ -65,7 +90,8 @@
         Y_AFTER = 400;
 
       function setup() {
-        createCanvas(CW, CH, WEBGL);
+        const canvas = createCanvas(CW, CH, WEBGL);
+        canvas.parent("canvas-host");
         brush.load();
         brush.scaleBrushes(1.5);
         noLoop();
@@ -177,6 +203,7 @@
         brush.rect(-55, -35, 110, 70, "corner");
         pop();
       }
-    </script>
+      </script>
+    </main>
   </body>
 </html>

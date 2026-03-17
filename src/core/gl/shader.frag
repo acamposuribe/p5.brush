@@ -241,5 +241,5 @@ void main(void) {
     }
     
     vec3 bgColor = mix(vec3(1.0), source.rgb, source.a);
-    outColor = vec4(spectral_mix(bgColor, pigment.rgb, mixIntensity), 1.0);
+    outColor = vec4(spectral_mix(bgColor, pigment.rgb, mixIntensity), 1.);
 }

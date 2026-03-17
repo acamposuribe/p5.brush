@@ -333,26 +333,9 @@ function drawTargetPanel(result, x, y, w, h) {
   }
 }
 
-function drawHeader() {
-  labelBuf.noStroke()
-  labelBuf.fill(INK)
-  labelBuf.textFont("Iowan Old Style")
-  labelBuf.textSize(34)
-  labelBuf.text("Offscreen Target Coverage", MARGIN, 42)
-
-  labelBuf.fill(MUTED)
-  labelBuf.textSize(16)
-  labelBuf.textLeading(24)
-  labelBuf.text(
-    "Each row renders the same brush scene offscreen and then composites it back with image(). Matching reference panels and non-zero pixel counts indicate that brush.load() is targeting the correct renderer.",
-    MARGIN,
-    72,
-    CANVAS_W - 2 * MARGIN,
-  )
-}
-
 function setup() {
-  createCanvas(CANVAS_W, CANVAS_H, WEBGL)
+  const canvas = createCanvas(CANVAS_W, CANVAS_H, WEBGL)
+  canvas.parent("canvas-host")
   imageMode(CORNER)
   angleMode(DEGREES)
   targetDensity = pixelDensity()
@@ -385,12 +368,10 @@ function draw() {
   translate(-width / 2, -height / 2)
   labelBuf.clear()
 
-  drawHeader()
-
   const referenceX = MARGIN + INFO_W + PANEL_GAP
   const targetX = referenceX + PANEL_W + PANEL_GAP
 
-  let y = 144
+  let y = MARGIN
 
   for (const result of results) {
     drawCard(result, MARGIN, y, INFO_W, ROW_H)

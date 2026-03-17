@@ -1,6 +1,5 @@
 /**
  * @fileoverview p5.brush - A comprehensive toolset for brush management in p5.js.
- * @version 2.0.0-alpha
  * @license MIT
  * @author Alejandro Campos Uribe
  *
@@ -30,13 +29,13 @@
  * // Fill textures:
  * brush.noStroke();
  * brush.fill('#FF0000', 90); // Set fill color to red and opacity to 90
- * brush.bleed(0.3); // Set bleed effect for a watercolor-like appearance
+ * brush.fillBleed(0.3); // Set bleed effect for a watercolor-like appearance
  * brush.rect(100, 100, 50, 50); // Fill a rectangle with the bleed effect
  *
  * @license
  * MIT License
  *
- * Copyright (c) 2023-2024 Alejandro Campos Uribe
+ * Copyright (c) 2023-2026 Alejandro Campos Uribe
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -121,13 +120,35 @@ export {
 export { fill, noFill, fillTexture, fillBleed } from "./fill/fill.js";
 
 // p5 addon registration
-import { Mix } from "./core/color.js";
+import {
+  Mix,
+  instance as bindInstance,
+  activateInstance,
+  deactivateInstance,
+} from "./core/color.js";
 import { push as brushPush, pop as brushPop } from "./core/save.js";
 import { seed as brushSeed, noiseSeed as brushNoiseSeed } from "./core/utils.js";
 
 function registerAddon(_p5, fn, lifecycles) {
-  lifecycles.postsetup = () => Mix.blend(false, true);
-  lifecycles.postdraw = () => Mix.blend(false, true);
+  lifecycles.presetup = function () {
+    activateInstance(this);
+  };
+
+  lifecycles.predraw = function () {
+    activateInstance(this);
+  };
+
+  lifecycles.postsetup = function () {
+    bindInstance(this);
+    Mix.blend(false, true);
+    deactivateInstance();
+  };
+
+  lifecycles.postdraw = function () {
+    bindInstance(this);
+    Mix.blend(false, true);
+    deactivateInstance();
+  };
 
   const _push = fn.push;
   const _pop = fn.pop;
