@@ -14,6 +14,7 @@ import { prng_alea } from "esm-seedrandom";
  */
 /** @type {RNG} */
 let rng = prng_alea(Math.random());
+let rng2 = prng_alea(Math.random());
 
 const _seedCallbacks = [];
 
@@ -31,6 +32,7 @@ export const _onSeed = (cb) => _seedCallbacks.push(cb);
  */
 export const seed = (s) => {
   rng = prng_alea(s);
+  rng2 = prng_alea(`${s}:2`);
   for (const callback of _seedCallbacks) {
     callback();
   }
@@ -41,6 +43,7 @@ export const seed = (s) => {
  * @type {function(number, number): number}
  */
 export let noise = createNoise2D(prng_alea(Math.random()));
+export let noise2 = createNoise2D(prng_alea(Math.random()));
 
 /**
  * Seed the noise generator.
@@ -49,6 +52,7 @@ export let noise = createNoise2D(prng_alea(Math.random()));
  */
 export const noiseSeed = (s) => {
   noise = createNoise2D(prng_alea(s));
+  noise2 = createNoise2D(prng_alea(`${s}:2`));
 };
 
 /**
@@ -58,6 +62,7 @@ export const noiseSeed = (s) => {
  * @returns {number}
  */
 export const rr = (e = 0, r = 1) => e + rng() * (r - e);
+export const rr2 = (e = 0, r = 1) => e + rng2() * (r - e);
 
 /**
  * Selects a random element from an array.
@@ -73,6 +78,7 @@ export const rArray = (array) => array[~~(rng() * array.length)];
  * @returns {number}
  */
 export const randInt = (e, r) => ~~rr(e, r);
+export const randInt2 = (e, r) => ~~rr2(e, r);
 
 /**
  * Gaussian (normal) random sample N(mean, stdev²).

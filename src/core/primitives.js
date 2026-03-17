@@ -1,9 +1,8 @@
 import {
-  rr,
-  randInt,
+  rr2,
+  randInt2,
   sin,
   cos,
-  toDegrees,
   toDegreesSigned,
   constrain,
   dist,
@@ -58,8 +57,8 @@ export function rect(x, y, w, h, mode = "corner") {
 export function circle(x, y, radius, r = false) {
   const p = new Plot("curve");
   const arcLength = Math.PI * radius;
-  const angleOffset = rr(0, 360);
-  const randomFactor = r ? () => 1 + r * 0.2 * rr() : () => 1;
+  const angleOffset = rr2(0, 360);
+  const randomFactor = r ? () => 1 + r * 0.2 * rr2() : () => 1;
 
   // Divide circle into 4 segments
   for (let i = 0; i < 4; i++) {
@@ -74,7 +73,7 @@ export function circle(x, y, radius, r = false) {
 
   // Optionally add a random final angle for the last segment
   if (r) {
-    const randomAngle = r * randInt(-5, 5);
+    const randomAngle = r * randInt2(-5, 5);
     p.addSegment(
       angleOffset,
       Math.abs(randomAngle) * (Math.PI / 180) * radius,

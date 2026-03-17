@@ -1,5 +1,5 @@
 import { isMixReady, Cwidth, Cheight, State, Renderer } from "./color.js";
-import { randInt, noise, rr, sin, cos, map, toDegreesSigned } from "./utils.js";
+import { randInt2, noise2, rr2, sin, cos, map, toDegreesSigned } from "./utils.js";
 
 // =============================================================================
 // Section: Matrix transformations
@@ -360,27 +360,27 @@ function fillField(field, fn) {
 function addStandard() {
   // Organic noise — basis for brush.wiggle()
   addField("hand", (t, field) => {
-    const bs = rr(0.2, 0.8),
-      ba = randInt(5, 10);
+    const bs = rr2(0.2, 0.8),
+      ba = randInt2(5, 10);
     return fillField(field, (c, r) => {
-      const angle = 0.5 * ba * sin(bs * r * c + randInt(15, 25));
-      return 0.2 * angle * cos(t) + noise(c, r) * ba * 0.7;
+      const angle = 0.5 * ba * sin(bs * r * c + randInt2(15, 25));
+      return 0.2 * angle * cos(t) + noise2(c, r) * ba * 0.7;
     });
   });
   // Smooth large-scale noise curves
   addField("curved", (t, field) => {
-    let ar = randInt(-10, 10);
-    if (randInt(0, 100) % 2 == 0) ar *= -1;
+    let ar = randInt2(-10, 10);
+    if (randInt2(0, 100) % 2 == 0) ar *= -1;
     return fillField(
       field,
       (c, r) =>
-        3 * map(noise(c * 0.02 + t * 0.03, r * 0.02 + t * 0.03), 0, 1, -ar, ar),
+        3 * map(noise2(c * 0.02 + t * 0.03, r * 0.02 + t * 0.03), 0, 1, -ar, ar),
     );
   });
   // Sharp alternating angles per cell — herringbone / wicker look
   addField("zigzag", (t, field) => {
-    let ar = randInt(-30, -15) + Math.abs(44 * sin(t));
-    if (randInt(0, 100) % 2 == 0) ar *= -1;
+    let ar = randInt2(-30, -15) + Math.abs(44 * sin(t));
+    if (randInt2(0, 100) % 2 == 0) ar *= -1;
     let dif = ar,
       angle = 0;
     for (let c = 0; c < num_columns; c++) {
@@ -396,31 +396,31 @@ function addStandard() {
   });
   // Sinusoidal wave bands
   addField("waves", (t, field) => {
-    const sr = randInt(10, 15) + 5 * sin(t),
-      cr = randInt(3, 6) + 3 * cos(t),
-      ba = randInt(20, 35);
+    const sr = randInt2(10, 15) + 5 * sin(t),
+      cr = randInt2(3, 6) + 3 * cos(t),
+      ba = randInt2(20, 35);
     return fillField(
       field,
-      (c, r) => sin(sr * c) * ba * cos(r * cr) + randInt(-3, 3),
+      (c, r) => sin(sr * c) * ba * cos(r * cr) + randInt2(-3, 3),
     );
   });
   // Dense oscillation from row×col product
   addField("seabed", (t, field) => {
-    const bs = rr(0.4, 0.8),
-      ba = randInt(18, 26);
+    const bs = rr2(0.4, 0.8),
+      ba = randInt2(18, 26);
     return fillField(
       field,
-      (c, r) => 1.1 * ba * sin(bs * r * c + randInt(15, 20)) * cos(t),
+      (c, r) => 1.1 * ba * sin(bs * r * c + randInt2(15, 20)) * cos(t),
     );
   });
   // Radial vortex — angles spiral around the field centre
   addField("spiral", (_t, field) => {
-    const n = randInt(5, 10);
-    const dir = randInt(0, 2) * 2 - 1;
-    const offset = randInt(65, 80); // <90 = inward spiral
+    const n = randInt2(5, 10);
+    const dir = randInt2(0, 2) * 2 - 1;
+    const offset = randInt2(65, 80); // <90 = inward spiral
     const attractors = Array.from({ length: n }, () => ({
-      x: rr(0.1, 0.9) * num_columns,
-      y: rr(0.1, 0.9) * num_rows,
+      x: rr2(0.1, 0.9) * num_columns,
+      y: rr2(0.1, 0.9) * num_rows,
     }));
     return fillField(field, (c, r) => {
       let wx = 0,
@@ -439,8 +439,8 @@ function addStandard() {
   });
   // Column-banded stripes — parallel rake marks
   addField("columns", (_t, field) => {
-    const freq = randInt(3, 8),
-      amp = randInt(25, 45);
+    const freq = randInt2(3, 8),
+      amp = randInt2(25, 45);
     return fillField(field, (c, _r) => sin(c * freq) * amp);
   });
 }

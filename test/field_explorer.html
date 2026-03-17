@@ -90,6 +90,18 @@
       input[type=range] { width: 120px; }
       span.val { width: 28px; display: inline-block; color: var(--accent); }
 
+      button {
+        border: 1px solid var(--line);
+        background: #fbf8f0;
+        color: var(--accent);
+        font: inherit;
+        padding: 6px 10px;
+        border-radius: 6px;
+        cursor: pointer;
+      }
+
+      button:hover { background: #f4eee2; }
+
       #canvas-host {
         margin-top: 18px;
         padding: 10px;
@@ -115,7 +127,7 @@
         Interactive browser page for comparing built-in vector fields with adjustable density and flow-line length.
       </p>
       <p>
-        Changing any control reloads the page with the current query parameters so the exact view is shareable.
+        Controls update the field live. The current seed stays in the URL so the same view remains reproducible.
       </p>
 
       <div id="controls" class="panel">
@@ -133,6 +145,11 @@
           <input type="range" id="lineLen" min="20" max="150" value="55">
           <span class="val" id="lineLenVal">55</span>
         </label>
+        <label>
+          Seed:
+          <span class="val" id="seedVal" style="width:auto; min-width:56px;">42</span>
+        </label>
+        <button id="refreshSeed" type="button">Refresh seed</button>
       </div>
 
       <div id="canvas-host" class="panel"></div>
@@ -142,9 +159,12 @@
 
       // Read current params
       const params = new URLSearchParams(location.search);
-      const currentField  = params.get("field")   || "curved";
-      const currentDensity = parseInt(params.get("density") || "18");
-      const currentLen     = parseInt(params.get("len")     || "55");
+      let currentField   = params.get("field")   || "curved";
+      let currentDensity = parseInt(params.get("density") || "18");
+      let currentLen     = parseInt(params.get("len")     || "55");
+      let currentSeed    = params.has("seed")
+        ? parseInt(params.get("seed"), 10)
+        : Math.floor(Math.random() * 1000000);
 
       // Populate select
       const sel = document.getElementById("fieldSel");
@@ -161,25 +181,59 @@
       const densityVal = document.getElementById("densityVal");
       const lineLenEl  = document.getElementById("lineLen");
       const lineLenVal = document.getElementById("lineLenVal");
+      const seedVal    = document.getElementById("seedVal");
+      const refreshSeedBtn = document.getElementById("refreshSeed");
 
       densityEl.value  = currentDensity;
       densityVal.textContent = currentDensity;
       lineLenEl.value  = currentLen;
       lineLenVal.textContent = currentLen;
+      seedVal.textContent = currentSeed;
 
-      densityEl.addEventListener("input",  () => { densityVal.textContent = densityEl.value; });
-      lineLenEl.addEventListener("input",  () => { lineLenVal.textContent = lineLenEl.value; });
+      function syncUrl() {
+        const qs = new URLSearchParams({
+          field: currentField,
+          density: String(currentDensity),
+          len: String(currentLen),
+          seed: String(currentSeed),
+        });
+        history.replaceState(null, "", `?${qs.toString()}`);
+      }
+      syncUrl();
 
-      function navigate() {
-        const f = sel.value;
-        const d = densityEl.value;
-        const l = lineLenEl.value;
-        location.search = `?field=${f}&density=${d}&len=${l}`;
+      let needsRender = true;
+      let renderQueued = false;
+      function queueRender() {
+        needsRender = true;
+        if (renderQueued) return;
+        renderQueued = true;
+        requestAnimationFrame(() => {
+          renderQueued = false;
+          redraw();
+        });
       }
 
-      sel.addEventListener("change", navigate);
-      densityEl.addEventListener("change", navigate);
-      lineLenEl.addEventListener("change", navigate);
+      function handleControlInput() {
+        currentField = sel.value;
+        currentDensity = parseInt(densityEl.value);
+        currentLen = parseInt(lineLenEl.value);
+        densityVal.textContent = currentDensity;
+        lineLenVal.textContent = currentLen;
+        syncUrl();
+        queueRender();
+      }
+
+      densityEl.addEventListener("input", handleControlInput);
+      lineLenEl.addEventListener("input", handleControlInput);
+      sel.addEventListener("input", handleControlInput);
+      sel.addEventListener("change", handleControlInput);
+
+      refreshSeedBtn.addEventListener("click", () => {
+        currentSeed = Math.floor(Math.random() * 1000000);
+        seedVal.textContent = currentSeed;
+        syncUrl();
+        queueRender();
+      });
 
       // ---- p5 sketch ----
       function setup() {
@@ -187,7 +241,16 @@
         canvas.parent("canvas-host");
         brush.load();
         brush.scaleBrushes(3);
+        noLoop();
+      }
+
+      function renderExplorer() {
+        randomSeed(currentSeed);
+        noiseSeed(currentSeed);
+        seedVal.textContent = currentSeed;
+
         background(245);
+        push();
         translate(-width / 2, -height / 2);
 
         if (currentField === "hand") {
@@ -195,6 +258,7 @@
         } else {
           brush.field(currentField);
         }
+        brush.refreshField(0);
         brush.set("HB", "#1a2a5a", 1);
 
         const n = currentDensity;
@@ -207,12 +271,14 @@
         }
 
         brush.noField();
-        noLoop();
+        pop();
       }
 
       function draw() {
-        translate(-width / 2, -height / 2);
+        if (!needsRender) return;
+        needsRender = false;
         noLoop();
+        renderExplorer();
       }
       </script>
     </main>

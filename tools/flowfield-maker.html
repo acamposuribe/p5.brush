@@ -1,0 +1,1171 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>p5.brush — Flow Field Maker</title>
+  <script src="https://cdn.jsdelivr.net/npm/p5@2.1.1/lib/p5.min.js"></script>
+  <script src="../dist/p5.brush.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html {
+      -webkit-text-size-adjust: 100%;
+      text-size-adjust: 100%;
+    }
+
+    :root {
+      --bg: #1a1a1a;
+      --panel: #242424;
+      --panel-2: #202020;
+      --border: #333;
+      --accent: #e8c547;
+      --text: #d4d4d4;
+      --text-dim: #777;
+      --input-bg: #1a1a1a;
+      --canvas-bg: #111;
+      --code-text: #9cdcfe;
+      --radius: 6px;
+      --font: "JetBrains Mono", "Fira Code", "Menlo", monospace;
+    }
+
+    body[data-theme="light"] {
+      --bg: #f4efe5;
+      --panel: #fbf7ef;
+      --panel-2: #f6f0e6;
+      --border: #d8cfbf;
+      --accent: #b8860b;
+      --text: #2a241d;
+      --text-dim: #74695d;
+      --input-bg: #fffdf8;
+      --canvas-bg: #ece6da;
+      --code-text: #1f5d8f;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--font);
+      font-size: 12px;
+      line-height: 1.4;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      display: flex;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    #panel {
+      width: 340px;
+      flex-shrink: 0;
+      display: flex;
+      flex-direction: column;
+      border-right: 1px solid var(--border);
+      overflow: hidden;
+      background: var(--panel);
+    }
+
+    #panel-header {
+      padding: 14px 16px 12px;
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    #panel-header h1 {
+      font-size: 13px;
+      line-height: 1.2;
+      font-weight: 600;
+      color: var(--accent);
+      letter-spacing: 0.04em;
+    }
+
+    #panel-header p {
+      font-size: 10px;
+      line-height: 1.4;
+      color: var(--text-dim);
+      margin-top: 2px;
+    }
+
+    #theme-btn {
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--text-dim);
+      font-family: var(--font);
+      font-size: 10px;
+      padding: 5px 8px;
+      border-radius: var(--radius);
+      cursor: pointer;
+      letter-spacing: 0.06em;
+      flex-shrink: 0;
+    }
+
+    #theme-btn:hover {
+      border-color: var(--accent);
+      color: var(--text);
+    }
+
+    #controls {
+      flex: 1;
+      overflow-y: auto;
+      padding: 12px 15px;
+      scrollbar-width: thin;
+      scrollbar-color: var(--border) transparent;
+    }
+
+    #panel-bottom {
+      padding: 12px 15px 15px;
+      border-top: 1px solid var(--border);
+      background: var(--panel);
+      flex-shrink: 0;
+      display: grid;
+      gap: 10px;
+    }
+
+    .section-label {
+      font-size: 9px;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--text-dim);
+      margin: 14px 0 8px;
+    }
+
+    .section-label:first-child { margin-top: 0; }
+
+    .section-help {
+      font-size: 10px;
+      color: var(--text-dim);
+      line-height: 1.65;
+      margin-bottom: 10px;
+    }
+
+    .control-row {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      margin-bottom: 6px;
+    }
+
+    .control-row label {
+      width: 82px;
+      flex-shrink: 0;
+      color: var(--text-dim);
+      font-size: 11px;
+    }
+
+    .control-row input[type="range"] {
+      flex: 1;
+      min-width: 0;
+      accent-color: var(--accent);
+      cursor: pointer;
+      height: 3px;
+    }
+
+    .control-row .val {
+      width: 52px;
+      flex-shrink: 0;
+    }
+
+    .val-input {
+      width: 100%;
+      background: transparent;
+      border: 1px solid transparent;
+      color: var(--text);
+      font-family: var(--font);
+      font-size: 10px;
+      text-align: right;
+      padding: 2px 0;
+      outline: none;
+    }
+
+    .val-input:focus {
+      border-bottom-color: var(--accent);
+    }
+
+    .control-row select,
+    .control-row input[type="text"] {
+      flex: 1;
+      min-width: 0;
+      background: var(--input-bg);
+      border: 1px solid var(--border);
+      color: var(--text);
+      font-family: var(--font);
+      font-size: 11px;
+      padding: 4px 6px;
+      border-radius: var(--radius);
+      outline: none;
+    }
+
+    .control-row select:focus,
+    .control-row input[type="text"]:focus {
+      border-color: var(--accent);
+    }
+
+    #code-panel {
+      width: 320px;
+      flex-shrink: 0;
+      display: flex;
+      flex-direction: column;
+      border-left: 1px solid var(--border);
+      background: var(--panel);
+      overflow: hidden;
+    }
+
+    #code-header,
+    #viewport-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 8px 12px;
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+      gap: 10px;
+    }
+
+    #code-header span,
+    #viewport-header > span {
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--text-dim);
+      flex-shrink: 0;
+    }
+
+    #copy-btn,
+    .small-btn {
+      background: var(--accent);
+      color: #111;
+      border: none;
+      border-radius: var(--radius);
+      font-family: var(--font);
+      font-size: 10px;
+      font-weight: 700;
+      padding: 4px 10px;
+      cursor: pointer;
+      letter-spacing: 0.06em;
+    }
+
+    .small-btn {
+      padding: 4px 8px;
+    }
+
+    #copy-btn:hover,
+    .small-btn:hover { opacity: 0.85; }
+
+    #code-output {
+      flex: 1;
+      width: 100%;
+      margin: 0;
+      padding: 12px 16px;
+      font-family: var(--font);
+      font-size: 10.5px;
+      line-height: 1.6;
+      color: var(--code-text);
+      background: transparent;
+      border: none;
+      resize: none;
+      outline: none;
+      overflow: auto;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+      word-break: break-word;
+    }
+
+    #viewport {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      background: var(--panel-2);
+    }
+
+    #viewport-controls {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+      flex: 1;
+    }
+
+    .header-control {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 10px;
+      color: var(--text-dim);
+    }
+
+    .header-control input[type="range"] {
+      width: 63px;
+      accent-color: var(--accent);
+    }
+
+    .header-control input[type="color"] {
+      width: 24px;
+      height: 18px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1px;
+      background: var(--input-bg);
+      cursor: pointer;
+    }
+
+    .header-control select {
+      min-width: 88px;
+      background: var(--input-bg);
+      border: 1px solid var(--border);
+      color: var(--text);
+      font-family: var(--font);
+      font-size: 10px;
+      padding: 3px 18px 3px 6px;
+      border-radius: var(--radius);
+      outline: none;
+    }
+
+    .header-control select:focus {
+      border-color: var(--accent);
+    }
+
+    #seed-chip {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--accent);
+      padding: 0 2px;
+      white-space: nowrap;
+    }
+
+    .icon-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 24px;
+      height: 20px;
+      background: transparent;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      color: var(--text-dim);
+      cursor: pointer;
+      padding: 0;
+    }
+
+    .icon-btn:hover {
+      border-color: var(--accent);
+      color: var(--text);
+    }
+
+    .icon-btn.is-active {
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+
+    .icon-btn svg {
+      width: 13px;
+      height: 13px;
+      display: block;
+    }
+
+    .time-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+    }
+
+    .time-readout {
+      color: var(--accent);
+      font-size: 10px;
+      white-space: nowrap;
+    }
+
+    .time-buttons {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    #canvas-wrap {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      background: var(--canvas-bg);
+      padding: 12px;
+      min-height: 0;
+    }
+
+    #canvas-wrap canvas {
+      display: block;
+      max-width: 100%;
+      max-height: 100%;
+      width: auto !important;
+      height: auto !important;
+    }
+
+    .type-controls { display: none; }
+  </style>
+</head>
+<body>
+
+<div id="panel">
+  <div id="panel-header">
+    <div>
+      <h1>p5.brush · Flow Field Maker</h1>
+      <p>Adjust params — preview updates live</p>
+    </div>
+    <button id="theme-btn" type="button">LIGHT</button>
+  </div>
+
+  <div id="controls">
+    <div class="section-label">Identity</div>
+
+    <div class="control-row">
+      <label>name</label>
+      <input type="text" id="field-name" value="myField" />
+    </div>
+
+    <div class="control-row">
+      <label>type</label>
+      <select id="field-type">
+        <option value="none">no field</option>
+        <option value="curved">curved</option>
+        <option value="zigzag">zigzag</option>
+        <option value="seabed">seabed</option>
+        <option value="spiral">spiral</option>
+        <option value="columns">columns</option>
+      </select>
+    </div>
+
+    <div class="section-label">Field Pattern</div>
+    <p id="type-help" class="section-help"></p>
+
+    <div id="type-curved" class="type-controls">
+      <div class="control-row">
+        <label>angle min</label>
+        <input type="range" id="curved-angle-min" min="4" max="40" step="1" value="10" />
+        <span class="val" id="curved-angle-min-val">10</span>
+      </div>
+      <div class="control-row">
+        <label>angle max</label>
+        <input type="range" id="curved-angle-max" min="8" max="60" step="1" value="24" />
+        <span class="val" id="curved-angle-max-val">24</span>
+      </div>
+      <div class="control-row">
+        <label>noise scale</label>
+        <input type="range" id="curved-scale" min="0.005" max="0.08" step="0.001" value="0.02" />
+        <span class="val" id="curved-scale-val">0.02</span>
+      </div>
+    </div>
+
+    <div id="type-zigzag" class="type-controls">
+      <div class="control-row">
+        <label>angle min</label>
+        <input type="range" id="zigzag-angle-min" min="-45" max="-5" step="1" value="-30" />
+        <span class="val" id="zigzag-angle-min-val">-30</span>
+      </div>
+      <div class="control-row">
+        <label>angle max</label>
+        <input type="range" id="zigzag-angle-max" min="-30" max="-5" step="1" value="-15" />
+        <span class="val" id="zigzag-angle-max-val">-15</span>
+      </div>
+    </div>
+
+    <div id="type-seabed" class="type-controls">
+      <div class="control-row">
+        <label>scale min</label>
+        <input type="range" id="seabed-scale-min" min="0.2" max="1" step="0.01" value="0.4" />
+        <span class="val" id="seabed-scale-min-val">0.4</span>
+      </div>
+      <div class="control-row">
+        <label>scale max</label>
+        <input type="range" id="seabed-scale-max" min="0.3" max="1.2" step="0.01" value="0.8" />
+        <span class="val" id="seabed-scale-max-val">0.8</span>
+      </div>
+      <div class="control-row">
+        <label>amp min</label>
+        <input type="range" id="seabed-amp-min" min="10" max="30" step="1" value="18" />
+        <span class="val" id="seabed-amp-min-val">18</span>
+      </div>
+      <div class="control-row">
+        <label>amp max</label>
+        <input type="range" id="seabed-amp-max" min="14" max="40" step="1" value="26" />
+        <span class="val" id="seabed-amp-max-val">26</span>
+      </div>
+    </div>
+
+    <div id="type-spiral" class="type-controls">
+      <div class="control-row">
+        <label>count min</label>
+        <input type="range" id="spiral-count-min" min="1" max="12" step="1" value="5" />
+        <span class="val" id="spiral-count-min-val">5</span>
+      </div>
+      <div class="control-row">
+        <label>count max</label>
+        <input type="range" id="spiral-count-max" min="2" max="18" step="1" value="10" />
+        <span class="val" id="spiral-count-max-val">10</span>
+      </div>
+      <div class="control-row">
+        <label>offset min</label>
+        <input type="range" id="spiral-offset-min" min="40" max="90" step="1" value="65" />
+        <span class="val" id="spiral-offset-min-val">65</span>
+      </div>
+      <div class="control-row">
+        <label>offset max</label>
+        <input type="range" id="spiral-offset-max" min="45" max="100" step="1" value="80" />
+        <span class="val" id="spiral-offset-max-val">80</span>
+      </div>
+    </div>
+
+    <div id="type-columns" class="type-controls">
+      <div class="control-row">
+        <label>freq min</label>
+        <input type="range" id="columns-freq-min" min="1" max="10" step="1" value="3" />
+        <span class="val" id="columns-freq-min-val">3</span>
+      </div>
+      <div class="control-row">
+        <label>freq max</label>
+        <input type="range" id="columns-freq-max" min="2" max="14" step="1" value="8" />
+        <span class="val" id="columns-freq-max-val">8</span>
+      </div>
+      <div class="control-row">
+        <label>amp min</label>
+        <input type="range" id="columns-amp-min" min="8" max="40" step="1" value="25" />
+        <span class="val" id="columns-amp-min-val">25</span>
+      </div>
+      <div class="control-row">
+        <label>amp max</label>
+        <input type="range" id="columns-amp-max" min="12" max="60" step="1" value="45" />
+        <span class="val" id="columns-amp-max-val">45</span>
+      </div>
+      <div class="control-row">
+        <label>rotation</label>
+        <input type="range" id="columns-rotation" min="-180" max="180" step="1" value="0" />
+        <span class="val" id="columns-rotation-val">0</span>
+      </div>
+    </div>
+
+  </div>
+
+  <div id="panel-bottom">
+    <div class="section-label">Time</div>
+    <div class="time-row">
+      <span class="time-readout" id="time-readout">t = 0.00</span>
+      <div class="time-buttons">
+        <button class="icon-btn" id="time-backward" type="button" aria-label="Step time backward" title="Step backward">
+          <svg viewBox="0 0 16 16" fill="none" aria-hidden="true">
+            <path d="M10.5 3.5L5.5 8L10.5 12.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </button>
+        <button class="icon-btn" id="time-play" type="button" aria-label="Play time" title="Play">
+          <svg viewBox="0 0 16 16" fill="none" aria-hidden="true">
+            <path d="M5 3.5L12 8L5 12.5V3.5Z" fill="currentColor"/>
+          </svg>
+        </button>
+        <button class="icon-btn" id="time-forward" type="button" aria-label="Step time forward" title="Step forward">
+          <svg viewBox="0 0 16 16" fill="none" aria-hidden="true">
+            <path d="M5.5 3.5L10.5 8L5.5 12.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </button>
+        <button class="icon-btn" id="time-pause" type="button" aria-label="Pause time" title="Pause">
+          <svg viewBox="0 0 16 16" fill="none" aria-hidden="true">
+            <path d="M5.5 4V12M10.5 4V12" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+          </svg>
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="viewport">
+  <div id="viewport-header">
+    <span>Preview</span>
+    <div id="viewport-controls">
+      <label class="header-control">
+        brush
+        <select id="preview-brush">
+          <option value="pen">pen</option>
+          <option value="rotring">rotring</option>
+          <option value="2B">2B</option>
+          <option value="HB" selected>HB</option>
+          <option value="2H">2H</option>
+          <option value="cpencil">cpencil</option>
+          <option value="charcoal">charcoal</option>
+          <option value="spray">spray</option>
+          <option value="marker">marker</option>
+        </select>
+      </label>
+      <label class="header-control">
+        density
+        <input type="range" id="density" min="6" max="30" step="1" value="18" />
+      </label>
+      <label class="header-control">
+        length
+        <input type="range" id="line-len" min="20" max="150" step="1" value="55" />
+      </label>
+      <label class="header-control">
+        bg
+        <input type="color" id="bg-color" value="#fffceb" />
+      </label>
+      <label class="header-control">
+        ink
+        <input type="color" id="stroke-color" value="#1a1a2e" />
+      </label>
+      <span class="header-control">
+        lines
+        <button class="icon-btn is-active" id="toggle-horizontal" type="button" aria-label="Toggle horizontal lines" title="Horizontal lines">
+          <svg viewBox="0 0 16 16" fill="none" aria-hidden="true">
+            <path d="M2 4.5H14M2 8H14M2 11.5H14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+          </svg>
+        </button>
+        <button class="icon-btn" id="toggle-vertical" type="button" aria-label="Toggle vertical lines" title="Vertical lines">
+          <svg viewBox="0 0 16 16" fill="none" aria-hidden="true">
+            <path d="M4.5 2V14M8 2V14M11.5 2V14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+          </svg>
+        </button>
+        <button class="icon-btn" id="toggle-circle" type="button" aria-label="Toggle center circle" title="Center circle">
+          <svg viewBox="0 0 16 16" fill="none" aria-hidden="true">
+            <circle cx="8" cy="8" r="4.75" stroke="currentColor" stroke-width="1.5"/>
+          </svg>
+        </button>
+      </span>
+      <span class="header-control">
+        seed
+        <span id="seed-chip">0</span>
+      </span>
+      <button class="small-btn" id="refresh-seed" type="button">Refresh</button>
+    </div>
+  </div>
+  <div id="canvas-wrap"></div>
+</div>
+
+<div id="code-panel">
+  <div id="code-header">
+    <span>Generated Code</span>
+    <button id="copy-btn" type="button">COPY</button>
+  </div>
+  <textarea id="code-output" spellcheck="false" readonly></textarea>
+</div>
+
+<script>
+const params = {
+  name: "myField",
+  type: "curved",
+  density: 18,
+  lineLen: 55,
+  previewBrush: "HB",
+  showHorizontal: true,
+  showVertical: false,
+  showCircle: false,
+  time: 0,
+  bgColor: "#fffceb",
+  strokeColor: "#1a1a2e",
+  seed: 100000 + Math.floor(Math.random() * 900000),
+
+  curvedAngleMin: 10,
+  curvedAngleMax: 24,
+  curvedScale: 0.02,
+
+  zigzagAngleMin: -30,
+  zigzagAngleMax: -15,
+
+  seabedScaleMin: 0.4,
+  seabedScaleMax: 0.8,
+  seabedAmpMin: 18,
+  seabedAmpMax: 26,
+
+  spiralCountMin: 5,
+  spiralCountMax: 10,
+  spiralOffsetMin: 65,
+  spiralOffsetMax: 80,
+
+  columnsFreqMin: 3,
+  columnsFreqMax: 8,
+  columnsAmpMin: 25,
+  columnsAmpMax: 45,
+  columnsRotation: 0,
+
+};
+
+const TYPE_HELP = {
+  none: "Disables the field so you can preview the brush and overlay shapes without any bending.",
+  curved: "Smooth noise bends. Set the noise scale and the range of possible angle swings.",
+  zigzag: "Alternating woven directions. The angle range sets the baseline tilt, and the preview shows both horizontal and vertical passes.",
+  seabed: "Dense row-times-column oscillation. Scale controls the product frequency and amplitude controls the rake depth.",
+  spiral: "Attractor-based swirl field. Count range sets how many spiral centers appear and offset tunes the curl.",
+  columns: "Vertical stripe families. Frequency sets the band count, amplitude pushes the sway, and rotation tilts the whole field.",
+};
+
+const THEME_KEY = "p5brush-flowfield-maker-theme";
+const codeOutputEl = document.getElementById("code-output");
+const themeBtn = document.getElementById("theme-btn");
+const rangeBindings = new Map();
+let needsRender = true;
+let renderQueued = false;
+let isPlaying = false;
+let holdDir = 0;
+let holdFrame = 0;
+let holdLastTs = 0;
+
+function applyTheme(theme) {
+  document.body.dataset.theme = theme;
+  themeBtn.textContent = theme === "light" ? "DARK" : "LIGHT";
+  localStorage.setItem(THEME_KEY, theme);
+}
+
+themeBtn.addEventListener("click", () => {
+  applyTheme(document.body.dataset.theme === "light" ? "dark" : "light");
+});
+
+applyTheme(localStorage.getItem(THEME_KEY) === "light" ? "light" : "dark");
+
+function formatNumber(value) {
+  if (!Number.isFinite(value)) return "";
+  if (Math.abs(value - Math.round(value)) < 1e-9) return String(Math.round(value));
+  return String(Number(value.toFixed(3)));
+}
+
+function ensureValueInput(id) {
+  const host = document.getElementById(id + "-val");
+  let input = document.getElementById(id + "-num");
+  if (input) return input;
+
+  input = document.createElement("input");
+  input.type = "text";
+  input.id = id + "-num";
+  input.className = "val-input";
+  host.textContent = "";
+  host.appendChild(input);
+  return input;
+}
+
+function snapToStep(value, step, base = 0) {
+  if (!Number.isFinite(step) || step <= 0) return value;
+  const decimals = (String(step).split(".")[1] || "").length;
+  return Number((Math.round((value - base) / step) * step + base).toFixed(decimals));
+}
+
+function clampToRange(rawValue, el) {
+  let value = Number(rawValue);
+  if (!Number.isFinite(value)) return null;
+
+  const min = Number(el.min);
+  const max = Number(el.max);
+  const step = Number(el.step);
+  const base = Number.isFinite(min) ? min : 0;
+
+  if (Number.isFinite(min)) value = Math.max(min, value);
+  if (Number.isFinite(max)) value = Math.min(max, value);
+  return snapToStep(value, step, base);
+}
+
+function queueRender() {
+  needsRender = true;
+  if (renderQueued) return;
+  renderQueued = true;
+  requestAnimationFrame(() => {
+    renderQueued = false;
+    redraw();
+  });
+}
+
+function wire(id, key, onChange = null) {
+  const el = document.getElementById(id);
+  const valInput = ensureValueInput(id);
+
+  const sync = (rawValue, markDirty = false) => {
+    const next = clampToRange(rawValue, el);
+    params[key] = next === null ? params[key] : next;
+    el.value = params[key];
+    valInput.value = formatNumber(params[key]);
+    if (markDirty) {
+      updateCode();
+      queueRender();
+      if (onChange) onChange();
+    }
+  };
+
+  el.addEventListener("input", () => sync(el.value, true));
+  valInput.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") valInput.blur();
+  });
+  valInput.addEventListener("blur", () => sync(valInput.value, true));
+  valInput.addEventListener("change", () => sync(valInput.value, true));
+
+  rangeBindings.set(id, (value) => sync(value, false));
+  sync(params[key], false);
+}
+
+function syncTimeUI() {
+  document.getElementById("time-readout").textContent = `t = ${params.time.toFixed(2)}`;
+  document.getElementById("time-play").classList.toggle("is-active", isPlaying);
+  document.getElementById("time-pause").classList.toggle("is-active", !isPlaying);
+}
+
+function updateTypeUI() {
+  document.getElementById("field-type").value = params.type;
+  document.getElementById("type-help").textContent = TYPE_HELP[params.type];
+  document.querySelectorAll(".type-controls").forEach((el) => {
+    el.style.display = params.type !== "none" && el.id === `type-${params.type}` ? "block" : "none";
+  });
+}
+
+function buildPreviewGenerator() {
+  switch (params.type) {
+    case "none":
+      return null;
+    case "zigzag":
+      return (t, field) => {
+        let ar = random(params.zigzagAngleMin, params.zigzagAngleMax) + Math.abs(44 * Math.sin(t));
+        if (random(0, 100) % 2 === 0) ar *= -1;
+        let dif = ar;
+        let angle = 0;
+        for (let c = 0; c < field.length; c++) {
+          for (let r = 0; r < field[0].length; r++) {
+            field[c][r] = angle;
+            angle += dif;
+            dif *= -1;
+          }
+          angle += dif;
+          dif *= -1;
+        }
+        return field;
+      };
+    case "seabed":
+      return (t, field) => {
+        const bs = random(params.seabedScaleMin, params.seabedScaleMax);
+        const ba = Math.floor(random(params.seabedAmpMin, params.seabedAmpMax + 1));
+        for (let c = 0; c < field.length; c++) {
+          for (let r = 0; r < field[0].length; r++) {
+            field[c][r] = 1.1 * ba * Math.sin(bs * r * c + random(15, 20)) * Math.cos(t);
+          }
+        }
+        return field;
+      };
+    case "spiral":
+      return (t, field) => {
+        const n = Math.floor(random(params.spiralCountMin, params.spiralCountMax + 1));
+        const dir = Math.floor(random(0, 2)) * 2 - 1;
+        const offset = Math.floor(random(params.spiralOffsetMin, params.spiralOffsetMax + 1)) + 18 * Math.sin(t * 0.8);
+        const attractors = Array.from({ length: n }, () => ({
+          x: (random(0.1, 0.9) + 0.06 * Math.sin(t + n)) * field.length,
+          y: (random(0.1, 0.9) + 0.06 * Math.cos(t + n)) * field[0].length,
+        }));
+        for (let c = 0; c < field.length; c++) {
+          for (let r = 0; r < field[0].length; r++) {
+            let wx = 0;
+            let wy = 0;
+            for (const att of attractors) {
+              const dx = c - att.x;
+              const dy = r - att.y;
+              const w = 1 / (dx * dx + dy * dy + 1);
+              const a = Math.atan2(dy, dx) * 180 / Math.PI;
+              const angle = dir * (a + offset) * Math.PI / 180;
+              wx += w * Math.cos(angle);
+              wy += w * Math.sin(angle);
+            }
+            field[c][r] = Math.atan2(wy, wx) * 180 / Math.PI;
+          }
+        }
+        return field;
+      };
+    case "columns":
+      return (t, field) => {
+        const freq = Math.floor(random(params.columnsFreqMin, params.columnsFreqMax + 1));
+        const amp = Math.floor(random(params.columnsAmpMin, params.columnsAmpMax + 1));
+        const rot = params.columnsRotation * Math.PI / 180;
+        const rotCos = Math.cos(rot);
+        const rotSin = Math.sin(rot);
+        for (let c = 0; c < field.length; c++) {
+          for (let r = 0; r < field[0].length; r++) {
+            const rc = c * rotCos - r * rotSin;
+            field[c][r] = Math.sin((rc + t * 0.5) * freq) * amp + 0.25 * amp * Math.cos((r + t) * 0.35);
+          }
+        }
+        return field;
+      };
+    case "curved":
+    default:
+      return (t, field) => {
+        const ar = random(params.curvedAngleMin, params.curvedAngleMax);
+        for (let c = 0; c < field.length; c++) {
+          for (let r = 0; r < field[0].length; r++) {
+            field[c][r] = 3 * map(noise(c * params.curvedScale + t * 0.09, r * params.curvedScale + t * 0.09), 0, 1, -ar, ar);
+          }
+        }
+        return field;
+      };
+  }
+}
+
+function buildCode() {
+  const name = params.name || "myField";
+  switch (params.type) {
+    case "none":
+      return `// No field selected.\n// Preview is showing strokes and shapes without brush.field().`;
+    case "zigzag":
+      return `brush.addField("${name}", (t, field) => {\n  let ar = random(${params.zigzagAngleMin}, ${params.zigzagAngleMax}) + Math.abs(44 * Math.sin(t));\n  if (random(0, 100) % 2 === 0) ar *= -1;\n  let dif = ar;\n  let angle = 0;\n  for (let c = 0; c < field.length; c++) {\n    for (let r = 0; r < field[0].length; r++) {\n      field[c][r] = angle;\n      angle += dif;\n      dif *= -1;\n    }\n    angle += dif;\n    dif *= -1;\n  }\n  return field;\n});`;
+    case "seabed":
+      return `brush.addField("${name}", (t, field) => {\n  const bs = random(${params.seabedScaleMin}, ${params.seabedScaleMax});\n  const ba = Math.floor(random(${params.seabedAmpMin}, ${params.seabedAmpMax + 1}));\n  for (let c = 0; c < field.length; c++) {\n    for (let r = 0; r < field[0].length; r++) {\n      field[c][r] = 1.1 * ba * Math.sin(bs * r * c + random(15, 20)) * Math.cos(t);\n    }\n  }\n  return field;\n});`;
+    case "spiral":
+      return `brush.addField("${name}", (t, field) => {\n  const n = Math.floor(random(${params.spiralCountMin}, ${params.spiralCountMax + 1}));\n  const dir = Math.floor(random(0, 2)) * 2 - 1;\n  const offset = Math.floor(random(${params.spiralOffsetMin}, ${params.spiralOffsetMax + 1})) + 18 * Math.sin(t * 0.8);\n  const attractors = Array.from({ length: n }, () => ({\n    x: (random(0.1, 0.9) + 0.06 * Math.sin(t + n)) * field.length,\n    y: (random(0.1, 0.9) + 0.06 * Math.cos(t + n)) * field[0].length,\n  }));\n  for (let c = 0; c < field.length; c++) {\n    for (let r = 0; r < field[0].length; r++) {\n      let wx = 0;\n      let wy = 0;\n      for (const att of attractors) {\n        const dx = c - att.x;\n        const dy = r - att.y;\n        const w = 1 / (dx * dx + dy * dy + 1);\n        const a = Math.atan2(dy, dx) * 180 / Math.PI;\n        const angle = dir * (a + offset) * Math.PI / 180;\n        wx += w * Math.cos(angle);\n        wy += w * Math.sin(angle);\n      }\n      field[c][r] = Math.atan2(wy, wx) * 180 / Math.PI;\n    }\n  }\n  return field;\n});`;
+    case "columns":
+      return `brush.addField("${name}", (t, field) => {\n  const freq = Math.floor(random(${params.columnsFreqMin}, ${params.columnsFreqMax + 1}));\n  const amp = Math.floor(random(${params.columnsAmpMin}, ${params.columnsAmpMax + 1}));\n  const rot = ${params.columnsRotation} * Math.PI / 180;\n  const rotCos = Math.cos(rot);\n  const rotSin = Math.sin(rot);\n  for (let c = 0; c < field.length; c++) {\n    for (let r = 0; r < field[0].length; r++) {\n      const rc = c * rotCos - r * rotSin;\n      field[c][r] = Math.sin((rc + t * 0.5) * freq) * amp + 0.25 * amp * Math.cos((r + t) * 0.35);\n    }\n  }\n  return field;\n});`;
+    case "curved":
+    default:
+      return `brush.addField("${name}", (t, field) => {\n  const ar = random(${params.curvedAngleMin}, ${params.curvedAngleMax});\n  for (let c = 0; c < field.length; c++) {\n    for (let r = 0; r < field[0].length; r++) {\n      field[c][r] = 3 * map(noise(c * ${params.curvedScale} + t * 0.09, r * ${params.curvedScale} + t * 0.09), 0, 1, -ar, ar);\n    }\n  }\n  return field;\n});`;
+  }
+}
+
+function updateCode() {
+  codeOutputEl.value = buildCode();
+}
+
+function refreshSeed() {
+  params.seed = 100000 + Math.floor(Math.random() * 900000);
+  document.getElementById("seed-chip").textContent = String(params.seed).padStart(6, "0");
+  updateCode();
+  queueRender();
+}
+
+function syncLineToggleUI() {
+  document.getElementById("toggle-horizontal").classList.toggle("is-active", params.showHorizontal);
+  document.getElementById("toggle-vertical").classList.toggle("is-active", params.showVertical);
+  document.getElementById("toggle-circle").classList.toggle("is-active", params.showCircle);
+}
+
+function stepTime(amount) {
+  params.time = Math.max(0, params.time + amount);
+  syncTimeUI();
+  queueRender();
+}
+
+function playTime() {
+  if (isPlaying) return;
+  isPlaying = true;
+  syncTimeUI();
+  loop();
+}
+
+function pauseTime() {
+  if (!isPlaying) return;
+  isPlaying = false;
+  syncTimeUI();
+  noLoop();
+  queueRender();
+}
+
+function startHold(dir) {
+  stopHold();
+  holdDir = dir;
+  holdLastTs = 0;
+  stepTime(dir * 0.05);
+  const tick = (ts) => {
+    if (!holdDir) return;
+    if (!holdLastTs) {
+      holdLastTs = ts;
+    } else {
+      const dt = Math.min((ts - holdLastTs) / 1000, 0.05);
+      holdLastTs = ts;
+      stepTime(holdDir * dt * 3);
+    }
+    holdFrame = requestAnimationFrame(tick);
+  };
+  holdFrame = requestAnimationFrame(tick);
+}
+
+function stopHold() {
+  holdDir = 0;
+  holdLastTs = 0;
+  if (holdFrame) cancelAnimationFrame(holdFrame);
+  holdFrame = 0;
+}
+
+document.getElementById("field-name").addEventListener("input", (event) => {
+  params.name = event.target.value || "myField";
+  updateCode();
+});
+
+document.getElementById("field-type").addEventListener("change", (event) => {
+  params.type = event.target.value;
+  updateTypeUI();
+  updateCode();
+  queueRender();
+});
+
+document.getElementById("density").addEventListener("input", (event) => {
+  params.density = Number(event.target.value);
+  queueRender();
+});
+
+document.getElementById("line-len").addEventListener("input", (event) => {
+  params.lineLen = Number(event.target.value);
+  queueRender();
+});
+
+document.getElementById("preview-brush").addEventListener("change", (event) => {
+  params.previewBrush = event.target.value;
+  queueRender();
+});
+
+document.getElementById("bg-color").addEventListener("input", (event) => {
+  params.bgColor = event.target.value;
+  queueRender();
+});
+
+document.getElementById("stroke-color").addEventListener("input", (event) => {
+  params.strokeColor = event.target.value;
+  queueRender();
+});
+
+document.getElementById("toggle-horizontal").addEventListener("click", () => {
+  params.showHorizontal = !params.showHorizontal;
+  syncLineToggleUI();
+  queueRender();
+});
+
+document.getElementById("toggle-vertical").addEventListener("click", () => {
+  params.showVertical = !params.showVertical;
+  syncLineToggleUI();
+  queueRender();
+});
+
+document.getElementById("toggle-circle").addEventListener("click", () => {
+  params.showCircle = !params.showCircle;
+  syncLineToggleUI();
+  queueRender();
+});
+
+document.getElementById("refresh-seed").addEventListener("click", refreshSeed);
+document.getElementById("time-play").addEventListener("click", playTime);
+document.getElementById("time-pause").addEventListener("click", pauseTime);
+
+for (const [id, dir] of [["time-backward", -1], ["time-forward", 1]]) {
+  const el = document.getElementById(id);
+  el.addEventListener("pointerdown", (event) => {
+    event.preventDefault();
+    startHold(dir);
+  });
+  el.addEventListener("pointerup", stopHold);
+  el.addEventListener("pointerleave", stopHold);
+  el.addEventListener("pointercancel", stopHold);
+}
+
+document.getElementById("copy-btn").addEventListener("click", () => {
+  navigator.clipboard.writeText(codeOutputEl.value).then(() => {
+    const btn = document.getElementById("copy-btn");
+    btn.textContent = "COPIED!";
+    setTimeout(() => { btn.textContent = "COPY"; }, 1400);
+  });
+});
+
+wire("curved-angle-min", "curvedAngleMin");
+wire("curved-angle-max", "curvedAngleMax");
+wire("curved-scale", "curvedScale");
+
+wire("zigzag-angle-min", "zigzagAngleMin");
+wire("zigzag-angle-max", "zigzagAngleMax");
+
+wire("seabed-scale-min", "seabedScaleMin");
+wire("seabed-scale-max", "seabedScaleMax");
+wire("seabed-amp-min", "seabedAmpMin");
+wire("seabed-amp-max", "seabedAmpMax");
+
+wire("spiral-count-min", "spiralCountMin");
+wire("spiral-count-max", "spiralCountMax");
+wire("spiral-offset-min", "spiralOffsetMin");
+wire("spiral-offset-max", "spiralOffsetMax");
+
+wire("columns-freq-min", "columnsFreqMin");
+wire("columns-freq-max", "columnsFreqMax");
+wire("columns-amp-min", "columnsAmpMin");
+wire("columns-amp-max", "columnsAmpMax");
+wire("columns-rotation", "columnsRotation");
+
+document.getElementById("density").value = params.density;
+document.getElementById("line-len").value = params.lineLen;
+document.getElementById("preview-brush").value = params.previewBrush;
+document.getElementById("bg-color").value = params.bgColor;
+document.getElementById("stroke-color").value = params.strokeColor;
+document.getElementById("seed-chip").textContent = String(params.seed).padStart(6, "0");
+syncLineToggleUI();
+syncTimeUI();
+updateTypeUI();
+updateCode();
+
+const PREVIEW_FIELD = "__flowfield_maker_preview__";
+
+function renderPreview() {
+  randomSeed(params.seed);
+  noiseSeed(params.seed);
+  document.getElementById("seed-chip").textContent = String(params.seed).padStart(6, "0");
+
+  background(params.bgColor);
+  push();
+  translate(-width / 2, -height / 2);
+
+  const previewGenerator = buildPreviewGenerator();
+  if (previewGenerator) {
+    brush.addField(PREVIEW_FIELD, previewGenerator);
+    brush.field(PREVIEW_FIELD);
+    brush.refreshField(params.time);
+  }
+  brush.set(params.previewBrush, params.strokeColor, 1);
+
+  const n = params.density;
+  if (params.showHorizontal) {
+    for (let r = 0; r < n; r++) {
+      for (let c = 0; c < n - 1; c++) {
+        const x = 40 + (c / (n - 1)) * 720;
+        const y = 40 + (r / (n - 1)) * 720;
+        brush.flowLine(x, y, params.lineLen, 0);
+      }
+    }
+  }
+
+  if (params.showVertical) {
+    for (let c = 0; c < n; c++) {
+      for (let r = 1; r < n; r++) {
+        const x = 40 + (c / (n - 1)) * 720;
+        const y = 40 + (r / (n - 1)) * 720;
+        brush.flowLine(x, y, params.lineLen, 90);
+      }
+    }
+  }
+
+  if (params.showCircle) {
+    brush.circle(width * 0.5, height * 0.5, width * 0.25, 0.3);
+  }
+
+  if (previewGenerator) brush.noField();
+  pop();
+}
+
+function setup() {
+  const cnv = createCanvas(800, 800, WEBGL);
+  cnv.parent("canvas-wrap");
+  angleMode(DEGREES);
+  brush.load();
+  brush.scaleBrushes(3);
+  noLoop();
+}
+
+function draw() {
+  if (isPlaying) {
+    params.time += 0.025;
+    syncTimeUI();
+    needsRender = true;
+  }
+  if (!needsRender) return;
+  needsRender = false;
+  renderPreview();
+}
+</script>
+</body>
+</html>
