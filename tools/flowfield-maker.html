@@ -444,6 +444,9 @@
         <option value="seabed">seabed</option>
         <option value="spiral">spiral</option>
         <option value="columns">columns</option>
+        <option value="topographic">topographic</option>
+        <option value="fan">fan</option>
+        <option value="radial">radial</option>
       </select>
     </div>
 
@@ -478,6 +481,21 @@
         <label>angle max</label>
         <input type="range" id="zigzag-angle-max" min="-30" max="-5" step="1" value="-15" />
         <span class="val" id="zigzag-angle-max-val">-15</span>
+      </div>
+      <div class="control-row">
+        <label>band min</label>
+        <input type="range" id="zigzag-band-min" min="1" max="5" step="1" value="2" />
+        <span class="val" id="zigzag-band-min-val">2</span>
+      </div>
+      <div class="control-row">
+        <label>band max</label>
+        <input type="range" id="zigzag-band-max" min="2" max="8" step="1" value="4" />
+        <span class="val" id="zigzag-band-max-val">4</span>
+      </div>
+      <div class="control-row">
+        <label>sway</label>
+        <input type="range" id="zigzag-sway" min="0" max="6" step="0.1" value="2.5" />
+        <span class="val" id="zigzag-sway-val">2.5</span>
       </div>
     </div>
 
@@ -552,6 +570,60 @@
         <label>rotation</label>
         <input type="range" id="columns-rotation" min="-180" max="180" step="1" value="0" />
         <span class="val" id="columns-rotation-val">0</span>
+      </div>
+    </div>
+
+    <div id="type-topographic" class="type-controls">
+      <div class="control-row">
+        <label>noise scale</label>
+        <input type="range" id="topographic-scale" min="0.01" max="0.12" step="0.001" value="0.05" />
+        <span class="val" id="topographic-scale-val">0.05</span>
+      </div>
+      <div class="control-row">
+        <label>drift</label>
+        <input type="range" id="topographic-drift" min="0" max="0.25" step="0.005" value="0.08" />
+        <span class="val" id="topographic-drift-val">0.08</span>
+      </div>
+      <div class="control-row">
+        <label>jitter</label>
+        <input type="range" id="topographic-jitter" min="0" max="18" step="0.5" value="5" />
+        <span class="val" id="topographic-jitter-val">5</span>
+      </div>
+    </div>
+
+    <div id="type-fan" class="type-controls">
+      <div class="control-row">
+        <label>source x</label>
+        <input type="range" id="fan-source-x" min="-0.3" max="1.3" step="0.01" value="0.5" />
+        <span class="val" id="fan-source-x-val">0.5</span>
+      </div>
+      <div class="control-row">
+        <label>source y</label>
+        <input type="range" id="fan-source-y" min="-0.3" max="1.3" step="0.01" value="1.05" />
+        <span class="val" id="fan-source-y-val">1.05</span>
+      </div>
+      <div class="control-row">
+        <label>spread</label>
+        <input type="range" id="fan-spread" min="0" max="80" step="1" value="26" />
+        <span class="val" id="fan-spread-val">26</span>
+      </div>
+    </div>
+
+    <div id="type-radial" class="type-controls">
+      <div class="control-row">
+        <label>center x</label>
+        <input type="range" id="radial-center-x" min="0.05" max="0.95" step="0.01" value="0.5" />
+        <span class="val" id="radial-center-x-val">0.5</span>
+      </div>
+      <div class="control-row">
+        <label>center y</label>
+        <input type="range" id="radial-center-y" min="0.05" max="0.95" step="0.01" value="0.5" />
+        <span class="val" id="radial-center-y-val">0.5</span>
+      </div>
+      <div class="control-row">
+        <label>twist</label>
+        <input type="range" id="radial-twist" min="-120" max="120" step="1" value="0" />
+        <span class="val" id="radial-twist-val">0</span>
       </div>
     </div>
 
@@ -678,6 +750,9 @@ const params = {
 
   zigzagAngleMin: -30,
   zigzagAngleMax: -15,
+  zigzagBandMin: 2,
+  zigzagBandMax: 4,
+  zigzagSway: 2.5,
 
   seabedScaleMin: 0.4,
   seabedScaleMax: 0.8,
@@ -695,15 +770,30 @@ const params = {
   columnsAmpMax: 45,
   columnsRotation: 0,
 
+  topographicScale: 0.05,
+  topographicDrift: 0.08,
+  topographicJitter: 5,
+
+  fanSourceX: 0.5,
+  fanSourceY: 1.05,
+  fanSpread: 26,
+
+  radialCenterX: 0.5,
+  radialCenterY: 0.5,
+  radialTwist: 0,
+
 };
 
 const TYPE_HELP = {
   none: "Disables the field so you can preview the brush and overlay shapes without any bending.",
   curved: "Smooth noise bends. Set the noise scale and the range of possible angle swings.",
-  zigzag: "Alternating woven directions. The angle range sets the baseline tilt, and the preview shows both horizontal and vertical passes.",
-  seabed: "Dense row-times-column oscillation. Scale controls the product frequency and amplitude controls the rake depth.",
+  zigzag: "A richer woven field. Angle sets the braid tilt, band size controls how many cells each run holds, and sway lets the weave breathe over time.",
+  seabed: "The classic p5.brush seabed. It stays close to the original row-times-column oscillation, with only scale and amplitude ranges exposed.",
   spiral: "Attractor-based swirl field. Count range sets how many spiral centers appear and offset tunes the curl.",
   columns: "Vertical stripe families. Frequency sets the band count, amplitude pushes the sway, and rotation tilts the whole field.",
+  topographic: "Contour-following flow. It traces the tangent of a drifting noise field, like topographic lines or carved terrain.",
+  fan: "Rays opening from a source point. Spread controls how much the rays flare and curl as they travel outward.",
+  radial: "Pure in-out motion from a chosen center, with optional twist to bend it into a pinwheel.",
 };
 
 const THEME_KEY = "p5brush-flowfield-maker-theme";
@@ -827,18 +917,16 @@ function buildPreviewGenerator() {
       return null;
     case "zigzag":
       return (t, field) => {
-        let ar = random(params.zigzagAngleMin, params.zigzagAngleMax) + Math.abs(44 * Math.sin(t));
+        let ar = random(params.zigzagAngleMin, params.zigzagAngleMax) - 18 * Math.sin(t * 0.9);
         if (random(0, 100) % 2 === 0) ar *= -1;
-        let dif = ar;
-        let angle = 0;
+        const band = Math.floor(random(params.zigzagBandMin, params.zigzagBandMax + 1));
         for (let c = 0; c < field.length; c++) {
+          const rowOffset = Math.round(params.zigzagSway * Math.sin(c * 0.45 + t));
+          const drift = 0.35 * ar * Math.sin(c * 0.22 + t * 0.8);
           for (let r = 0; r < field[0].length; r++) {
-            field[c][r] = angle;
-            angle += dif;
-            dif *= -1;
+            const idx = Math.floor((r + rowOffset) / band);
+            field[c][r] = (idx % 2 === 0 ? ar : -ar) + drift;
           }
-          angle += dif;
-          dif *= -1;
         }
         return field;
       };
@@ -895,6 +983,48 @@ function buildPreviewGenerator() {
         }
         return field;
       };
+    case "topographic":
+      return (t, field) => {
+        const drift = t * params.topographicDrift;
+        const eps = 0.75;
+        for (let c = 0; c < field.length; c++) {
+          for (let r = 0; r < field[0].length; r++) {
+            const x = c * params.topographicScale;
+            const y = r * params.topographicScale;
+            const dx = noise(x + eps + drift, y + drift) - noise(x - eps + drift, y + drift);
+            const dy = noise(x + drift, y + eps + drift) - noise(x + drift, y - eps + drift);
+            field[c][r] = Math.atan2(dy, dx) * 180 / Math.PI + 90 + params.topographicJitter * Math.sin((x + y) * 5 + t);
+          }
+        }
+        return field;
+      };
+    case "fan":
+      return (t, field) => {
+        const sx = params.fanSourceX * field.length;
+        const sy = params.fanSourceY * field[0].length;
+        for (let c = 0; c < field.length; c++) {
+          for (let r = 0; r < field[0].length; r++) {
+            const dx = c - sx;
+            const dy = r - sy;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            const base = Math.atan2(dy, dx) * 180 / Math.PI;
+            field[c][r] = base + params.fanSpread * Math.sin(dist * 0.08 - t * 1.2);
+          }
+        }
+        return field;
+      };
+    case "radial":
+      return (t, field) => {
+        const cx = params.radialCenterX * field.length;
+        const cy = params.radialCenterY * field[0].length;
+        const twist = params.radialTwist + 18 * Math.sin(t * 0.7);
+        for (let c = 0; c < field.length; c++) {
+          for (let r = 0; r < field[0].length; r++) {
+            field[c][r] = Math.atan2(r - cy, c - cx) * 180 / Math.PI + twist;
+          }
+        }
+        return field;
+      };
     case "curved":
     default:
       return (t, field) => {
@@ -915,13 +1045,19 @@ function buildCode() {
     case "none":
       return `// No field selected.\n// Preview is showing strokes and shapes without brush.field().`;
     case "zigzag":
-      return `brush.addField("${name}", (t, field) => {\n  let ar = random(${params.zigzagAngleMin}, ${params.zigzagAngleMax}) + Math.abs(44 * Math.sin(t));\n  if (random(0, 100) % 2 === 0) ar *= -1;\n  let dif = ar;\n  let angle = 0;\n  for (let c = 0; c < field.length; c++) {\n    for (let r = 0; r < field[0].length; r++) {\n      field[c][r] = angle;\n      angle += dif;\n      dif *= -1;\n    }\n    angle += dif;\n    dif *= -1;\n  }\n  return field;\n});`;
+      return `brush.addField("${name}", (t, field) => {\n  let ar = random(${params.zigzagAngleMin}, ${params.zigzagAngleMax}) - 18 * Math.sin(t * 0.9);\n  if (random(0, 100) % 2 === 0) ar *= -1;\n  const band = Math.floor(random(${params.zigzagBandMin}, ${params.zigzagBandMax + 1}));\n  for (let c = 0; c < field.length; c++) {\n    const rowOffset = Math.round(${params.zigzagSway} * Math.sin(c * 0.45 + t));\n    const drift = 0.35 * ar * Math.sin(c * 0.22 + t * 0.8);\n    for (let r = 0; r < field[0].length; r++) {\n      const idx = Math.floor((r + rowOffset) / band);\n      field[c][r] = (idx % 2 === 0 ? ar : -ar) + drift;\n    }\n  }\n  return field;\n});`;
     case "seabed":
       return `brush.addField("${name}", (t, field) => {\n  const bs = random(${params.seabedScaleMin}, ${params.seabedScaleMax});\n  const ba = Math.floor(random(${params.seabedAmpMin}, ${params.seabedAmpMax + 1}));\n  for (let c = 0; c < field.length; c++) {\n    for (let r = 0; r < field[0].length; r++) {\n      field[c][r] = 1.1 * ba * Math.sin(bs * r * c + random(15, 20)) * Math.cos(t);\n    }\n  }\n  return field;\n});`;
     case "spiral":
       return `brush.addField("${name}", (t, field) => {\n  const n = Math.floor(random(${params.spiralCountMin}, ${params.spiralCountMax + 1}));\n  const dir = Math.floor(random(0, 2)) * 2 - 1;\n  const offset = Math.floor(random(${params.spiralOffsetMin}, ${params.spiralOffsetMax + 1})) + 18 * Math.sin(t * 0.8);\n  const attractors = Array.from({ length: n }, () => ({\n    x: (random(0.1, 0.9) + 0.06 * Math.sin(t + n)) * field.length,\n    y: (random(0.1, 0.9) + 0.06 * Math.cos(t + n)) * field[0].length,\n  }));\n  for (let c = 0; c < field.length; c++) {\n    for (let r = 0; r < field[0].length; r++) {\n      let wx = 0;\n      let wy = 0;\n      for (const att of attractors) {\n        const dx = c - att.x;\n        const dy = r - att.y;\n        const w = 1 / (dx * dx + dy * dy + 1);\n        const a = Math.atan2(dy, dx) * 180 / Math.PI;\n        const angle = dir * (a + offset) * Math.PI / 180;\n        wx += w * Math.cos(angle);\n        wy += w * Math.sin(angle);\n      }\n      field[c][r] = Math.atan2(wy, wx) * 180 / Math.PI;\n    }\n  }\n  return field;\n});`;
     case "columns":
       return `brush.addField("${name}", (t, field) => {\n  const freq = Math.floor(random(${params.columnsFreqMin}, ${params.columnsFreqMax + 1}));\n  const amp = Math.floor(random(${params.columnsAmpMin}, ${params.columnsAmpMax + 1}));\n  const rot = ${params.columnsRotation} * Math.PI / 180;\n  const rotCos = Math.cos(rot);\n  const rotSin = Math.sin(rot);\n  for (let c = 0; c < field.length; c++) {\n    for (let r = 0; r < field[0].length; r++) {\n      const rc = c * rotCos - r * rotSin;\n      field[c][r] = Math.sin((rc + t * 0.5) * freq) * amp + 0.25 * amp * Math.cos((r + t) * 0.35);\n    }\n  }\n  return field;\n});`;
+    case "topographic":
+      return `brush.addField("${name}", (t, field) => {\n  const drift = t * ${params.topographicDrift};\n  const eps = 0.75;\n  for (let c = 0; c < field.length; c++) {\n    for (let r = 0; r < field[0].length; r++) {\n      const x = c * ${params.topographicScale};\n      const y = r * ${params.topographicScale};\n      const dx = noise(x + eps + drift, y + drift) - noise(x - eps + drift, y + drift);\n      const dy = noise(x + drift, y + eps + drift) - noise(x + drift, y - eps + drift);\n      field[c][r] = Math.atan2(dy, dx) * 180 / Math.PI + 90 + ${params.topographicJitter} * Math.sin((x + y) * 5 + t);\n    }\n  }\n  return field;\n});`;
+    case "fan":
+      return `brush.addField("${name}", (t, field) => {\n  const sx = ${params.fanSourceX} * field.length;\n  const sy = ${params.fanSourceY} * field[0].length;\n  for (let c = 0; c < field.length; c++) {\n    for (let r = 0; r < field[0].length; r++) {\n      const dx = c - sx;\n      const dy = r - sy;\n      const dist = Math.sqrt(dx * dx + dy * dy);\n      const base = Math.atan2(dy, dx) * 180 / Math.PI;\n      field[c][r] = base + ${params.fanSpread} * Math.sin(dist * 0.08 - t * 1.2);\n    }\n  }\n  return field;\n});`;
+    case "radial":
+      return `brush.addField("${name}", (t, field) => {\n  const cx = ${params.radialCenterX} * field.length;\n  const cy = ${params.radialCenterY} * field[0].length;\n  const twist = ${params.radialTwist} + 18 * Math.sin(t * 0.7);\n  for (let c = 0; c < field.length; c++) {\n    for (let r = 0; r < field[0].length; r++) {\n      field[c][r] = Math.atan2(r - cy, c - cx) * 180 / Math.PI + twist;\n    }\n  }\n  return field;\n});`;
     case "curved":
     default:
       return `brush.addField("${name}", (t, field) => {\n  const ar = random(${params.curvedAngleMin}, ${params.curvedAngleMax});\n  for (let c = 0; c < field.length; c++) {\n    for (let r = 0; r < field[0].length; r++) {\n      field[c][r] = 3 * map(noise(c * ${params.curvedScale} + t * 0.09, r * ${params.curvedScale} + t * 0.09), 0, 1, -ar, ar);\n    }\n  }\n  return field;\n});`;
@@ -1112,6 +1248,9 @@ wire("curved-scale", "curvedScale");
 
 wire("zigzag-angle-min", "zigzagAngleMin");
 wire("zigzag-angle-max", "zigzagAngleMax");
+wire("zigzag-band-min", "zigzagBandMin");
+wire("zigzag-band-max", "zigzagBandMax");
+wire("zigzag-sway", "zigzagSway");
 
 wire("seabed-scale-min", "seabedScaleMin");
 wire("seabed-scale-max", "seabedScaleMax");
@@ -1128,6 +1267,18 @@ wire("columns-freq-max", "columnsFreqMax");
 wire("columns-amp-min", "columnsAmpMin");
 wire("columns-amp-max", "columnsAmpMax");
 wire("columns-rotation", "columnsRotation");
+
+wire("topographic-scale", "topographicScale");
+wire("topographic-drift", "topographicDrift");
+wire("topographic-jitter", "topographicJitter");
+
+wire("fan-source-x", "fanSourceX");
+wire("fan-source-y", "fanSourceY");
+wire("fan-spread", "fanSpread");
+
+wire("radial-center-x", "radialCenterX");
+wire("radial-center-y", "radialCenterY");
+wire("radial-twist", "radialTwist");
 
 document.getElementById("density").value = params.density;
 document.getElementById("line-len").value = params.lineLen;
