@@ -28,7 +28,6 @@ To set up your project, add `p5.min.js` `p5.brush.js` to your HTML file. You can
 Place the script tags in the following order:
 
 ```html
-<!-- Commented version of p5.brush.js, with a Spectral.js dependency -->
 <script src="path_to/p5.min.js"></script>
 <script src="path_to/p5.brush.js"></script>
 ```
@@ -40,7 +39,7 @@ Alternatively, you can link to a `p5.brush.js` file hosted online. All versions 
 
 ```html
 <!-- Online version of p5.brush -->
-<script src="https://cdn.jsdelivr.net/npm/p5.brush@2.0.0-beta"></script>
+<script src="https://cdn.jsdelivr.net/npm/p5.brush@2.0.2-beta"></script>
 ```
 
 ### Install with NPM and other modular-based apps
