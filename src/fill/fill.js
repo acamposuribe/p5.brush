@@ -20,7 +20,7 @@ import {
   Cheight,
   Density,
 } from "../core/color.js";
-import { drawPolygon, circle } from "../core/mask.js";
+import { drawPolygon, circle } from "./mask.js";
 import {
   constrain,
   weightedRand,
@@ -281,20 +281,31 @@ class FillPoly {
   trim(f = 1) {
     // Fast path for common case
     if (f >= 1 || f < 0 || this.v.length <= 8) {
-      return { v: [...this.v], m: [...this.m], dir: [...this.dir] };
+      return { v: this.v, m: this.m, dir: this.dir };
     }
 
     // Trim from middle for balance
     const n = ~~((1 - f) * this.v.length);
     const s = ~~(this.v.length / 2 - n / 2);
 
-    // Clone and splice
-    const v = [...this.v],
-      m = [...this.m],
-      dir = [...this.dir];
-    v.splice(s, n);
-    m.splice(s, n);
-    dir.splice(s, n);
+    // Copy only the kept ranges instead of cloning the full arrays and splicing.
+    const keep = this.v.length - n;
+    const v = new Array(keep);
+    const m = new Array(keep);
+    const dir = new Array(keep);
+    let dst = 0;
+
+    for (let i = 0; i < s; i++, dst++) {
+      v[dst] = this.v[i];
+      m[dst] = this.m[i];
+      dir[dst] = this.dir[i];
+    }
+
+    for (let i = s + n; i < this.v.length; i++, dst++) {
+      v[dst] = this.v[i];
+      m[dst] = this.m[i];
+      dir[dst] = this.dir[i];
+    }
 
     return { v, m, dir };
   }
@@ -362,7 +373,8 @@ class FillPoly {
     const len = tr_v.length;
 
     const outLen = len * 2;
-    const newVerts = new Array(outLen);
+    const insertedX = new Array(len);
+    const insertedY = new Array(len);
     const newMods = new Array(outLen);
     const newDirs = new Array(outLen);
     const bleedDirDeg = State.fill.direction === "out" ? -90 : 90;
@@ -374,6 +386,7 @@ class FillPoly {
       g2PoolLen = g2Pool.length;
 
     let idx = 0;
+    let insertedIdx = 0;
     let mod = f === 999 ? rr(0.6, 0.8) : State.fill.bleed_strength;
 
     for (let i = 0; i < len; i++) {
@@ -387,46 +400,59 @@ class FillPoly {
       const rotDeg = (di ? bleedDirDeg : -bleedDirDeg) + rr(-1, 1) * 5;
       const c = cos(rotDeg);
       const s = sin(rotDeg);
+
       const sideX = nv.x - cv.x;
       const sideY = nv.y - cv.y;
       const dirX = c * sideX + s * sideY;
       const dirY = c * sideY - s * sideX;
-      const d = gPool[~~(rr(0, 1) * gPoolLen)] * rr(0.65, 1.35) * mod;
 
-      newVerts[idx] = cv;
+      const d = gPool[~~(rr(0, 1) * gPoolLen)] * rr(0.65, 1.35) * mod;
+      const nextMod = mi + g2Pool[~~(rr(0, 1) * g2PoolLen)];
+
       newMods[idx] = mi;
       newDirs[idx] = di;
       idx++;
 
-      newVerts[idx] = {
-        x: cv.x + sideX * 0.5 + dirX * d,
-        y: cv.y + sideY * 0.5 + dirY * d,
-      };
-      newMods[idx] = mi + g2Pool[~~(rr(0, 1) * g2PoolLen)];
+      insertedX[insertedIdx] = cv.x + sideX * 0.5 + dirX * d;
+      insertedY[insertedIdx] = cv.y + sideY * 0.5 + dirY * d;
+      newMods[idx] = nextMod;
       newDirs[idx] = di;
       idx++;
+      insertedIdx++;
     }
 
-    let fv = newVerts,
-      fm = newMods,
-      fd = newDirs;
+    let fv,
+      fm,
+      fd;
     const growCap = GROW_MAX_VERTS / State.fill.texture_strength;
     if (growCap && idx > growCap) {
       const step = Math.ceil(idx / growCap);
-      fv = [];
-      fm = [];
-      fd = [];
-      for (let j = 0; j < idx; j += step) {
-        fv.push(newVerts[j]);
-        fm.push(newMods[j]);
-        fd.push(newDirs[j]);
+      const kept = Math.ceil(idx / step);
+      fv = new Array(kept);
+      fm = new Array(kept);
+      fd = new Array(kept);
+      let dst = 0;
+      for (let j = 0; j < idx; j += step, dst++) {
+        fv[dst] =
+          j % 2 === 0
+            ? tr_v[j >> 1]
+            : { x: insertedX[j >> 1], y: insertedY[j >> 1] };
+        fm[dst] = newMods[j];
+        fd[dst] = newDirs[j];
       }
     } else {
-      fv.length = idx;
-      fm.length = idx;
-      fd.length = idx;
+      fv = new Array(idx);
+      for (let j = 0; j < idx; j++) {
+        fv[j] =
+          j % 2 === 0
+            ? tr_v[j >> 1]
+            : { x: insertedX[j >> 1], y: insertedY[j >> 1] };
+      }
+      newMods.length = idx;
+      newDirs.length = idx;
+      fm = newMods;
+      fd = newDirs;
     }
-
     return new FillPoly(fv, fm, this.midP, fd, false, this.sizeX, this.sizeY);
   }
 
@@ -468,7 +494,9 @@ class FillPoly {
     let pols;
 
     for (let i = 0; i < numLayers; i++) {
-      if (i % 4 === 0) pol = pol.grow();
+      if (i % 4 === 0) {
+        pol = pol.grow();
+      }
 
       if (i % 2 === 0) {
         pols = [
@@ -478,18 +506,21 @@ class FillPoly {
         ];
       }
 
-      for (const p of pols) p.grow(999).grow(997).layer(i, size, int, color);
-      sparse
-        .grow(999)
-        .flipDirs()
-        .grow(997)
-        .layer(i, size, int * texture, color);
+      for (const p of pols) {
+        const grown = p.grow(999).grow(997);
+        grown.layer(i, size, int, color);
+      }
+      const sparseLayer = sparse.grow(999).flipDirs().grow(997);
+      sparseLayer.layer(i, size, int * texture, color);
       if (i % 2 === 0) {
-        pol.grow(darker).grow(999).layer(i, size, int * 2, color);
+        const darkerLayer = pol.grow(darker).grow(999);
+        darkerLayer.layer(i, size, int * 2, color);
       }
 
       if (i % 8 === 0 || i === numLayers - 1) {
-        if (texture !== 0) pol.erase(texture * 3, intensity);
+        if (texture !== 0) {
+          pol.erase(texture * 3, intensity);
+        }
         Mix.blend(color, true, false, true);
       }
     }
@@ -503,7 +534,9 @@ class FillPoly {
    */
   layer(i, size, int, color) {
     Mix.ctx.lineWidth = map(i, 0, 24, size / 25, size / 30, true);
+
     Mix.ctx.fillStyle = `rgb(${color._getRed()} ${color._getGreen()} ${color._getBlue()} / ${int}%)`;
+
     drawPolygon(this.v);
     Mix.ctx.fill();
     Mix.ctx.stroke();
@@ -522,8 +555,8 @@ class FillPoly {
     const halfSizeY = this.sizeY / 1.3;
     const minSize =
       Math.min(this.sizeX, this.sizeY) * (1.4 - State.fill.bleed_strength);
-    const minSizeFactor = 0.05 * minSize;
-    const maxSizeFactor = 0.4 * minSize;
+    const minSizeFactor = 0.04 * minSize;
+    const maxSizeFactor = 0.35 * minSize;
     const { x: midX, y: midY } = this.midP;
 
     Mix.ctx.globalCompositeOperation = "destination-out";
@@ -536,11 +569,13 @@ class FillPoly {
     for (let i = 0; i < numCircles; i++) {
       const x = midX + gaussian(0, halfSizeX);
       const y = midY + gaussian(0, halfSizeY);
-      const size = rr(minSizeFactor, maxSizeFactor);
+      const radius = rr(minSizeFactor, maxSizeFactor);
 
       Mix.ctx.beginPath();
-      circle(x, y, size);
-      if (i % 5 !== 0) Mix.ctx.fill();
+      circle(x, y, radius);
+      if (i % 5 !== 0) {
+        Mix.ctx.fill();
+      }
     }
 
     Mix.ctx.globalCompositeOperation = "source-over";
@@ -595,7 +630,7 @@ Plot.prototype.fill = function (x, y, scale) {
       x,
       y,
       scale,
-      map(State.fill.bleed_strength, 0, 0.6, 0.3, 0.45, true),
+      map(State.fill.bleed_strength, 0, 0.6, 0.3, 0.60, true),
     );
     this.pol.fill();
   }

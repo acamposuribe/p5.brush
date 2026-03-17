@@ -62,12 +62,15 @@
       const BLUE = "#1a3a6a";
       const RED = "#c0392b";
       const OLIVE = "#4a6a1a";
+      const SEED = 12345;
 
       // ----------------------------------------------------------------
       // p5 sketch
       // ----------------------------------------------------------------
       function setup() {
         createCanvas(CW, CH, WEBGL);
+        randomSeed(SEED);
+        noiseSeed(SEED);
         brush.load();
         brush.scaleBrushes(2);
         noLoop();

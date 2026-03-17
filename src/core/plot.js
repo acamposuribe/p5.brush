@@ -144,7 +144,7 @@ export class Plot {
       pos.plotTo(this, step, step);
       const idx = this.calcIndex(pos.plotted);
       pside += step;
-      const maxSize = Math.max(this.segments[idx] * _side * rr(0.7, 1.3), 10);
+      const maxSize = Math.max(this.segments[idx] * _side * rr(0.7, 1.3), 20);
       if ((pside >= maxSize || idx >= prevIdx) && pos.x) {
         vertices.push([pos.x - Cwidth / 2, pos.y - Cheight / 2]);
         pside = 0;

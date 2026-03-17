@@ -12,52 +12,7 @@ import fragSrc from "./gl/shader.frag";
 
 export let Cwidth, Cheight, Instance, Renderer, Density; // Global canvas properties
 
-// =============================================================================
-// Section: Composite Profiling
-// =============================================================================
-const CompositeProfile = {
-  enabled: false,
-  stats: new Map(),
-  timer: null,
-};
-
-const getCompositeProfileFlag = () => {
-  if (typeof window === "undefined") return false;
-  if (window.__P5_BRUSH_COMPOSITE_PROFILE__ != null) {
-    return !!window.__P5_BRUSH_COMPOSITE_PROFILE__;
-  }
-  return new URLSearchParams(window.location.search).get("compositeProfile") === "on";
-};
-
-const now = () => globalThis.performance?.now?.() ?? Date.now();
-
-const profileComposite = (name, fn) => {
-  if (!CompositeProfile.enabled) return fn();
-  const start = now();
-  try {
-    return fn();
-  } finally {
-    const stat = CompositeProfile.stats.get(name) ?? { total: 0, count: 0 };
-    stat.total += now() - start;
-    stat.count += 1;
-    CompositeProfile.stats.set(name, stat);
-    if (CompositeProfile.timer) clearTimeout(CompositeProfile.timer);
-    CompositeProfile.timer = setTimeout(() => {
-      const rows = [...CompositeProfile.stats.entries()]
-        .map(([operation, stat]) => ({
-          operation,
-          total_ms: stat.total.toFixed(2),
-          count: stat.count,
-          avg_ms: (stat.total / stat.count).toFixed(4),
-        }))
-        .sort((a, b) => Number(b.total_ms) - Number(a.total_ms));
-      console.log(
-        `[p5.brush composite profile] entries=${rows.length}`,
-      );
-      console.table(rows);
-    }, 300);
-  }
-};
+let FillMaskUploadCanvas = null;
 
 // =============================================================================
 // Section: Target Resolution
@@ -81,14 +36,6 @@ const isFramebufferTarget = (target) =>
  */
 const getSketchRenderer = () =>
   _isInstanced ? Instance : window.self.p5.instance;
-
-/**
- * Verifies that a framebuffer belongs to the currently active sketch.
- * @param {p5.Framebuffer} target - Framebuffer candidate.
- * @returns {boolean} True when the framebuffer belongs to the active sketch.
- */
-const isSupportedFramebufferTarget = (target) =>
-  isFramebufferTarget(target) && target.renderer._pInst === getSketchRenderer();
 
 /**
  * Resolves the renderer and pixel size used by `brush.load()`.
@@ -116,7 +63,7 @@ const resolveTarget = (buffer = false) => {
   }
 
   if (isFramebufferTarget(buffer)) {
-    if (!isSupportedFramebufferTarget(buffer)) {
+    if (buffer.renderer._pInst !== getSketchRenderer()) {
       throw new Error(
         "p5.brush only supports p5.Framebuffer targets created from the active sketch",
       );
@@ -140,12 +87,67 @@ const resolveTarget = (buffer = false) => {
  * Returns the currently bound sketch framebuffer when drawing into one.
  * @returns {p5.Framebuffer|null} Active framebuffer or null.
  */
-const getActiveFramebuffer = () =>
-  Renderer &&
-  Renderer._renderer &&
-  typeof Renderer._renderer.activeFramebuffer === "function"
-    ? Renderer._renderer.activeFramebuffer()
-    : null;
+const getActiveFramebuffer = () => Renderer?._renderer?.activeFramebuffer?.() ?? null;
+
+const clearTarget = (target) => {
+  if (!target) return;
+
+  if (isFramebufferTarget(target)) {
+    target.draw(() => Renderer.clear());
+    return;
+  }
+
+  const ctx = target.drawingContext;
+  ctx.save();
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.clearRect(0, 0, target.width, target.height);
+  ctx.restore();
+};
+
+const uploadFillMaskToMirror = (mask, dirtyRect = null) => {
+  const target = Renderer.fillMaskFramebuffer;
+  const gl = Renderer.drawingContext;
+  const uploadRect = normalizeDirtyRect(dirtyRect) ?? getFullDirtyRect();
+  const uploadWidth = uploadRect.maxX - uploadRect.minX;
+  const uploadHeight = uploadRect.maxY - uploadRect.minY;
+
+  if (
+    !FillMaskUploadCanvas ||
+    FillMaskUploadCanvas.width !== uploadWidth ||
+    FillMaskUploadCanvas.height !== uploadHeight
+  ) {
+    FillMaskUploadCanvas = new OffscreenCanvas(uploadWidth, uploadHeight);
+    FillMaskUploadCanvas.drawingContext = FillMaskUploadCanvas.getContext("2d");
+  }
+
+  const uploadContext = FillMaskUploadCanvas.drawingContext;
+  uploadContext.clearRect(0, 0, uploadWidth, uploadHeight);
+  uploadContext.drawImage(
+    mask,
+    uploadRect.minX,
+    uploadRect.minY,
+    uploadWidth,
+    uploadHeight,
+    0,
+    0,
+    uploadWidth,
+    uploadHeight,
+  );
+
+  clearTarget(target);
+  gl.bindTexture(gl.TEXTURE_2D, target.colorTexture);
+  gl.texSubImage2D(
+    gl.TEXTURE_2D,
+    0,
+    uploadRect.minX,
+    uploadRect.minY,
+    gl.RGBA,
+    gl.UNSIGNED_BYTE,
+    FillMaskUploadCanvas,
+  );
+
+  return target;
+};
 
 // =============================================================================
 // Section: Dirty Rect Utilities
@@ -232,16 +234,14 @@ const getFullDirtyRect = () => {
  * @param {{minX:number,minY:number,maxX:number,maxY:number}|null} rect - Dirty rect.
  * @returns {{x:number,y:number,width:number,height:number}|null} Scissor box or null.
  */
-const toScissorBox = (rect) => {
+const toScissorBox = (rect, flipY = true) => {
   const normalized = normalizeDirtyRect(rect);
   if (!normalized) return null;
 
-  // WebGL scissor coordinates are bottom-left based, unlike p5's top-left
-  // oriented screen-space bookkeeping.
   const { height } = getTargetPixelSize();
   return {
     x: normalized.minX,
-    y: height - normalized.maxY,
+    y: flipY ? height - normalized.maxY : normalized.minY,
     width: normalized.maxX - normalized.minX,
     height: normalized.maxY - normalized.minY,
   };
@@ -252,11 +252,13 @@ const toScissorBox = (rect) => {
  * @param {WebGL2RenderingContext} gl - Active WebGL context.
  * @param {{minX:number,minY:number,maxX:number,maxY:number}|null} rect - Dirty rect.
  * @param {Function} draw - Draw callback executed under the scissor box.
- * @returns {boolean} True when a valid scissor box was applied.
  */
-const withScissor = (gl, rect, draw) => {
-  const box = toScissorBox(rect);
-  if (!box) return false;
+const withScissor = (gl, rect, draw, flipY = true) => {
+  const box = toScissorBox(rect, flipY);
+  if (!box) {
+    draw();
+    return;
+  }
 
   // Scissor is never nested in this module, so we can set/clear it directly
   // without saving previous GL state.
@@ -268,8 +270,6 @@ const withScissor = (gl, rect, draw) => {
   } finally {
     gl.disable(gl.SCISSOR_TEST);
   }
-
-  return true;
 };
 
 // =============================================================================
@@ -284,8 +284,6 @@ const withScissor = (gl, rect, draw) => {
 export const load = (buffer = false) => {
   const target = resolveTarget(buffer);
   Renderer = target.renderer;
-
-  // Check if Rendrer is webgl and throw error if it's not
 
   if (Renderer.webglVersion !== "webgl2") {
     throw new Error("p5.brush requires a WEBGL canvas");
@@ -367,7 +365,7 @@ export const Mix = {
   clearMask(target) {
     if (!target) return;
 
-    target.clear();
+    clearTarget(target);
     target.isDrawn = false;
     target.dirtyRect = null;
   },
@@ -382,9 +380,8 @@ export const Mix = {
     if (!target) return null;
     if (!target.dirtyRect) return getFullDirtyRect();
 
-    // Brush masks are generated in a separate WEBGL surface and sampled back
-    // into the active renderer. Framebuffer output can disagree about Y
-    // orientation there, so brush-mask compositing falls back to full-frame.
+    // Brush-mask dirty rects are still less predictable when the destination
+    // is itself a framebuffer, so keep that path conservative.
     if (isBrushMask && getActiveFramebuffer()) return getFullDirtyRect();
     return normalizeDirtyRect(
       expandDirtyRect(
@@ -394,28 +391,58 @@ export const Mix = {
     );
   },
 
+  // =============================================================================
+  // Section: Setup and load shaders
+  // =============================================================================
   /**
-   * Captures the current framebuffer contents into a reusable source texture.
-   * For main-canvas draws this simply returns the sketch renderer directly.
-   * @param {{minX:number,minY:number,maxX:number,maxY:number}} dirtyRect - Region to copy.
-   * @returns {object} Renderer or framebuffer source to sample in the blend shader.
+   * Ensures the mask buffers and blend shader exist for the current renderer.
    */
-  captureBlendSource(dirtyRect) {
-    const activeFramebuffer = getActiveFramebuffer();
-    if (!activeFramebuffer) return Renderer._renderer;
+  load() {
+    Density = Renderer.pixelDensity();
+    const maskWidth = Math.max(1, Math.round(Cwidth * Density));
+    const maskHeight = Math.max(1, Math.round(Cheight * Density));
+    const needsBuffers =
+      !Renderer.mask ||
+      !Renderer.glMask ||
+      Renderer.mask.width !== maskWidth ||
+      Renderer.mask.height !== maskHeight ||
+      Renderer.glMask.width !== Cwidth ||
+      Renderer.glMask.height !== Cheight;
+    const needsBlendSourceFramebuffer =
+      !Renderer.blendSourceFramebuffer ||
+        Renderer.blendSourceFramebuffer.width !== Cwidth ||
+        Renderer.blendSourceFramebuffer.height !== Cheight ||
+        (typeof Renderer.blendSourceFramebuffer.pixelDensity === "function" &&
+          Renderer.blendSourceFramebuffer.pixelDensity() !== Density);
+    const needsFillMaskFramebuffer =
+      !Renderer.fillMaskFramebuffer ||
+        Renderer.fillMaskFramebuffer.width !== Cwidth ||
+        Renderer.fillMaskFramebuffer.height !== Cheight ||
+        (typeof Renderer.fillMaskFramebuffer.pixelDensity === "function" &&
+          Renderer.fillMaskFramebuffer.pixelDensity() !== Density);
+    if (!Renderer.loaded || needsBuffers) {
+      if (Renderer.glMask?.remove) Renderer.glMask.remove();
+      // Keep one 2D mask for fill/hatch work and one framebuffer-backed mask
+      // for brush stamps so the brush path stays in the main renderer context.
+      Renderer.mask = new OffscreenCanvas(maskWidth, maskHeight);
+      Renderer.mask.drawingContext = Renderer.mask.getContext("2d");
+      Renderer.glMask = Renderer.createFramebuffer({
+        width: Cwidth,
+        height: Cheight,
+        density: Density,
+        antialias: false,
+        depth: false,
+        stencil: false,
+      });
+      Renderer.loaded = true;
 
-    // Framebuffer compositing cannot safely sample from the active framebuffer
-    // while drawing back into it, so we copy the relevant area first.
-    const source = Renderer.blendSourceFramebuffer;
-    const needsSource =
-      !source ||
-      source.width !== Cwidth ||
-      source.height !== Cheight ||
-      (typeof source.pixelDensity === "function" &&
-        source.pixelDensity() !== Density);
+      Renderer.shaderProgram ??= Renderer.createShader(vertSrc, fragSrc);
+    }
 
-    if (needsSource) {
-      if (source?.remove) source.remove();
+    if (needsBlendSourceFramebuffer) {
+      if (Renderer.blendSourceFramebuffer?.remove) {
+        Renderer.blendSourceFramebuffer.remove();
+      }
       Renderer.blendSourceFramebuffer = Renderer.createFramebuffer({
         width: Cwidth,
         height: Cheight,
@@ -426,77 +453,30 @@ export const Mix = {
       });
     }
 
-    Renderer.blendSourceFramebuffer.draw(() => {
-      withScissor(Renderer.drawingContext, dirtyRect, () => {
-        Renderer.clear();
-        Renderer.push();
-        if (typeof Renderer.imageMode === "function") {
-          Renderer.imageMode(
-            Renderer.CENTER ?? Renderer._renderer?._pInst?.CENTER,
-          );
-        }
-        Renderer.image(activeFramebuffer, 0, 0, Cwidth, Cheight);
-        Renderer.pop();
+    if (needsFillMaskFramebuffer) {
+      if (Renderer.fillMaskFramebuffer?.remove) {
+        Renderer.fillMaskFramebuffer.remove();
+      }
+      Renderer.fillMaskFramebuffer = Renderer.createFramebuffer({
+        width: Cwidth,
+        height: Cheight,
+        density: Density,
+        antialias: false,
+        depth: false,
+        stencil: false,
       });
-    });
-    return Renderer.blendSourceFramebuffer;
-  },
-
-  // =============================================================================
-  // Section: Setup and load shaders
-  // =============================================================================
-  /**
-   * Ensures the mask buffers and blend shader exist for the current renderer.
-   */
-  load() {
-    CompositeProfile.enabled = getCompositeProfileFlag();
-    const graphicsFactory =
-      typeof Renderer.createGraphics === "function" ? Renderer : Renderer._pInst;
-    const needsBuffers =
-      !Renderer.mask ||
-      !Renderer.glMask ||
-      Renderer.mask.width !== Cwidth ||
-      Renderer.mask.height !== Cheight ||
-      Renderer.glMask.width !== Cwidth ||
-      Renderer.glMask.height !== Cheight;
-
-    Density = Renderer.pixelDensity();
-    const p2dMode = graphicsFactory.P2D ?? Renderer.P2D;
-    const webglMode = graphicsFactory.WEBGL ?? Renderer.WEBGL;
-
-    if (!Renderer.loaded || needsBuffers) {
-      if (Renderer.mask?.remove) Renderer.mask.remove();
-      if (Renderer.glMask?.remove) Renderer.glMask.remove();
-      // Keep one 2D mask for fill/hatch work and one WEBGL mask for brush
-      // stamps so each path can draw in the renderer that suits it best.
-      Renderer.mask = graphicsFactory.createGraphics(Cwidth, Cheight, p2dMode);
-      Renderer.glMask = graphicsFactory.createGraphics(
-        Cwidth,
-        Cheight,
-        webglMode,
-      );
-      Renderer.loaded = true;
-      Renderer.shaderProgram ??= Renderer.createShader(vertSrc, fragSrc);
+      clearTarget(Renderer.fillMaskFramebuffer);
     }
 
     this.mask = Renderer.mask;
     this.glMask = Renderer.glMask;
     this.ctx = this.mask.drawingContext;
-
-    this.mask.pixelDensity(Density);
-    this.mask.angleMode(Renderer.DEGREES);
     this.mask.dirtyRect ??= null;
-    this.mask.noSmooth();
     this.mask.isDrawn ??= false;
+    this.ctx.imageSmoothingEnabled = false;
 
-    this.glMask.pixelDensity(Density);
-    this.glMask.angleMode(this.glMask.DEGREES);
-    this.glMask.drawingContext.lineWidth = 0;
     this.glMask.dirtyRect ??= null;
     this.glMask.isDrawn ??= false;
-
-    // Link Matrix of GL mask to main Renderer
-    this.glMask._renderer.uModelMatrix = Renderer._renderer.uModelMatrix;
   },
 
   // =============================================================================
@@ -525,9 +505,8 @@ export const Mix = {
     if (!this.isBlending && nextColor) {
       this.isBlending = true;
       this.cachedColor = nextColor;
-      // Force p5 to bind its internal render target for glMask before the
-      // first raw GL brush draw of the blend cycle.
-      this.glMask.clear();
+      // Reset the brush mask at the start of each blend cycle.
+      clearTarget(this.glMask);
     }
 
     if (_isLast || colorChanged) {
@@ -550,63 +529,101 @@ export const Mix = {
    */
   applyShader(mask, isBrushMask) {
     if (!mask?.isDrawn) return;
-    const profilePrefix = isBrushMask ? "brush" : "fill";
-    profileComposite(`${profilePrefix}.applyShader`, () => {
-      // Brush masks are drawn via raw GL into a separate WEBGL graphics surface,
-      // so flush that context before sampling it as a texture.
-      if (isBrushMask && typeof mask.drawingContext?.flush === "function") {
-        profileComposite(`${profilePrefix}.flushMask`, () =>
-          mask.drawingContext.flush(),
-        );
-      }
 
-      const dirtyRect = profileComposite(
-        `${profilePrefix}.getCompositeRect`,
-        () => this.getCompositeRect(mask, isBrushMask),
-      );
-      if (!dirtyRect) {
-        profileComposite(`${profilePrefix}.clearMask`, () => this.clearMask(mask));
-        return;
-      }
+    const dirtyRect = this.getCompositeRect(mask, isBrushMask);
+    if (!dirtyRect) {
+      this.clearMask(mask);
+      return;
+    }
 
-      const gl = Renderer.drawingContext;
-      const shader = Renderer.shaderProgram;
-      const source = profileComposite(
-        `${profilePrefix}.captureSource`,
-        () => this.captureBlendSource(dirtyRect),
-      );
-      const flipOutputY = !!getActiveFramebuffer();
-      const hadDepthTest = gl.getParameter(gl.DEPTH_TEST);
+    const gl = Renderer.drawingContext;
+    const shader = Renderer.shaderProgram;
+    const activeFramebuffer = getActiveFramebuffer();
+    const source = blitToBlendSourceFramebuffer(activeFramebuffer ?? Renderer, dirtyRect);
+    const targetIsFramebuffer = !!activeFramebuffer;
+    const hadDepthTest = gl.getParameter(gl.DEPTH_TEST);
 
-      // This pass is a fullscreen compositing rect, not scene geometry, so it
-      // should not participate in the sketch's depth buffer.
-      gl.disable(gl.DEPTH_TEST);
+    // This pass is a fullscreen compositing rect, not scene geometry, so it
+    // should not participate in the sketch's depth buffer.
+    gl.disable(gl.DEPTH_TEST);
 
-      const drawShaderPass = () => {
-        Renderer.push();
-        Renderer.translate(0, 0);
-        Renderer.shader(shader);
+    Renderer.push();
+    Renderer.translate(0, 0);
+    Renderer.shader(shader);
 
-        shader.setUniform("u_source", source);
-        shader.setUniform("u_isBrush", isBrushMask);
-        shader.setUniform("u_flipOutputY", flipOutputY);
-        shader.setUniform("u_mask", mask);
-        shader.setUniform("u_color", this.cachedColor);
+    shader.setUniform("u_source", source);
+    shader.setUniform("u_targetIsFramebuffer", targetIsFramebuffer);
+    shader.setUniform("u_isBrush", isBrushMask);
+    if (isBrushMask) {
+      shader.setUniform("u_mask", mask);
+    } else {
+      shader.setUniform("u_mask", uploadFillMaskToMirror(mask, dirtyRect));
+    }
+    shader.setUniform("u_color", this.cachedColor);
 
-        withScissor(gl, dirtyRect, () => {
-          Renderer.fill(0, 0, 0, 0);
-          Renderer.noStroke();
-          Renderer.rect(-Cwidth / 2, -Cheight / 2, Cwidth, Cheight);
-        });
+    withScissor(gl, dirtyRect, () => {
+      Renderer.fill(0, 0, 0, 0);
+      Renderer.noStroke();
+      Renderer.rect(-Cwidth / 2, -Cheight / 2, Cwidth, Cheight);
+    }, !targetIsFramebuffer);
 
-        Renderer.pop();
-      };
-
-      profileComposite(`${profilePrefix}.shaderPass`, drawShaderPass);
-
-      Renderer.resetShader();
-      if (hadDepthTest) gl.enable(gl.DEPTH_TEST);
-      profileComposite(`${profilePrefix}.clearMask`, () => this.clearMask(mask));
-    });
+    Renderer.pop();
+    Renderer.resetShader();
+    if (hadDepthTest) gl.enable(gl.DEPTH_TEST);
+    this.clearMask(mask);
   },
+};
+
+/**
+ * Copies the current pixels of a renderer or framebuffer into the reusable
+ * blend source framebuffer.
+ * @param {p5|p5.Graphics|p5.Framebuffer} sourceTarget - Source to copy from.
+ * @param {{minX:number,minY:number,maxX:number,maxY:number}|null} [dirtyRect=null] - Optional copy region.
+ * @returns {p5.Framebuffer} Blend source framebuffer after the blit.
+ */
+const blitToBlendSourceFramebuffer = (sourceTarget, dirtyRect = null) => {
+  const sourceFramebuffer = Renderer.blendSourceFramebuffer;
+  const gl = Renderer.drawingContext;
+  const sourceIsFramebuffer = isFramebufferTarget(sourceTarget);
+  const { width, height } = getTargetPixelSize();
+  const sourceBox = dirtyRect ? toScissorBox(dirtyRect) : null;
+  const previousReadFramebuffer = gl.getParameter(gl.READ_FRAMEBUFFER_BINDING);
+  const previousDrawFramebuffer = gl.getParameter(gl.DRAW_FRAMEBUFFER_BINDING);
+
+  (sourceIsFramebuffer ? sourceTarget.renderer : Renderer._renderer)?.flushDraw?.();
+
+  if (sourceIsFramebuffer) {
+    sourceFramebuffer.draw(() => {
+      withScissor(Renderer.drawingContext, dirtyRect, () => {
+        Renderer.clear();
+        Renderer.push();
+        Renderer.imageMode(Renderer.CENTER);
+        Renderer.image(sourceTarget, 0, 0, Cwidth, Cheight);
+        Renderer.pop();
+      }, false);
+    });
+    return sourceFramebuffer;
+  }
+
+  gl.bindFramebuffer(gl.READ_FRAMEBUFFER, null);
+  gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, sourceFramebuffer.framebuffer);
+  gl.clearColor(0, 0, 0, 0);
+  gl.clear(gl.COLOR_BUFFER_BIT);
+  gl.blitFramebuffer(
+    sourceBox?.x ?? 0,
+    sourceBox?.y ?? 0,
+    sourceBox ? sourceBox.x + sourceBox.width : width,
+    sourceBox ? sourceBox.y + sourceBox.height : height,
+    sourceBox?.x ?? 0,
+    sourceBox?.y ?? 0,
+    sourceBox ? sourceBox.x + sourceBox.width : width,
+    sourceBox ? sourceBox.y + sourceBox.height : height,
+    gl.COLOR_BUFFER_BIT,
+    gl.NEAREST,
+  );
+
+  gl.bindFramebuffer(gl.READ_FRAMEBUFFER, previousReadFramebuffer);
+  gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, previousDrawFramebuffer);
+
+  return sourceFramebuffer;
 };

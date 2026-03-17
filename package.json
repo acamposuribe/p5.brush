@@ -40,9 +40,10 @@
     "vitest": "^2.0.0"
   },
   "peerDependencies": {
-    "p5": "^2.1.1"
+    "p5": "^2.2"
   },
   "dependencies": {
+    "earcut": "^3.0.2",
     "esm-seedrandom": "^3.0.5",
     "simplex-noise": "^4.0.3"
   }

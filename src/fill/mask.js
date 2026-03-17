@@ -1,6 +1,4 @@
-import { Mix } from "./color.js";
-
-const ctx = Mix.ctx;
+import { Mix } from "../core/color.js";
 
 function strokePadding(ctx, matrix) {
   const lineWidth = ctx.lineWidth || 0;
@@ -22,6 +20,7 @@ function strokePadding(ctx, matrix) {
  * @param {Array<{x: number, y: number}>} vertices - Array of vertex coordinates.
  */
 export function drawPolygon(vertices) {
+  const ctx = Mix.ctx;
   const matrix = ctx.getTransform();
   // Cache the current 2D transform once so the hot loop can stay numeric and
   // avoid repeated property reads while we build bounds.
@@ -76,16 +75,17 @@ export function drawPolygon(vertices) {
   });
 }
 
-
-const PI2 = Math.PI * 2;
-
 /**
  * Draws a circle to the mask.
  * @param {number} x - X-coordinate of the circle's center.
  * @param {number} y - Y-coordinate of the circle's center.
  * @param {number} d - Diameter of the circle.
  */
-export function circle(x, y, radius) {
+export function circle(x, y, d) {
+  const PI2 = Math.PI * 2;
+  const ctx = Mix.ctx;
+  const radius = d / 2;
+
   ctx.moveTo(x + radius, y);
   ctx.arc(x, y, radius, 0, PI2);
 }

@@ -30,7 +30,6 @@ import imgFragSrc from "./image.frag";
 // Module state
 let isLoaded = false,
   gl,
-  projMatrix,
   framebufferProjMatrix,
   vao,
   buf,
@@ -102,18 +101,8 @@ const texCache = new Map();
 // Static unit-quad corners for gl.TRIANGLE_STRIP in quad-local space.
 const QUAD_CORNERS = new Float32Array([-1, -1,  1, -1,  -1, 1,  1, 1]);
 
-function isFramebufferMask(target) {
-  return (
-    !!target &&
-    typeof target.begin === "function" &&
-    typeof target.end === "function" &&
-    !!target.renderer
-  );
-}
-
 function resetMaskShaderTracking() {
-  const target = Mix.glMask;
-  const renderer = isFramebufferMask(target) ? target.renderer : target?._renderer;
+  const renderer = Mix.glMask?.renderer;
   if (!renderer) return;
   renderer._curShader = null;
   renderer._cachedBlendMode = null;
@@ -131,78 +120,37 @@ function getFramebufferHandle(target) {
 }
 
 function ensureBrushMaskTarget() {
-  const targetRenderer = Renderer?._renderer;
-  const targetDensity = Density;
-  const needsTarget =
-    !brushMaskTarget ||
-    brushMaskTarget.renderer !== targetRenderer ||
-    brushMaskTarget.width !== Cwidth ||
-    brushMaskTarget.height !== Cheight ||
-    brushMaskTarget.density !== targetDensity;
-
-  if (!needsTarget) {
-    Mix.glMask = brushMaskTarget;
-    return brushMaskTarget;
-  }
-
-  if (brushMaskTarget?.remove) brushMaskTarget.remove();
-
-  const target = Renderer.createFramebuffer({
-    width: Cwidth,
-    height: Cheight,
-    density: targetDensity,
-    antialias: false,
-    depth: false,
-    stencil: false,
-  });
-  target.isDrawn = false;
-  target.dirtyRect = null;
-  target.clear = () => {
-    const renderer = Renderer._renderer;
-    const previous = renderer.activeFramebuffer?.() ?? null;
-    if (previous?._beforeEnd) previous._beforeEnd();
-    gl.bindFramebuffer(gl.FRAMEBUFFER, getFramebufferHandle(target));
-    gl.viewport(0, 0, target.width * target.density, target.height * target.density);
-    gl.clearColor(0, 0, 0, 0);
-    gl.clear(gl.COLOR_BUFFER_BIT);
-    if (previous?._beforeBegin) {
-      previous._beforeBegin();
-    } else {
-      gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-      renderer.viewport(renderer._origViewport.width, renderer._origViewport.height);
-      renderer._applyStencilTestIfClipping?.();
-    }
-  };
-
-  brushMaskTarget = target;
+  const rendererMask = Renderer?.glMask;
+  if (!rendererMask) return null;
+  brushMaskTarget = rendererMask;
+  brushMaskTarget.dirtyRect ??= null;
+  brushMaskTarget.isDrawn ??= false;
   Mix.glMask = brushMaskTarget;
   return brushMaskTarget;
 }
 
 function getProjectionMatrix() {
-  return isFramebufferMask(Mix.glMask) ? framebufferProjMatrix : projMatrix;
+  return framebufferProjMatrix;
 }
 
 function beginMaskTarget() {
-  const target = Mix.glMask;
   const hadDepthTest = gl.isEnabled(gl.DEPTH_TEST);
   beginMaskTarget._hadDepthTest = hadDepthTest;
   if (hadDepthTest) gl.disable(gl.DEPTH_TEST);
-  if (isFramebufferMask(target)) {
-    prevMaskTarget = Renderer._renderer.activeFramebuffer?.() ?? null;
-    if (prevMaskTarget?._beforeEnd) prevMaskTarget._beforeEnd();
-    gl.bindFramebuffer(gl.FRAMEBUFFER, getFramebufferHandle(target));
-    gl.viewport(0, 0, target.width * target.density, target.height * target.density);
-    return;
-  }
-  gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-  gl.viewport(0, 0, gl.drawingBufferWidth, gl.drawingBufferHeight);
+  prevMaskTarget = Renderer._renderer.activeFramebuffer?.() ?? null;
+  if (prevMaskTarget?._beforeEnd) prevMaskTarget._beforeEnd();
+  gl.bindFramebuffer(gl.FRAMEBUFFER, getFramebufferHandle(Mix.glMask));
+  gl.viewport(
+    0,
+    0,
+    Mix.glMask.width * Mix.glMask.density,
+    Mix.glMask.height * Mix.glMask.density,
+  );
 }
 
 function endMaskTarget() {
   if (beginMaskTarget._hadDepthTest) gl.enable(gl.DEPTH_TEST);
   beginMaskTarget._hadDepthTest = false;
-  if (!isFramebufferMask(Mix.glMask)) return;
   if (prevMaskTarget?._beforeBegin) {
     prevMaskTarget._beforeBegin();
   } else {
@@ -238,24 +186,6 @@ export function isReady() {
     needsContextRefresh || loadedWidth !== Cwidth || loadedHeight !== Cheight;
 
   if (needsProjectionRefresh) {
-    projMatrix = new Float32Array([
-      2 / Cwidth,
-      0,
-      0,
-      0,
-      0,
-      -2 / Cheight,
-      0,
-      0,
-      0,
-      0,
-      1,
-      0,
-      -1,
-      1,
-      0,
-      1,
-    ]);
     framebufferProjMatrix = new Float32Array([
       2 / Cwidth,
       0,

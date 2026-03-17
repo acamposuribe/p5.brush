@@ -68,6 +68,27 @@ function renderBrushSceneLocal(w, h) {
   brush.circle(w * 0.74, h * 0.64, Math.min(w, h) * 0.23)
 }
 
+function renderNativeMarkerLocal(surface, w, h, centeredCoords = true) {
+  surface.push()
+  if (centeredCoords) {
+    surface.translate(-w / 2, -h / 2)
+  }
+  surface.noStroke()
+  surface.fill(BLUE)
+  const cx = w * 0.14
+  const cy = h * 0.16
+  const size = Math.min(w, h) * 0.08
+  surface.triangle(
+    cx,
+    cy - size,
+    cx - size * 0.8,
+    cy + size * 0.7,
+    cx + size * 0.8,
+    cy + size * 0.7,
+  )
+  surface.pop()
+}
+
 function renderSceneOnSurface(surface, x, y, w, h) {
   surface.push()
   surface.translate(x, y)
@@ -126,6 +147,7 @@ function runGraphicsTest() {
     pg.pixelDensity(targetDensity)
     pg.angleMode(DEGREES)
     paintTargetBackground(pg, PANEL_W, TARGET_H)
+    renderNativeMarkerLocal(pg, PANEL_W, TARGET_H, true)
 
     brush.load(pg)
     renderSceneOnSurface(pg, -PANEL_W / 2, -TARGET_H / 2, PANEL_W, TARGET_H)
@@ -164,6 +186,7 @@ function runMainFramebufferTest() {
 
     fb.draw(() => {
       background(...TARGET_BG)
+      renderNativeMarkerLocal(window.self.p5.instance, PANEL_W, TARGET_H, true)
 
       brush.load(fb)
       renderSceneOnSurface(window.self.p5.instance, -PANEL_W / 2, -TARGET_H / 2, PANEL_W, TARGET_H)
@@ -287,6 +310,7 @@ function drawReferencePanel(x, y, w, h) {
   stroke(222, 214, 201)
   strokeWeight(1)
   rect(10, 10, w - 20, TARGET_H - 20, 16)
+  renderNativeMarkerLocal(window.self.p5.instance, w, TARGET_H, false)
   renderBrushSceneLocal(w, TARGET_H)
   pop()
 }

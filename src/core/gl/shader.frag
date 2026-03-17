@@ -3,6 +3,7 @@
 precision highp float;
 
 uniform bool u_isBrush;
+uniform bool u_targetIsFramebuffer;
 uniform sampler2D u_source;
 uniform sampler2D u_mask;
 uniform vec3 u_color;
@@ -202,10 +203,11 @@ const float EDGE_MIN = 0.05, EDGE_MAX = 0.35;
 
 void main(void) {
     vec2 uv = 0.5 * p + 0.5;
-    vec2 uv1 = vec2(uv.x, 1.0 - uv.y);
+    vec2 sourceUV = vec2(uv.x, 1.0 - uv.y);
+    vec2 maskUV = u_targetIsFramebuffer ? vec2(uv.x, 1.0 - uv.y) : uv;
     
-    vec4 source = texture(u_source, uv1);
-    vec4 maskColor = texture(u_mask, uv1);
+    vec4 source = texture(u_source, sourceUV);
+    vec4 maskColor = texture(u_mask, maskUV);
     
     if (maskColor.a == 0.0) {
         outColor = source;
@@ -228,7 +230,7 @@ void main(void) {
         float blurEdge = 0.0;
         for (int i = -2; i <= 2; i += 2) {
             for (int j = -2; j <= 2; j += 2) {
-            vec2 neighborUV = uv1 + vec2(float(i), float(j)) * texelSize;
+            vec2 neighborUV = maskUV + vec2(float(i), float(j)) * texelSize;
             float neighborAlpha = texture(u_mask, neighborUV).a * 15.0;
                 blurEdge += smoothstep(EDGE_MIN, EDGE_MAX, 
                           length(vec2(dFdx(neighborAlpha), dFdy(neighborAlpha))));
