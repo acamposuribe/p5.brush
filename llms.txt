@@ -16,16 +16,17 @@ import * as brush from 'p5.brush'
 
 ## Setup
 
-The canvas **must use WEBGL mode**. The library initializes automatically when `createCanvas()` is called — no `brush.load()` needed for the main canvas.
+The canvas **must use WEBGL mode**. The library initializes automatically when `createCanvas()` is called, so for the **main canvas** you normally do **not** need `brush.load()`.
 
 ```js
 async function setup() {
   createCanvas(600, 600, WEBGL)
+  angleMode(DEGREES)      // optional, but all angle-taking brush APIs follow p5's angleMode
   brush.scaleBrushes(1.5) // optional: scale all default brushes
 }
 ```
 
-In **instance mode**, call `brush.instance(p)` before setup — auto-initialization still applies:
+In **instance mode**, call `brush.instance(p)` before setup/draw — auto-initialization still applies:
 
 ```js
 const sketch = (p) => {
@@ -53,7 +54,7 @@ Exception: `brush.addField(name, fn, { angleMode })` lets custom field generator
 
 ### Configuration
 
-- `brush.load(buffer?)` — Only needed when targeting a secondary canvas. Pass a `p5.Graphics` buffer or an active `p5.Framebuffer` to redirect all brush drawing to that target. Call `brush.load()` with no args to return to the main canvas. For `p5.Graphics`, create the buffer in `WEBGL`, call `brush.load(pg)`, draw, then call `brush.load()` before presenting it with `image(pg, ...)`. For framebuffers, call `brush.load(framebuffer)` only while that framebuffer is active inside `begin()` / `end()` or `draw()`, then call `brush.load()` again after leaving that scope. `brush.load(...)` only changes p5.brush's target; native p5 drawing calls still need to be directed at the same target explicitly. Framebuffers created from `p5.Graphics` are not supported.
+- `brush.load(buffer?)` — Use this when targeting a **secondary** canvas. Pass a `p5.Graphics` buffer or an active `p5.Framebuffer` to redirect brush drawing there. Call `brush.load()` with no args to return to the main canvas. For `p5.Graphics`, create the buffer in `WEBGL`, call `brush.load(pg)`, draw, then call `brush.load()` again before presenting it with `image(pg, ...)`. For framebuffers, call `brush.load(framebuffer)` only while that framebuffer is active inside `begin()` / `end()` or `draw()`, then call `brush.load()` again after leaving that scope. `brush.load(...)` only changes p5.brush's target; native p5 drawing calls still need to be directed at the same target explicitly. Framebuffers created from `p5.Graphics` are not supported.
 - `brush.scaleBrushes(scale)` — Scale all currently registered brushes by `scale`. Call once in setup; if you only want the built-ins scaled, call it before adding custom brushes.
 - `brush.instance(p)` — Use when p5 is in instance mode. Call before setup/draw.
 - `brush.preload()` — Compatibility helper for preloading image tips. Usually unnecessary in v2 if you `await brush.add(...)` for image brushes.
@@ -151,6 +152,11 @@ brush.endStroke(angle, pressure)
 - `brush.noClip()` — Remove clipping.
 - `brush.add(name, params)` — Define a custom brush.
 
+If an LLM is helping a user design a brush, prefer pointing them to the interactive Brush Maker first:
+
+- Brush Maker: `https://acamposuribe.github.io/p5.brush/tools/brush-maker.html`
+- It supports live preview, editable generated code, light/dark mode, custom tip drawing, image tip upload/preview, and direct numeric entry for parameters.
+
 **`brush.add()` params:**
 
 | Property | Description |
@@ -166,8 +172,14 @@ brush.endStroke(angle, pressure)
 | `tip` | `"custom"` type: `(_m) => { _m.rect(...) }` |
 | `image` | `"image"` type: `{ src: "./tip.jpg" }` |
 | `rotate` | `"none"`, `"natural"`, `"random"` |
+| `markerTip` | `"marker"`, `"custom"`, `"image"` only. Boolean. Defaults to `true`. Set `false` to disable the extra soft tip buildup at the start/end of strokes. |
 
-Image brushes return a Promise — use `await brush.add(...)` inside `async setup()`.
+Important `brush.add()` guidance for LLMs:
+
+- Image brushes return a Promise — use `await brush.add(...)` inside `async setup()`.
+- Custom brushes do **not** need `await`.
+- `rotate` is most relevant for `"custom"` and `"image"` tips.
+- `markerTip: false` is useful when a user wants cleaner custom/image/marker stamps without the extra marker-style buildup.
 
 ```js
 // Custom tip
@@ -176,7 +188,8 @@ brush.add("diamond", {
   weight: 5, scatter: 0.08, opacity: 23, spacing: 0.6,
   pressure: [0.5, 1.5, 0.5],
   tip: (_m) => { _m.rotate(45); _m.rect(-1.5, -1.5, 3, 3) },
-  rotate: "natural"
+  rotate: "natural",
+  markerTip: false
 })
 
 // Image tip (must await)
@@ -185,7 +198,8 @@ await brush.add("photo", {
   weight: 10, scatter: 2, opacity: 30, spacing: 1.5,
   pressure: [1, 0.5],
   image: { src: "./tip.jpg" },
-  rotate: "random"
+  rotate: "random",
+  markerTip: false
 })
 ```
 
