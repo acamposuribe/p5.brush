@@ -355,8 +355,9 @@ export function circle(x, y, diameter, alpha) {
  * @param {number} size  - Full stamp diameter in user-coord units.
  * @param {number} angle - Rotation in radians.
  * @param {number} alpha - Opacity [0..255].
+ * @param {number} [extraPadding=0] - Conservative extra padding in user units.
  */
-export function stampImage(x, y, size, angle, alpha) {
+export function stampImage(x, y, size, angle, alpha, extraPadding = 0) {
   if (imgCount >= imgCapacity) {
     imgCapacity *= 2;
     const next = new Float32Array(imgCapacity * IMG_FLOATS);
@@ -369,6 +370,7 @@ export function stampImage(x, y, size, angle, alpha) {
   const screenX  = _ma * px + _mc * py + _mx + _halfW;
   const screenY  = _mb * px + _md * py + _my + _halfH;
   const halfSize = (_density * size * _scale) / 2;
+  const extraRadius = _density * extraPadding * _scale;
 
   const base = imgCount * IMG_FLOATS;
   imgData[base]     = screenX;
@@ -380,12 +382,13 @@ export function stampImage(x, y, size, angle, alpha) {
   // Bounding box: rotated square worst-case = circle of radius halfSize * √2
   const dScreenX = screenX * _density;
   const dScreenY = screenY * _density;
+  const boundsRadius = halfSize * 1.42 + extraRadius;
   imgDirtyRect = accumulateDirtyRect(
     imgDirtyRect,
-    dScreenX - halfSize * 1.42 - 1,
-    dScreenY - halfSize * 1.42 - 1,
-    dScreenX + halfSize * 1.42 + 1,
-    dScreenY + halfSize * 1.42 + 1,
+    dScreenX - boundsRadius - 1,
+    dScreenY - boundsRadius - 1,
+    dScreenX + boundsRadius + 1,
+    dScreenY + boundsRadius + 1,
   );
 
   imgCount++;

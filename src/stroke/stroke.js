@@ -174,6 +174,7 @@ export function normalizePressure(p) {
 export function add(name, params) {
   const validTypes = ["marker", "custom", "image", "spray"];
   params.type = validTypes.includes(params.type) ? params.type : "default";
+  if (params.markerTip === undefined) params.markerTip = true;
   // Accept legacy param names for backward compatibility
   if (params.vibration !== undefined && params.scatter === undefined)
     params.scatter = params.vibration;
@@ -479,7 +480,10 @@ function saveState() {
       current.clipMinX = B.minX; current.clipMaxX = B.maxX;
       current.clipMinY = B.minY; current.clipMaxY = B.maxY;
     } else {
-      const o = Cwidth * 0.05;
+      const o =
+        current.p.type === "custom" || current.p.type === "image"
+          ? Math.max(Cwidth * 0.05, getImageTipOverscan())
+          : Cwidth * 0.05;
       current.clipA  = T.a; current.clipB  = T.b;
       current.clipC  = T.c; current.clipD  = T.d;
       current.clipTX = T.tx - T.a * cw2 - T.c * ch2;
@@ -635,6 +639,17 @@ function spacing() {
   return param.spacing;
 }
 
+function getImageTipOverscan() {
+  const maxPressure = Math.max(1, current.max ?? 1);
+  const scatterReach = State.stroke.weight * current.p.scatter;
+  const tipReach = State.stroke.weight * current.p.weight * maxPressure;
+
+  // Custom/image tips can extend beyond their nominal square because the tip
+  // drawing itself may be large and because high scatter creates sparse large
+  // stamps near the edge. Keep culling/dirty tracking conservative.
+  return Math.max(8, scatterReach * 1.5 + tipReach * 0.75);
+}
+
 // ---------------------------------------------------------------------------
 // Brush Tip Rendering Methods
 // ---------------------------------------------------------------------------
@@ -691,13 +706,21 @@ function drawImageTip(pressure, alpha = current.alpha) {
   const rx = vibration * rr(-1, 1);
   const ry = vibration * rr(-1, 1);
   const size = current.p.weight * State.stroke.weight * pressure;
+  const overscan = getImageTipOverscan();
   let angle = 0;
   if (current.p.rotate === "random") {
     angle = randInt(0, 360) * (Math.PI / 180);
   } else if (current.p.rotate === "natural") {
     angle = ((_plot ? -_plot.angle(_position.plotted) : -_dir) + _position.angle()) * (Math.PI / 180);
   }
-  stampImage(_position.x + rx, _position.y + ry, size, angle, alpha * Math.max(0.8, pressure) * rr(0.9,1.1));
+  stampImage(
+    _position.x + rx,
+    _position.y + ry,
+    size,
+    angle,
+    alpha * Math.max(0.8, pressure) * rr(0.9, 1.1),
+    overscan,
+  );
 }
 
 /**
@@ -744,6 +767,7 @@ function drawDefault(pressure, wiggle = 1) {
  * Draws the marker tip with a blend effect.
  */
 function markerTip() {
+  if (current.p.markerTip === false) return;
   if (isInsideClippingArea()) {
     let pressure = calculatePressure();
     let alpha = current.alpha;
@@ -835,6 +859,7 @@ const _vals = [
   "type",
   "tip",
   "rotate",
+  "markerTip",
 ];
 const _standard_brushes = [
   [

@@ -213,7 +213,7 @@
       margin-bottom: 6px;
     }
 
-    .toggle-wrap label {
+    .toggle-wrap > label:not(.toggle) {
       width: 68px;
       color: var(--text-dim);
       font-size: 11px;
@@ -409,7 +409,7 @@
       letter-spacing: 0.06em;
     }
     #multicolor-btn:hover { border-color: var(--accent); color: var(--text); }
-    #multicolor-btn.active { background: var(--accent); border-color: var(--accent); color: #111; font-weight: 700; }
+    #multicolor-btn.active { border-color: var(--accent); color: var(--accent); }
 
     #tip-body {
       width: 100%;
@@ -447,6 +447,28 @@
       align-self: end;
     }
 
+    .asset-layout {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 112px;
+      gap: 10px;
+      align-items: end;
+    }
+
+    #tip-preview-wrap {
+      width: 112px;
+      height: 112px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+      display: grid;
+      place-items: center;
+      background: var(--input-bg);
+    }
+
+    #tip-preview-wrap canvas {
+      display: block;
+    }
+
     .tip-preview-label {
       display: flex;
       justify-content: space-between;
@@ -479,6 +501,31 @@
     #upload-zone.has-image { border-color: #5cb85c; }
     #upload-zone.has-image p { color: #5cb85c; }
     #upload-zone.has-image .upload-icon { color: #5cb85c; }
+
+    #image-preview-wrap {
+      width: 112px;
+      height: 112px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+      display: grid;
+      place-items: center;
+      background: var(--input-bg);
+    }
+
+    #image-preview {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      display: none;
+    }
+
+    #image-preview-wrap.empty::before {
+      content: 'No image';
+      font-size: 10px;
+      color: var(--text-dim);
+      letter-spacing: 0.04em;
+    }
 
     /* HTML label overlay */
     #canvas-wrap { position: relative; }
@@ -581,6 +628,14 @@
       </select>
     </div>
 
+    <div class="toggle-wrap" id="marker-tip-row" style="display:none">
+      <label>marker tip</label>
+      <label class="toggle">
+        <input type="checkbox" id="marker-tip" checked />
+        <span class="slider-track"></span>
+      </label>
+    </div>
+
     <!-- Pressure -->
     <div class="section-label">Pressure</div>
     <div class="pressure-group">
@@ -590,6 +645,14 @@
           <option value="simple">simple</option>
           <option value="gaussian">gaussian</option>
         </select>
+      </div>
+
+      <div class="toggle-wrap" style="margin-top:4px">
+        <label>3-point</label>
+        <label class="toggle">
+          <input type="checkbox" id="pressure-3pt" />
+          <span class="slider-track"></span>
+        </label>
       </div>
 
       <div id="pressure-simple">
@@ -607,13 +670,6 @@
         <label>end</label>
         <input type="range" id="press-end" min="0.1" max="3" step="0.02" value="0.9" />
         <span class="val" id="press-end-val">0.9</span>
-      </div>
-      <div class="toggle-wrap" style="margin-top:4px">
-        <label>3-point</label>
-        <label class="toggle">
-          <input type="checkbox" id="pressure-3pt" />
-          <span class="slider-track"></span>
-        </label>
       </div>
       </div>
 
@@ -655,16 +711,16 @@
         light or white marks become transparent.
       </p>
       <div class="tip-layout">
-        <textarea id="tip-body" spellcheck="false">fill(0);
+        <textarea id="tip-body" spellcheck="false">fill(0, 150);
 rotate(45);
-rect(-4, -4, 8, 8);
-rect(2, 2, 2, 2);</textarea>
+rect(-10, -10, 25, 25);
+rect(10, 10, 15, 15);</textarea>
         <div class="tip-preview-col">
           <div class="tip-preview-label">
             <span>Preview</span>
             <span id="tip-preview-error" style="font-size:9px;color:var(--error);display:none">syntax error</span>
           </div>
-          <div id="tip-preview-wrap" style="width:112px;height:112px;border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;"></div>
+          <div id="tip-preview-wrap"></div>
         </div>
       </div>
     </div>
@@ -672,10 +728,20 @@ rect(2, 2, 2, 2);</textarea>
     <!-- Image upload (image type only) -->
     <div id="image-section" style="display:none">
       <div class="section-label">Image Tip</div>
-      <div id="upload-zone">
-        <div class="upload-icon">↑</div>
-        <p id="upload-label">Click or drag an image here</p>
-        <input type="file" id="image-file" accept="image/*" style="display:none" />
+      <div class="asset-layout">
+        <div id="upload-zone">
+          <div class="upload-icon">↑</div>
+          <p id="upload-label">Click or drag an image here</p>
+          <input type="file" id="image-file" accept="image/*" style="display:none" />
+        </div>
+        <div class="tip-preview-col">
+          <div class="tip-preview-label">
+            <span>Preview</span>
+          </div>
+          <div id="image-preview-wrap" class="empty">
+            <img id="image-preview" alt="Loaded brush tip preview" />
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -691,7 +757,7 @@ rect(2, 2, 2, 2);</textarea>
       <input type="color" id="bg-color" value="#fffceb" />
       <label>ink</label>
       <input type="color" id="stroke-color" value="#1a1a2e" />
-      <button id="multicolor-btn">palette</button>
+      <button id="multicolor-btn">multicolor</button>
     </div>
   </div>
   <div id="canvas-wrap">
@@ -722,6 +788,7 @@ const params = {
   opacity:   170,
   spacing:   0.3,
   rotate:    'natural',
+  markerTip: true,
   pressureMode: 'simple',
   pressStart: 1.1,
   pressMid:   1.5,
@@ -731,9 +798,9 @@ const params = {
   gaussCurveB: 0.2,
   gaussMin: 1.1,
   gaussMax: 0.9,
-  multicolor: false,
+  multicolor: true,
   referenceBrush: 'HB',
-  tipBody: 'fill(0);\nrotate(45);\nrect(-4, -4, 8, 8);\nrect(2, 2, 2, 2);',
+  tipBody: 'fill(0, 150);\nrotate(45);\nrect(-10, -10, 25, 25);\nrect(10, 10, 15, 15);',
   imageDataUrl: null,
   imageSrc: './your-image.jpg',
   bgColor:    '#fffceb',
@@ -835,12 +902,15 @@ function generateCode() {
   const imageField = p.type === 'image'
     ? `  image: { src: "${p.imageSrc}" },\n`
     : '';
+  const markerTipField = (p.type === 'marker' || p.type === 'custom' || p.type === 'image')
+    ? `  markerTip: ${p.markerTip},\n`
+    : '';
 
   const prefix = p.type === 'image'
     ? '// Image brushes must be awaited inside async setup()\nawait '
     : '';
 
-  return `${prefix}brush.add("${p.name}", {\n  type:    "${p.type}",\n  weight:  ${p.weight},\n  scatter: ${p.scatter},\n${typeSpecific}  opacity: ${p.opacity},\n  spacing: ${p.spacing},\n  pressure: ${pressure},\n  rotate:  "${p.rotate}",\n${imageField}${tipField}});`;
+  return `${prefix}brush.add("${p.name}", {\n  type:    "${p.type}",\n  weight:  ${p.weight},\n  scatter: ${p.scatter},\n${typeSpecific}  opacity: ${p.opacity},\n  spacing: ${p.spacing},\n  pressure: ${pressure},\n  rotate:  "${p.rotate}",\n${markerTipField}${imageField}${tipField}});`;
 }
 
 function updateCode() {
@@ -994,19 +1064,19 @@ const TYPE_PRESETS = {
     weight: 6, scatter: 0.36, sharpness: null, grain: null,
     opacity: 1, spacing: 0.09, pressStart: 1.2, pressEnd: 0.85,
     gaussCurveA: 0.35, gaussCurveB: 0.25, gaussMin: 1.2, gaussMax: 0.85,
-    rotate: 'none', referenceBrush: 'marker',
+    rotate: 'none', markerTip: true, referenceBrush: 'marker',
   },
   custom: {
-    weight: 40, scatter: 0.15, sharpness: null, grain: null,
-    opacity: 10, spacing: 2.5, pressStart: 0.8, pressEnd: 1.2,
+    weight: 29, scatter: 0.45, sharpness: null, grain: null,
+    opacity: 6, spacing: 0.4, pressStart: 0.8, pressEnd: 1.2,
     gaussCurveA: 0.15, gaussCurveB: 0.2, gaussMin: 1.1, gaussMax: 0.9,
-    rotate: 'none', referenceBrush: 'HB',
+    rotate: 'none', markerTip: true, referenceBrush: 'HB',
   },
   image: {
-    weight: 40, scatter: 0.15, sharpness: null, grain: null,
-    opacity: 10, spacing: 2.5, pressStart: 0.8, pressEnd: 1.2,
+    weight: 17, scatter: 0.15, sharpness: null, grain: null,
+    opacity: 47, spacing: 9.5, pressStart: 0.8, pressEnd: 1.2,
     gaussCurveA: 0.15, gaussCurveB: 0.2, gaussMin: 1.1, gaussMax: 0.9,
-    rotate: 'random', referenceBrush: 'HB',
+    rotate: 'random', markerTip: true, referenceBrush: 'HB',
   },
 };
 
@@ -1020,6 +1090,7 @@ function updatePressureModeUI() {
 function updateTypeUI() {
   const isCustom = params.type === 'custom';
   const isImage = params.type === 'image';
+  const showMarkerTip = params.type === 'marker' || isCustom || isImage;
   const showGrain = params.type === 'default' || params.type === 'spray';
   const showSharpness = params.type === 'default';
   const ranges = SLIDER_RANGES[params.type];
@@ -1027,6 +1098,7 @@ function updateTypeUI() {
   document.getElementById('brush-type').value = params.type;
   document.getElementById('weight-row').style.display = '';
   document.getElementById('rotate-row').style.display = (isCustom || isImage) ? '' : 'none';
+  document.getElementById('marker-tip-row').style.display = showMarkerTip ? 'flex' : 'none';
   document.getElementById('sharpness-row').style.display = showSharpness ? '' : 'none';
   document.getElementById('grain-row').style.display = showGrain ? '' : 'none';
   document.getElementById('tip-section').style.display = isCustom ? '' : 'none';
@@ -1065,8 +1137,10 @@ function applyTypePreset(type) {
   params.gaussMin = preset.gaussMin; applySliderValue('gauss-min', preset.gaussMin);
   params.gaussMax = preset.gaussMax; applySliderValue('gauss-max', preset.gaussMax);
   params.rotate    = preset.rotate;
+  params.markerTip = preset.markerTip ?? true;
   params.referenceBrush = preset.referenceBrush;
   document.getElementById('rotate').value = preset.rotate;
+  document.getElementById('marker-tip').checked = params.markerTip;
 
   if (preset.sharpness !== null) {
     params.sharpness = preset.sharpness;
@@ -1101,11 +1175,13 @@ function syncControlsFromParams() {
   }
 
   document.getElementById('rotate').value = params.rotate;
+  document.getElementById('marker-tip').checked = params.markerTip;
   document.getElementById('pressure-3pt').checked = params.pressure3pt;
   document.getElementById('pressure-mid-row').style.display = params.pressure3pt ? 'flex' : 'none';
   updatePressureModeUI();
   document.getElementById('tip-body').value = params.tipBody;
   updatePreviewTipFn();
+  updateImagePreview();
 }
 
 function extractTipBody(fn) {
@@ -1144,6 +1220,7 @@ function applyGeneratedCode(source, reformat = false) {
   if (cfg.grain !== undefined) applySliderValue('grain', cfg.grain);
 
   if (cfg.rotate) params.rotate = cfg.rotate;
+  if (cfg.markerTip !== undefined) params.markerTip = !!cfg.markerTip;
 
   if (Array.isArray(cfg.pressure)) {
     params.pressureMode = 'simple';
@@ -1203,6 +1280,12 @@ document.getElementById('rotate').addEventListener('change', e => {
   updateCode();
 });
 
+document.getElementById('marker-tip').addEventListener('change', e => {
+  params.markerTip = e.target.checked;
+  needsRebuild = true;
+  updateCode();
+});
+
 
 document.getElementById('brush-name').addEventListener('input', e => {
   params.name = e.target.value || 'myBrush';
@@ -1226,9 +1309,15 @@ document.getElementById('pressure-mode').addEventListener('change', e => {
 
 const PALETTE = ["#002185", "#003c32", "#fcd300", "#ff2702", "#6b9404"];
 
+function updateMulticolorButton() {
+  const btn = document.getElementById('multicolor-btn');
+  btn.classList.toggle('active', params.multicolor);
+  btn.textContent = params.multicolor ? 'multicolor' : 'monochrome';
+}
+
 document.getElementById('multicolor-btn').addEventListener('click', () => {
   params.multicolor = !params.multicolor;
-  document.getElementById('multicolor-btn').classList.toggle('active', params.multicolor);
+  updateMulticolorButton();
 });
 
 document.getElementById('bg-color').addEventListener('input', e => {
@@ -1268,6 +1357,7 @@ codeOutputEl.addEventListener('blur', () => {
 });
 
 syncControlsFromParams();
+updateMulticolorButton();
 updateCode();
 
 // ─────────────────────────────────────────────
@@ -1278,15 +1368,31 @@ function handleImageFile(file) {
   const reader = new FileReader();
   reader.onload = (e) => {
     params.imageDataUrl = e.target.result;
-    params.imageSrc = file.name;
+    params.imageSrc = './brush.jpg';
     document.getElementById('upload-label').textContent = file.name;
     const zone = document.getElementById('upload-zone');
     zone.classList.add('has-image');
     zone.querySelector('.upload-icon').textContent = '✓';
+    updateImagePreview();
     needsRebuild = true;
     updateCode();
   };
   reader.readAsDataURL(file);
+}
+
+function updateImagePreview() {
+  const img = document.getElementById('image-preview');
+  const wrap = document.getElementById('image-preview-wrap');
+  if (!params.imageDataUrl) {
+    img.removeAttribute('src');
+    img.style.display = 'none';
+    wrap.classList.add('empty');
+    return;
+  }
+
+  img.src = params.imageDataUrl;
+  img.style.display = 'block';
+  wrap.classList.remove('empty');
 }
 
 const uploadZone = document.getElementById('upload-zone');
@@ -1318,6 +1424,7 @@ fetch('../example/brush_tips/brush.jpg')
       const zone = document.getElementById('upload-zone');
       zone.classList.add('has-image');
       zone.querySelector('.upload-icon').textContent = '✓';
+      updateImagePreview();
       // trigger rebuild if already in image mode
       if (params.type === 'image') { needsRebuild = true; updateCode(); }
     };
@@ -1363,6 +1470,10 @@ const sketch = (p) => {
       pressure: pr,
       rotate:   params.rotate,
     };
+
+    if (params.type === 'marker' || params.type === 'custom' || params.type === 'image') {
+      cfg.markerTip = params.markerTip;
+    }
 
     if (params.type === 'default' || params.type === 'spray') {
       cfg.sharpness = params.sharpness;
@@ -1432,7 +1543,7 @@ const sketch = (p) => {
     brush.set(params.name, c(0), 1);
     brush.noFill();
     brush.noHatch();
-    brush.circle(110, 260, 130, 0.1);
+    brush.circle(200, 260, 130, 0.1);
 
     // ── 3. rect() stroked — right middle ──────────
     brush.set(params.name, c(1), 1);

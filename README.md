@@ -304,6 +304,7 @@ Functions for managing brush behaviors and properties.
       - `tip`: Only for `"custom"` type. A function where you draw the tip shape using p5.js commands inside a small graphics buffer `_m`.
       - `image`: Only for `"image"` type. An object with a `src` property pointing to your image file: `{ src: "./tip.jpg" }`.
       - `rotate`: How the tip rotates as it moves. `"none"` keeps it fixed, `"natural"` follows the stroke direction, `"random"` spins randomly.
+      - `markerTip`: Only for `"marker"`, `"custom"`, and `"image"` types. Set to `false` to disable the extra soft tip buildup those brushes add at the start and end of each stroke. Defaults to `true`.
   - **Usage**:
     ```javascript
     // Image brush — use a photo as the brush tip.
@@ -322,6 +323,7 @@ Functions for managing brush behaviors and properties.
             pressure: [1, 0.5],   // starts thick, ends thin
             image: { src: "./brush_tips/brush.jpg" },
             rotate: "random",
+            markerTip: false,
         });
 
         // Now you can draw with it!
@@ -343,6 +345,7 @@ Functions for managing brush behaviors and properties.
             _m.rect(-1.5, -1.5, 3, 3);
         },
         rotate: "natural",
+        markerTip: false,
     });
 
     // Advanced: explicitly use the built-in Gaussian pressure mode
