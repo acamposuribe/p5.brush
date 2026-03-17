@@ -313,6 +313,25 @@ class FillPoly {
       dir[dst] = this.dir[i];
     }
 
+
+    // We want to add at least two vertices to divide the new edge that appears after trimming, at random distances along its path
+    const trimStart = s;
+    const trimEnd = s + n;
+    const edgeStart = this.v[(trimStart - 1 + this.v.length) % this.v.length];
+    const edgeEnd = this.v[trimEnd % this.v.length];
+    const edgeVec = { x: edgeEnd.x - edgeStart.x, y: edgeEnd.y - edgeStart.y };
+    
+    // Insert two new vertices at random positions along the new edge
+    const insertCount = 2;
+    for (let i = 0; i < insertCount; i++) {
+      const t = rr(0.25, 0.75); // Random position between 25% and 75% along the edge
+      const newVertex = { x: edgeStart.x + edgeVec.x * t, y: edgeStart.y + edgeVec.y * t };
+      const insertIdx = s + i;
+      v.splice(insertIdx, 0, newVertex);
+      m.splice(insertIdx, 0, rr(0.4, 0.7));
+      dir.splice(insertIdx, 0, this.dir[trimStart % this.dir.length]);
+    }
+
     return { v, m, dir };
   }
 
@@ -402,6 +421,20 @@ class FillPoly {
       const di = tr_dir[i];
 
       if (f < 997) mod = mi;
+
+      // If mod is smaller than 0.02, skip growing math and just insert the middle vertex
+      if (mod < 0.05) {
+        newMods[idx] = mi;
+        newDirs[idx] = di;
+        idx++;
+        insertedX[insertedIdx] = (cv.x + nv.x) / 2;
+        insertedY[insertedIdx] = (cv.y + nv.y) / 2;
+        newMods[idx] = mi;
+        newDirs[idx] = di;
+        idx++;
+        insertedIdx++;
+        continue;
+      }
 
       const rotDeg = (di ? bleedDirDeg : -bleedDirDeg) + rr(-1, 1) * 5;
       const c = cos(rotDeg);
@@ -636,7 +669,9 @@ Plot.prototype.fill = function (x, y, scale) {
       x,
       y,
       scale,
-      map(State.fill.bleed_strength, 0, 0.6, 0.3, 0.60, true),
+      State.fill.bleed_strength < 0.06
+      ? 0
+      : map(State.fill.bleed_strength, 0, 0.6, 0.2, 0.60, true),
     );
     this.pol.fill();
   }
