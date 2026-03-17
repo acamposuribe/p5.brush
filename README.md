@@ -6,7 +6,8 @@ p5.brush.js adds natural drawing tools to p5.js — pencils, charcoal, markers, 
 
 [Visit the library website here! (more examples soon)](https://p5-brush.cargo.site/)
 
-> 🖌️ **[Try the interactive Brush Maker →](https://acamposuribe.github.io/p5.brush/tools/brush-maker.html)**
+> 🖌️ **[Try the interactive Brush Maker →](https://acamposuribe.github.io/p5.brush/tools/brush-maker.html)**  
+> 🌊 **[Try the interactive Flow Field Generator →](https://acamposuribe.github.io/p5.brush/tools/flowfield-maker.html)**
 > Design custom brushes with live preview and generate ready-to-paste `brush.add()` code.
 
 > ▶️ **[Check the teaser live →](https://editor.p5js.org/acamposuribe/sketches/bkb_CyJyi)**
@@ -283,6 +284,7 @@ Functions for managing brush behaviors and properties.
 ---
 
 - `brush.add(name, params)` — **[Design your brush visually with the Brush Maker ↗](https://acamposuribe.github.io/p5.brush/tools/brush-maker.html)**
+- `brush.addField(name, generatorFunction, options)` — **[Design your field visually with the Flow Field Generator ↗](https://acamposuribe.github.io/p5.brush/tools/flowfield-maker.html)**
   - **Description**: Creates a new brush with your own settings. Once added, you use it just like any built-in brush with `brush.set("myBrush", color, size)`.
   - **Parameters**:
     - `name` (String): A name for your brush — pick anything you like.

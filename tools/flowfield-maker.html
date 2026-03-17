@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>p5.brush — Flow Field Maker</title>
+  <title>p5.brush — Flow Field Generator</title>
   <script src="https://cdn.jsdelivr.net/npm/p5@2.1.1/lib/p5.min.js"></script>
   <script src="../dist/p5.brush.js"></script>
   <style>
@@ -276,6 +276,10 @@
       word-break: break-word;
     }
 
+    #code-output.invalid {
+      background: rgba(255, 102, 102, 0.06);
+    }
+
     #viewport {
       flex: 1;
       display: flex;
@@ -417,7 +421,7 @@
 <div id="panel">
   <div id="panel-header">
     <div>
-      <h1>p5.brush · Flow Field Maker</h1>
+      <h1>p5.brush · Flow Field Generator</h1>
       <p>Adjust params — preview updates live</p>
     </div>
     <button id="theme-btn" type="button">LIGHT</button>
@@ -650,7 +654,7 @@
     <span>Generated Code</span>
     <button id="copy-btn" type="button">COPY</button>
   </div>
-  <textarea id="code-output" spellcheck="false" readonly></textarea>
+  <textarea id="code-output" spellcheck="false"></textarea>
 </div>
 
 <script>
@@ -712,6 +716,7 @@ let isPlaying = false;
 let holdDir = 0;
 let holdFrame = 0;
 let holdLastTs = 0;
+let codePreviewEntry = null;
 
 function applyTheme(theme) {
   document.body.dataset.theme = theme;
@@ -925,6 +930,38 @@ function buildCode() {
 
 function updateCode() {
   codeOutputEl.value = buildCode();
+  syncCodePreview();
+}
+
+function parseGeneratedFieldCode(source) {
+  let entry = null;
+  const brushMock = {
+    addField(name, generatorFunction, options = {}) {
+      entry = { name, generatorFunction, options };
+    },
+  };
+  new Function("brush", `"use strict";\n${source}\n`)(brushMock);
+  if (!entry || typeof entry.generatorFunction !== "function") {
+    throw new Error("Could not parse brush.addField(...)");
+  }
+  return entry;
+}
+
+function syncCodePreview() {
+  const source = codeOutputEl.value.trim();
+  if (!source || source.startsWith("// No field selected.")) {
+    codePreviewEntry = null;
+    codeOutputEl.classList.remove("invalid");
+    return false;
+  }
+  try {
+    codePreviewEntry = parseGeneratedFieldCode(source);
+    codeOutputEl.classList.remove("invalid");
+    return true;
+  } catch (_error) {
+    codeOutputEl.classList.add("invalid");
+    return false;
+  }
 }
 
 function refreshSeed() {
@@ -1065,6 +1102,10 @@ document.getElementById("copy-btn").addEventListener("click", () => {
   });
 });
 
+codeOutputEl.addEventListener("input", () => {
+  if (syncCodePreview()) queueRender();
+});
+
 wire("curved-angle-min", "curvedAngleMin");
 wire("curved-angle-max", "curvedAngleMax");
 wire("curved-scale", "curvedScale");
@@ -1110,9 +1151,11 @@ function renderPreview() {
   push();
   translate(-width / 2, -height / 2);
 
-  const previewGenerator = buildPreviewGenerator();
-  if (previewGenerator) {
-    brush.addField(PREVIEW_FIELD, previewGenerator);
+  const previewEntry = codePreviewEntry
+    ? { generator: codePreviewEntry.generatorFunction, options: codePreviewEntry.options || {} }
+    : { generator: buildPreviewGenerator(), options: {} };
+  if (previewEntry.generator) {
+    brush.addField(PREVIEW_FIELD, previewEntry.generator, previewEntry.options);
     brush.field(PREVIEW_FIELD);
     brush.refreshField(params.time);
   }
@@ -1143,7 +1186,7 @@ function renderPreview() {
     brush.circle(width * 0.5, height * 0.5, width * 0.25, 0.3);
   }
 
-  if (previewGenerator) brush.noField();
+  if (previewEntry.generator) brush.noField();
   pop();
 }
 
