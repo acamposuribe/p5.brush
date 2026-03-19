@@ -92,7 +92,13 @@ Hatching draws parallel lines inside shapes. Activate before drawing a shape, di
 - `brush.hatch(dist, angle, options?)` — Enable hatching. `dist` = spacing in canvas units, `angle` is interpreted using the current `angleMode()` when `brush.hatch()` is called. Options: `{rand: 0–1, continuous: bool, gradient: 0–1}`.
 - `brush.noHatch()` — Disable hatching.
 - `brush.hatchStyle(name, color, weight)` — Set brush used for hatching (independent of stroke brush).
-- `brush.mass(brush, color, options?)` — Enable massing: layered hand-filled value built from internal hatch geometry and curved gestures. Options: `{precision: 0–1, strength: 0–1, gradient: 0–1, outline: bool}`.
+- `brush.mass(brushName, color, options?)` — Enable a dry-media, hand-filled hatched fill for subsequent shapes. It emulates hand movement, is built from internal hatch geometry and curved gestures, and works best with crayon or pastel brushes. Unlike `brush.fill()`, which simulates watercolor transparency, `mass()` builds denser, more opaque pigment layers, so overlapping shapes can mix color in a pigment-like way and draw order matters.
+- `brush.mass(...)` does not inherit the current brush from `brush.set()` or `brush.pick()`; `brushName` is required explicitly.
+- `brush.mass(...)` options:
+- `precision` = 0–1 control over hand jitter and hatch irregularity. Lower values feel rougher and looser; higher values feel steadier and more controlled.
+- `strength` = 0–1 control over how many internal mass passes are drawn. Low values use a single pass, mid values add a second pass, and high values build all three passes for denser pigment.
+- `gradient` = 0–1 directional fade across the mass. It also slightly tightens the internal hatch spacing as the gradient increases.
+- `outline` = whether to draw the shape's outer contour with the same brush and color before the mass fill.
 - `brush.noMass()` — Disable massing.
 - `brush.hatchArray(polygons)` — Apply current hatch style directly to a `brush.Polygon` or array of polygons.
 
