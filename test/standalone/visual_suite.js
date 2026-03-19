@@ -1,7 +1,7 @@
 import * as brush from "../../dist/brush.esm.js";
 
-const CANVAS_W = 1240;
-const CANVAS_H = 3200;
+const CANVAS_W = 1400;
+const CANVAS_H = 5200;
 const MARGIN = 50;
 const LABEL_W = 175;
 const ROW_H = 56;
@@ -65,7 +65,7 @@ async function main() {
   brush.angleMode(brush.DEGREES);
   brush.seed(42);
   brush.noiseSeed(42);
-  brush.clear("#f5f5f5");
+  brush.clear("#ffffff");
 
   await brush.add("imageTip", {
     type: "image",

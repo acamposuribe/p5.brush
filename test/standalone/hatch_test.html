@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>brush.js Standalone Hatch Test</title>
+    <title>Hatch Test</title>
     <style>
       * { box-sizing: border-box; }
 
@@ -17,7 +17,7 @@
       }
 
       main {
-        width: min(1400px, calc(100vw - 24px));
+        width: min(1240px, calc(100vw - 24px));
         margin: 0 auto;
         padding: 18px 0 24px;
         display: grid;
@@ -72,9 +72,12 @@
   <body>
     <main>
       <div class="nav"><a href="../index.html">All tests</a></div>
-      <h1>Standalone Hatch Test</h1>
+      <h1>Hatch Test</h1>
       <p>
-        Exercises the hatch module in the standalone build: angle sweep, spacing, rand, gradient, continuous, cross-hatching, shapes, and combined options.
+        Coverage page for hatch angle, spacing, randomization, gradients, continuity, cross-hatching, brush styles, and multi-polygon inputs.
+      </p>
+      <p>
+        Panels should show stable hatch geometry and predictable option changes without clipping or ordering glitches.
       </p>
       <div id="canvas-host"></div>
       <script type="module" src="./hatch_test.js"></script>
