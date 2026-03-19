@@ -96,9 +96,7 @@ function hatchInPanel(x, y, w, h, polyFn, hatchSetup, brushName, brushColor) {
   brush.noFill();
   hatchSetup();
   brush.hatchStyle(brushName || "HB", brushColor || INK, 1);
-  brush.clip([x, y, x + w, y + h]);
   poly.hatch();
-  brush.noClip();
   brush.noHatch();
 }
 
@@ -283,15 +281,13 @@ function draw() {
 
       brush.hatch(8, cp.a1);
       brush.hatchStyle("HB", col(i * 2), 1);
-      brush.clip([x, y, x + w, y + h]);
       poly.hatch();
-      brush.noClip(); brush.noHatch();
+      brush.noHatch();
 
       brush.hatch(8, cp.a2);
       brush.hatchStyle("HB", col(i * 2 + 1), 1);
-      brush.clip([x, y, x + w, y + h]);
       poly.hatch();
-      brush.noClip(); brush.noHatch();
+      brush.noHatch();
     },
   })));
 
@@ -349,4 +345,5 @@ function draw() {
   // ================================================================
   image(labelBuf, 0, 0);
   console.log("Hatch test complete");
+  window.reportP5FirstFrame?.("hatch_test");
 }

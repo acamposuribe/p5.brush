@@ -113,4 +113,5 @@ function draw() {
     brush.noMass();
   }
   noLoop();
+  window.reportP5FirstFrame?.("pastel_hatching_test");
 }

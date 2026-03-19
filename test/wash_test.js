@@ -55,6 +55,7 @@ function setup() {
 
 function draw() {
   drawRandomWashSet();
+  window.reportP5FirstFrame?.("wash_test");
 }
 
 refreshSeedButton.addEventListener("click", () => {
