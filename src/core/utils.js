@@ -1,4 +1,4 @@
-import { Renderer } from "./target.js";
+import { usesRadians as runtimeUsesRadians } from "./runtime.js";
 
 // =============================================================================
 // Section: Randomness & Noise
@@ -207,13 +207,7 @@ export const sin = (angle) => {
  * @returns {number}
  */
 export const toDegrees = (rad, isRad = false) => {
-  const usesRadians =
-    isRad ||
-    (Renderer &&
-      typeof Renderer.angleMode === "function" &&
-      Renderer.angleMode() === Renderer.RADIANS);
-  // Only if Renderer.angleMode() is set to radians
-  if (usesRadians) {
+  if (isRad || runtimeUsesRadians()) {
     let angle = ((rad * 180) / Math.PI) % 360;
     return angle < 0 ? angle + 360 : angle;
   } else {
@@ -229,10 +223,7 @@ export const toDegrees = (rad, isRad = false) => {
  * @returns {number}
  */
 export const toDegreesSigned = (angle, isRad = false) =>
-  isRad ||
-  (Renderer &&
-    typeof Renderer.angleMode === "function" &&
-    Renderer.angleMode() === Renderer.RADIANS)
+  isRad || runtimeUsesRadians()
     ? (angle * 180) / Math.PI
     : angle;
 

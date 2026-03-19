@@ -1,0 +1,80 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>brush.js - Standalone Push/Pop Test</title>
+    <style>
+      * { box-sizing: border-box; }
+
+      body {
+        margin: 0;
+        color: #22313f;
+        background:
+          radial-gradient(circle at top left, rgba(20, 48, 73, 0.08), transparent 24%),
+          linear-gradient(180deg, #f7f2e7 0%, #ece3d3 100%);
+        font-family: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", Palatino, serif;
+      }
+
+      main {
+        width: min(920px, calc(100vw - 24px));
+        margin: 0 auto;
+        padding: 18px 0 24px;
+        display: grid;
+        justify-items: center;
+      }
+
+      main > * { width: 100%; }
+
+      .nav {
+        margin-bottom: 14px;
+        font: 11px/1.2 Menlo, Monaco, "Courier New", monospace;
+      }
+
+      .nav a { color: #153e5c; text-decoration: none; }
+      .nav a:hover { text-decoration: underline; }
+
+      h1 {
+        margin: 0 0 8px;
+        font-size: clamp(24px, 3.6vw, 34px);
+        letter-spacing: -0.04em;
+      }
+
+      p {
+        max-width: 760px;
+        margin: 0 0 8px;
+        color: #52616e;
+        line-height: 1.45;
+        font-size: 13px;
+      }
+
+      #canvas-host {
+        margin-top: 18px;
+        display: grid;
+        justify-content: center;
+        width: 100%;
+      }
+
+      canvas {
+        display: block;
+        max-width: 100%;
+        height: auto !important;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <div class="nav"><a href="../index.html">All tests</a></div>
+      <h1>Standalone Push / Pop State Test</h1>
+      <p>
+        Each column proves that standalone <b>push()</b> and <b>pop()</b> restore both transform and brush state.
+      </p>
+      <p>
+        Column 1 checks stroke color, column 2 checks stroke weight and brush type, and column 3 checks fill color and opacity. The “after pop” row should match the “before” row exactly.
+      </p>
+      <div id="canvas-host"></div>
+
+      <script type="module" src="./pushpop.js"></script>
+    </main>
+  </body>
+</html>

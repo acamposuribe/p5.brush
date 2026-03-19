@@ -15,6 +15,13 @@ import {
   unionDirtyRect,
   getFullDirtyRect as getFullRect,
 } from "./dirty_rect.js";
+import {
+  clearTarget as clearRenderTarget,
+  ensureBlendShaderProgram,
+  ensureBlendSourceFramebuffer,
+  runBlendShaderPass,
+  blitSourceToFramebuffer,
+} from "./compositor_runtime.js";
 
 import vertSrc from "./gl/shader.vert";
 import fragSrc from "./gl/shader.frag";
@@ -40,18 +47,7 @@ export const registerFillComposite = (composite) => {
 };
 
 const clearTarget = (target) => {
-  if (!target) return;
-
-  if (isFramebufferTarget(target)) {
-    target.draw(() => Renderer.clear());
-    return;
-  }
-
-  const ctx = target.drawingContext;
-  ctx.save();
-  ctx.setTransform(1, 0, 0, 1, 0, 0);
-  ctx.clearRect(0, 0, target.width, target.height);
-  ctx.restore();
+  clearRenderTarget(Renderer, target, isFramebufferTarget);
 };
 
 // =============================================================================
@@ -187,7 +183,7 @@ export const Mix = {
   /**
    * Resolves the region that should be composited back into the destination.
    * @param {object} target - Mask buffer being sampled.
-   * @param {boolean} isBrushMask - True when compositing the WEBGL brush mask.
+   * @param {boolean} isBrushMask - True when compositing the GL brush mask.
    * @returns {{minX:number,minY:number,maxX:number,maxY:number}|null} Composite rect.
    */
   getCompositeRect(target, isBrushMask) {
@@ -215,10 +211,7 @@ export const Mix = {
         Renderer.blendSourceFramebuffer.height !== Cheight ||
         (typeof Renderer.blendSourceFramebuffer.pixelDensity === "function" &&
           Renderer.blendSourceFramebuffer.pixelDensity() !== Density);
-    if (!Renderer.loaded) {
-      Renderer.loaded = true;
-      Renderer.shaderProgram ??= Renderer.createShader(vertSrc, fragSrc);
-    }
+    ensureBlendShaderProgram(Renderer, vertSrc, fragSrc);
 
     this.glMask = strokeComposite?.ensureResources?.(
       Renderer,
@@ -238,17 +231,13 @@ export const Mix = {
     };
 
     if (needsBlendSourceFramebuffer) {
-      if (Renderer.blendSourceFramebuffer?.remove) {
-        Renderer.blendSourceFramebuffer.remove();
-      }
-      Renderer.blendSourceFramebuffer = Renderer.createFramebuffer({
-        width: Cwidth,
-        height: Cheight,
-        density: Density,
-        antialias: false,
-        depth: false,
-        stencil: false,
-      });
+      Renderer.blendSourceFramebuffer = ensureBlendSourceFramebuffer(
+        Renderer,
+        Renderer.blendSourceFramebuffer,
+        Cwidth,
+        Cheight,
+        Density,
+      );
     }
 
     this.mask = fillResources.mask;
@@ -305,7 +294,7 @@ export const Mix = {
   /**
    * Runs the blend shader over a mask and composites the result into the active renderer.
    * @param {object} mask - Mask buffer to composite.
-   * @param {boolean} isBrushMask - True when compositing the WEBGL brush mask.
+   * @param {boolean} isBrushMask - True when compositing the GL brush mask.
    */
   applyShader(mask, isBrushMask) {
     if (!mask?.isDrawn) return;
@@ -319,44 +308,42 @@ export const Mix = {
     const gl = Renderer.drawingContext;
     const shader = Renderer.shaderProgram;
     const activeFramebuffer = getActiveFramebuffer();
-    const source = blitToBlendSourceFramebuffer(activeFramebuffer ?? Renderer, dirtyRect);
+    const source = blitSourceToFramebuffer({
+      renderer: Renderer,
+      sourceTarget: activeFramebuffer ?? Renderer,
+      sourceFramebuffer: Renderer.blendSourceFramebuffer,
+      dirtyRect,
+      isFramebufferTarget,
+      Cwidth,
+      Cheight,
+      getTargetPixelSize,
+      toScissorBox,
+      withScissor,
+    });
     const targetIsFramebuffer = !!activeFramebuffer;
-    const hadDepthTest = gl.getParameter(gl.DEPTH_TEST);
-
-    // This pass is a fullscreen compositing rect, not scene geometry, so it
-    // should not participate in the sketch's depth buffer.
-    gl.disable(gl.DEPTH_TEST);
-
-    Renderer.push();
-    Renderer.translate(0, 0);
-    Renderer.shader(shader);
-
-    shader.setUniform("u_source", source);
-    shader.setUniform("u_targetIsFramebuffer", targetIsFramebuffer);
-    shader.setUniform("u_isBrush", isBrushMask);
     const composite = isBrushMask ? strokeComposite : fillComposite;
-    shader.setUniform(
-      "u_mask",
-      composite.getShaderMask(
-        Renderer,
-        mask,
-        dirtyRect,
-        normalizeDirtyRect,
-        getFullDirtyRect,
-        clearTarget,
-      ),
+    const shaderMask = composite.getShaderMask(
+      Renderer,
+      mask,
+      dirtyRect,
+      normalizeDirtyRect,
+      getFullDirtyRect,
+      clearTarget,
     );
-    shader.setUniform("u_color", this.cachedColor);
 
-    withScissor(gl, dirtyRect, () => {
-      Renderer.fill(0, 0, 0, 0);
-      Renderer.noStroke();
-      Renderer.rect(-Cwidth / 2, -Cheight / 2, Cwidth, Cheight);
-    }, !targetIsFramebuffer);
-
-    Renderer.pop();
-    Renderer.resetShader();
-    if (hadDepthTest) gl.enable(gl.DEPTH_TEST);
+    runBlendShaderPass({
+      renderer: Renderer,
+      shader,
+      source,
+      mask: shaderMask,
+      color: this.cachedColor,
+      isBrushMask,
+      Cwidth,
+      Cheight,
+      dirtyRect,
+      targetIsFramebuffer,
+      withScissor,
+    });
     this.clearMask(mask);
   },
 };
@@ -380,63 +367,9 @@ export const flushActiveComposite = () => {
  * Loads and initializes the drawing target, then refreshes compositing
  * resources if the renderer was already active.
  *
- * @param {p5.Graphics|p5.Framebuffer|false} [buffer=false] - Optional offscreen target.
+ * @param {object|false} [buffer=false] - Optional offscreen target.
  */
 export const load = (buffer = false) => {
   loadTarget(buffer);
   if (Renderer.loaded) Mix.load();
-};
-
-/**
- * Copies the current pixels of a renderer or framebuffer into the reusable
- * blend source framebuffer.
- * @param {p5|p5.Graphics|p5.Framebuffer} sourceTarget - Source to copy from.
- * @param {{minX:number,minY:number,maxX:number,maxY:number}|null} [dirtyRect=null] - Optional copy region.
- * @returns {p5.Framebuffer} Blend source framebuffer after the blit.
- */
-const blitToBlendSourceFramebuffer = (sourceTarget, dirtyRect = null) => {
-  const sourceFramebuffer = Renderer.blendSourceFramebuffer;
-  const gl = Renderer.drawingContext;
-  const sourceIsFramebuffer = isFramebufferTarget(sourceTarget);
-  const { width, height } = getTargetPixelSize();
-  const sourceBox = dirtyRect ? toScissorBox(dirtyRect) : null;
-  const previousReadFramebuffer = gl.getParameter(gl.READ_FRAMEBUFFER_BINDING);
-  const previousDrawFramebuffer = gl.getParameter(gl.DRAW_FRAMEBUFFER_BINDING);
-
-  (sourceIsFramebuffer ? sourceTarget.renderer : Renderer._renderer)?.flushDraw?.();
-
-  if (sourceIsFramebuffer) {
-    sourceFramebuffer.draw(() => {
-      withScissor(Renderer.drawingContext, dirtyRect, () => {
-        Renderer.clear();
-        Renderer.push();
-        Renderer.imageMode(Renderer.CENTER);
-        Renderer.image(sourceTarget, 0, 0, Cwidth, Cheight);
-        Renderer.pop();
-      }, false);
-    });
-    return sourceFramebuffer;
-  }
-
-  gl.bindFramebuffer(gl.READ_FRAMEBUFFER, null);
-  gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, sourceFramebuffer.framebuffer);
-  gl.clearColor(0, 0, 0, 0);
-  gl.clear(gl.COLOR_BUFFER_BIT);
-  gl.blitFramebuffer(
-    sourceBox?.x ?? 0,
-    sourceBox?.y ?? 0,
-    sourceBox ? sourceBox.x + sourceBox.width : width,
-    sourceBox ? sourceBox.y + sourceBox.height : height,
-    sourceBox?.x ?? 0,
-    sourceBox?.y ?? 0,
-    sourceBox ? sourceBox.x + sourceBox.width : width,
-    sourceBox ? sourceBox.y + sourceBox.height : height,
-    gl.COLOR_BUFFER_BIT,
-    gl.NEAREST,
-  );
-
-  gl.bindFramebuffer(gl.READ_FRAMEBUFFER, previousReadFramebuffer);
-  gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, previousDrawFramebuffer);
-
-  return sourceFramebuffer;
 };

@@ -12,7 +12,7 @@
  */
 
 // Core imports
-import { Cwidth, Cheight, Renderer, Instance, isCanvasReady } from "../core/target.js";
+import { Cwidth, Cheight, Renderer, isCanvasReady } from "../core/target.js";
 import {
   Mix,
   State,
@@ -31,9 +31,11 @@ import {
   cos,
   sin
 } from "../core/utils.js";
+import { createColor } from "../core/runtime.js";
 import { Position, isFieldReady } from "../core/flowfield.js";
 import { Polygon } from "../core/polygon.js";
 import { Plot } from "../core/plot.js";
+import { createTipSurface, loadImageTip } from "./runtime.js";
 
 // Internal module imports
 import { initStrokeComposite } from "./composite.js";
@@ -47,7 +49,7 @@ import {
   snapshotMatrix,
 } from "./gl_draw.js";
 
-initStrokeComposite(); // Register the stroke composite system; ensures p5's WebGL mode is patched to support offscreen stroke rendering and compositing
+initStrokeComposite(); // Register the stroke composite system for offscreen mask rendering and compositing.
 
 // ---------------------------------------------------------------------------
 // Brush State and Helpers
@@ -65,10 +67,6 @@ State.stroke = {
 };
 
 let list = new Map();
-
-function getBrushFactory() {
-  return Renderer ?? Instance ?? window.self.p5.instance;
-}
 
 const DEFAULT_CUSTOM_PRESSURE_VARIATION = {
   offset: 0.08,
@@ -189,8 +187,7 @@ export function add(name, params) {
     // dark fills/strokes → high opacity, light/white → transparent.
     const key = `custom::${name}`;
     invalidateTexEntry(key); // discard stale GPU texture if tip changed
-    const factory = getBrushFactory();
-    const g = factory.createGraphics(500, 500);
+    const g = createTipSurface(500, 500);
     g.pixelDensity(1);
     g.background(255);
     g.noSmooth();
@@ -266,7 +263,7 @@ export function pick(brushName) {
  */
 export function stroke(r, g, b) {
   isCanvasReady();
-  State.stroke.color = Renderer.color(...arguments);
+  State.stroke.color = createColor(...arguments);
   State.stroke.isActive = true;
 }
 
@@ -300,7 +297,7 @@ export function noStroke() {
 /**
  * Defines a clipping region for strokes.
  * The region uses the same coordinate space as brush drawing commands,
- * with the current p5 transform captured at call time.
+ * with the current runtime transform captured at call time.
  * @param {number[]} region - Array as [x1, y1, x2, y2] defining the clipping region.
  */
 export function clip(region) {
@@ -749,7 +746,7 @@ export function line(x1, y1, x2, y2) {
  * @param {number} x - Starting x-coordinate.
  * @param {number} y - Starting y-coordinate.
  * @param {number} length - Length of the stroke.
- * @param {number} dir - Direction, interpreted using the current p5 angle mode.
+ * @param {number} dir - Direction, interpreted using the current runtime angle units.
  */
 export function flowLine(x, y, length, dir) {
   if (!State.stroke.isActive || !State.stroke.color) {
@@ -944,7 +941,7 @@ Plot.prototype.draw = function (x, y, scale) {
  * This section defines the functionality for managing the loading and processing of image tips.
  * Images are loaded from specified source URLs, converted to a white tint for visual effects,
  * and then stored for future use. It includes methods to add new images, convert their color
- * scheme, and integrate them into the p5.js graphics library.
+ * scheme, and integrate them into the active host image pipeline.
  */
 
 /**
@@ -964,7 +961,7 @@ const T = {
 
   /**
    * Converts image to white with inverted alpha for tint-based rendering.
-   * @param {object} image - The p5.Image to convert.
+   * @param {object} image - The host image object to convert.
    */
   imageToWhite(image) {
     image.loadPixels();
@@ -987,23 +984,8 @@ const T = {
     await Promise.all(
       entries.map(
         (src) =>
-          new Promise((resolve, reject) => {
-            const nativeImg = new window.Image();
-            nativeImg.onload = () => {
-              const factory = getBrushFactory();
-              const p5img = factory.createImage(
-                nativeImg.naturalWidth,
-                nativeImg.naturalHeight,
-              );
-              p5img.drawingContext.drawImage(nativeImg, 0, 0);
-              T.imageToWhite(p5img);
-              this.tips.set(src, p5img);
-              resolve();
-            };
-            nativeImg.onerror = () =>
-              reject(new Error(`Failed to load image tip: ${src}`));
-            nativeImg.crossOrigin = "anonymous";
-            nativeImg.src = src;
+          loadImageTip(src, T.imageToWhite).then((p5img) => {
+            this.tips.set(src, p5img);
           }),
       ),
     );

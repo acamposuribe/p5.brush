@@ -46,7 +46,7 @@ export function HatchSetState(state) {
  * Activates classic scanline hatching for subsequent shapes.
  *
  * @param {number} [dist=5] Distance between scanlines.
- * @param {number} [angle=45] Hatch angle in the current p5 angle mode.
+ * @param {number} [angle=45] Hatch angle in the current runtime angle units.
  * @param {{rand?: number|false, continuous?: boolean, gradient?: number|false}} [options]
  */
 export function hatch(
@@ -65,7 +65,7 @@ export function hatch(
  * Overrides the brush, color, and weight used specifically for hatch strokes.
  *
  * @param {string} brush
- * @param {string|p5.Color} [color="black"]
+ * @param {string|object} [color="black"]
  * @param {number} [weight=1]
  */
 export function hatchStyle(brush, color = "black", weight = 1) {

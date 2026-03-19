@@ -1,0 +1,154 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Standalone Flow Field Explorer</title>
+    <style>
+      :root {
+        --paper: #f3eee2;
+        --ink: #22313f;
+        --muted: #52616e;
+        --line: #d4c8b8;
+        --panel: rgba(255, 252, 245, 0.86);
+        --accent: #153e5c;
+      }
+
+      * { box-sizing: border-box; }
+
+      body {
+        margin: 0;
+        color: var(--ink);
+        background:
+          radial-gradient(circle at top left, rgba(21, 62, 92, 0.08), transparent 24%),
+          linear-gradient(180deg, #f7f2e7 0%, #ece3d3 100%);
+        font-family: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", Palatino, serif;
+      }
+
+      main {
+        width: min(920px, calc(100vw - 24px));
+        margin: 0 auto;
+        padding: 18px 0 24px;
+        display: grid;
+        justify-items: center;
+      }
+
+      main > * { width: 100%; }
+
+      .nav {
+        margin-bottom: 14px;
+        font: 11px/1.2 Menlo, Monaco, "Courier New", monospace;
+      }
+
+      .nav a { color: var(--accent); text-decoration: none; }
+      .nav a:hover { text-decoration: underline; }
+
+      h1 {
+        margin: 0 0 8px;
+        font-size: clamp(24px, 3.6vw, 34px);
+        letter-spacing: -0.04em;
+      }
+
+      p {
+        margin: 0 0 8px;
+        max-width: 760px;
+        color: var(--muted);
+        line-height: 1.45;
+        font-size: 13px;
+      }
+
+      .panel {
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: var(--panel);
+      }
+
+      #controls {
+        margin-top: 18px;
+        padding: 14px 16px;
+        display: flex;
+        align-items: center;
+        gap: 18px;
+        flex-wrap: wrap;
+        font: 11px/1.4 Menlo, Monaco, "Courier New", monospace;
+      }
+
+      label { display: flex; align-items: center; gap: 8px; }
+
+      select,
+      input[type=range] {
+        font: inherit;
+      }
+
+      select { padding: 5px 8px; }
+      input[type=range] { width: 120px; }
+      span.val { width: 28px; display: inline-block; color: var(--accent); }
+
+      button {
+        border: 1px solid var(--line);
+        background: #fbf8f0;
+        color: var(--accent);
+        font: inherit;
+        padding: 6px 10px;
+        border-radius: 6px;
+        cursor: pointer;
+      }
+
+      button:hover { background: #f4eee2; }
+
+      #canvas-host {
+        margin-top: 18px;
+        padding: 10px;
+        display: grid;
+        justify-content: center;
+        width: 100%;
+        overflow: hidden;
+      }
+
+      canvas {
+        display: block;
+        border-radius: 6px;
+        max-width: 100%;
+        height: auto !important;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <div class="nav"><a href="../index.html">All tests</a></div>
+      <h1>Standalone Flow Field Explorer</h1>
+      <p>
+        Interactive browser page for comparing built-in vector fields with adjustable density and flow-line length.
+      </p>
+      <p>
+        Controls update the field live. The current seed stays in the URL so the same view remains reproducible.
+      </p>
+
+      <div id="controls" class="panel">
+        <label>
+          Field:
+          <select id="fieldSel"></select>
+        </label>
+        <label>
+          Density:
+          <input type="range" id="density" min="6" max="30" value="18">
+          <span class="val" id="densityVal">18</span>
+        </label>
+        <label>
+          Line length:
+          <input type="range" id="lineLen" min="20" max="150" value="55">
+          <span class="val" id="lineLenVal">55</span>
+        </label>
+        <label>
+          Seed:
+          <span class="val" id="seedVal" style="width:auto; min-width:56px;">42</span>
+        </label>
+        <button id="refreshSeed" type="button">Refresh seed</button>
+      </div>
+
+      <div id="canvas-host" class="panel"></div>
+
+      <script type="module" src="./field_explorer.js"></script>
+    </main>
+  </body>
+</html>

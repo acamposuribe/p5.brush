@@ -1,24 +1,25 @@
-import { Cwidth, Cheight, Renderer } from "./target.js";
+import { Cwidth, Cheight } from "./target.js";
 import { isMixReady, State } from "./color.js";
 import { randInt2, noise2, rr2, sin, cos, map, toDegreesSigned } from "./utils.js";
+import { getAffineMatrix } from "./runtime.js";
 
 // =============================================================================
 // Section: Matrix transformations
 // =============================================================================
 
 /**
- * The `Matrix` object exposes the current 2D affine transform from p5's model matrix.
+ * The `Matrix` object exposes the current 2D affine transform from the active runtime.
  * mat4 layout (column-major 4x4):
  *   [0]=a [1]=b [4]=c [5]=d [12]=tx [13]=ty
  * where the 2D transform of a point (x,y) is: (a*x + c*y + tx,  b*x + d*y + ty)
  */
 export const Matrix = {
-  x: () => Renderer._renderer.uModelMatrix.mat4[12],
-  y: () => Renderer._renderer.uModelMatrix.mat4[13],
-  a: () => Renderer._renderer.uModelMatrix.mat4[0],
-  b: () => Renderer._renderer.uModelMatrix.mat4[1],
-  c: () => Renderer._renderer.uModelMatrix.mat4[4],
-  d: () => Renderer._renderer.uModelMatrix.mat4[5],
+  x: () => getAffineMatrix().x,
+  y: () => getAffineMatrix().y,
+  a: () => getAffineMatrix().a,
+  b: () => getAffineMatrix().b,
+  c: () => getAffineMatrix().c,
+  d: () => getAffineMatrix().d,
 };
 
 
@@ -121,7 +122,7 @@ export class Position {
 
   /**
    * Moves the position along the flow field by a certain length.
-   * @param {number} _dir - The direction of movement, interpreted using the current p5 angle mode.
+   * @param {number} _dir - The direction of movement, interpreted using the current runtime angle units.
    * @param {number} _length - The length to move along the field.
    * @param {number} _step_length - The length of each step.
    */

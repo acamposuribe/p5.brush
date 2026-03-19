@@ -12,6 +12,8 @@ import { Polygon } from "../core/polygon.js";
 import { Plot } from "../core/plot.js";
 import { Matrix } from "../core/flowfield.js";
 import { createProgram } from "../core/gl/utils.js";
+import { createColor } from "../core/runtime.js";
+import { resetDirectShaderTracking } from "../core/renderer_runtime.js";
 
 let gl = null;
 let washProgram = null;
@@ -61,8 +63,7 @@ State.wash = {
 export function wash(a, b, c, d) {
   isCanvasReady();
   State.wash.opacity = (arguments.length < 4 ? b : d) ?? 150;
-  State.wash.color =
-    arguments.length < 3 ? Renderer.color(a) : Renderer.color(a, b, c);
+  State.wash.color = arguments.length < 3 ? createColor(a) : createColor(a, b, c);
   State.wash.isActive = true;
 }
 
@@ -76,17 +77,6 @@ export function noWash() {
 // =============================================================================
 // GL helpers
 // =============================================================================
-
-/**
- * Resets p5's cached shader/blend bookkeeping after direct WebGL calls.
- */
-function resetWashShaderTracking() {
-  const renderer = Renderer?._renderer;
-  if (!renderer) return;
-  renderer._curShader = null;
-  renderer._cachedBlendMode = null;
-  renderer._isBlending = null;
-}
 
 /**
  * Lazily creates the reusable program/buffer state for solid wash drawing and
@@ -143,11 +133,11 @@ function ensureWashReady() {
 }
 
 /**
- * Applies the current p5.brush transform matrix and converts the result into
+ * Applies the current runtime affine transform and converts the result into
  * the screen-space coordinates used by the direct GL wash pipeline.
  *
- * @param {number} x - The source x-coordinate in p5.brush space.
- * @param {number} y - The source y-coordinate in p5.brush space.
+ * @param {number} x - The source x-coordinate in brush drawing space.
+ * @param {number} y - The source y-coordinate in brush drawing space.
  * @returns {[number, number]} The transformed screen-space position.
  */
 function transformVertexToScreen(x, y) {
@@ -189,7 +179,7 @@ function buildTriangleBuffer(polygon) {
 }
 
 /**
- * Draws a triangulated solid wash directly to the current WEBGL target.
+ * Draws a triangulated solid wash directly to the current GL target.
  *
  * @param {Polygon} polygon - The polygon to fill with the current wash state.
  */
@@ -225,7 +215,7 @@ function drawWashPolygon(polygon) {
   gl.drawArrays(gl.TRIANGLES, 0, vertexCount);
   gl.bindVertexArray(null);
   gl.bindBuffer(gl.ARRAY_BUFFER, null);
-  resetWashShaderTracking();
+  resetDirectShaderTracking(Renderer, gl);
 }
 
 // =============================================================================
@@ -233,7 +223,7 @@ function drawWashPolygon(polygon) {
 // =============================================================================
 
 /**
- * Applies a direct WEBGL wash fill to the polygon using the current wash state.
+ * Applies a direct GL wash fill to the polygon using the current wash state.
  *
  * @param {Color|string|false} [_color] - Optional override color for this call.
  * @param {number} [_opacity] - Optional override opacity for this call.

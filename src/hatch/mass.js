@@ -3,11 +3,11 @@
 // =============================================================================
 
 import { State } from "../core/color.js";
-import { Renderer } from "../core/target.js";
 import { arc } from "../core/primitives.js";
 import { Polygon } from "../core/polygon.js";
 import { Plot } from "../core/plot.js";
 import { rr2, dist, calcAngle } from "../core/utils.js";
+import { fromDegrees } from "../core/runtime.js";
 import { HatchState, HatchSetState, hatch, getHatchLines } from "./hatch.js";
 import { BrushState, BrushSetState, getBrushParams, set } from "../stroke/stroke.js";
 import { wiggle } from "../core/flowfield.js";
@@ -113,16 +113,12 @@ function getMassPolygons(shape, x, y, scale) {
 // ---------------------------------------------------------------------------
 
 /**
- * Converts degree values into the current p5 angle mode units.
+ * Converts degree values into the current runtime angle units.
  * @param {number} angle
  * @returns {number}
  */
 function degreesToCurrentAngleMode(angle) {
-  return Renderer &&
-    typeof Renderer.angleMode === "function" &&
-    Renderer.angleMode() === Renderer.RADIANS
-    ? (angle * Math.PI) / 180
-    : angle;
+  return fromDegrees(angle);
 }
 
 /**
@@ -216,7 +212,7 @@ function projectAnchorToBisector(anchor, x1, y1, x2, y2) {
 
 /**
  * Returns the shortest arc between two endpoints around a given center.
- * The returned angles are already converted into the current p5 angle mode.
+ * The returned angles are already converted into the current runtime angle units.
  * @param {number} cx
  * @param {number} cy
  * @param {number} x1

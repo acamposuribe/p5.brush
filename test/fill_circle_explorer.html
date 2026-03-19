@@ -123,6 +123,10 @@
         font: 11px/1.4 Menlo, Monaco, "Courier New", monospace;
       }
 
+      .perf {
+        color: var(--accent);
+      }
+
       .seed {
         display: flex;
         align-items: center;
@@ -208,6 +212,10 @@
             <div class="seed">
               <span>Seed</span>
               <strong id="seedVal">000000</strong>
+            </div>
+            <div class="perf">
+              First load
+              <strong id="firstLoadVal">-</strong>
             </div>
             <button id="refreshSeed" type="button">Refresh seed</button>
           </div>

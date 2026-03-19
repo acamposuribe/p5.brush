@@ -32,6 +32,7 @@ import {
   _onSeed,
 } from "../core/utils.js";
 import { isFieldReady, Matrix } from "../core/flowfield.js";
+import { createColor } from "../core/runtime.js";
 import { Polygon } from "../core/polygon.js";
 import { Plot } from "../core/plot.js";
 
@@ -78,8 +79,7 @@ const FillSetState = (state) => {
  */
 export function fill(a, b, c, d) {
   State.fill.opacity = (arguments.length < 4 ? b : d) || 150;
-  State.fill.color =
-    arguments.length < 3 ? Renderer.color(a) : Renderer.color(a, b, c);
+  State.fill.color = arguments.length < 3 ? createColor(a) : createColor(a, b, c);
   State.fill.isActive = true;
 }
 

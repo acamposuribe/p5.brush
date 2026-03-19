@@ -250,10 +250,8 @@ function renderFlowLinePanel(x, y, w, h, mode, angleValue) {
 
   angleMode(mode);
   brush.noField();
-  brush.clip([x, y, x + w, y + h]);
   brush.set("pen", INK, 1.8);
   brush.flowLine(startX, startY, len, angleValue);
-  brush.noClip();
   angleMode(DEGREES);
 }
 
@@ -282,10 +280,8 @@ function renderManualStrokePanel(x, y, w, h, runner) {
 
   drawReferencePolyline(startX, startY, steps);
 
-  brush.clip([x, y, x + w, y + h]);
   brush.set("2B", INK, 1.7);
   runner(startX, startY, steps);
-  brush.noClip();
   angleMode(DEGREES);
 }
 
@@ -301,12 +297,10 @@ function renderPositionPanel(x, y, w, h, runner) {
   brush.noField();
   const pts = runner(startX, startY, steps);
 
-  brush.clip([x, y, x + w, y + h]);
   brush.set("marker", INK, 1.05);
   for (let i = 0; i < pts.length - 1; i++) {
     brush.line(pts[i].x, pts[i].y, pts[i + 1].x, pts[i + 1].y);
   }
-  brush.noClip();
 
   drawReferencePolyline(startX, startY, steps, {
     dashed: true,
@@ -350,9 +344,7 @@ function renderHatchPanel(x, y, w, h, setupHatch, referenceAngleDeg = 45) {
   brush.noFill();
   brush.hatchStyle("pen", INK, 1.35);
   setupHatch();
-  brush.clip([x, y, x + w, y + h]);
   brush.rect(rx, ry, rw, rh, "corner");
-  brush.noClip();
   brush.noHatch();
   angleMode(DEGREES);
 }
@@ -364,13 +356,11 @@ function renderFieldPanel(x, y, w, h, mode, fieldName) {
 
   angleMode(mode);
   brush.field(fieldName);
-  brush.clip([x, y, x + w, y + h]);
   brush.set("pen", ALT, 1.45);
   for (let i = 0; i < lines; i++) {
     const sy = y + 12 + (i / (lines - 1)) * (h - 24);
     brush.flowLine(startX, sy, len, 0);
   }
-  brush.noClip();
   brush.noField();
   angleMode(DEGREES);
 }
