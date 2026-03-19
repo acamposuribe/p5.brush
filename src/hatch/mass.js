@@ -7,7 +7,7 @@ import { arc } from "../core/primitives.js";
 import { Polygon } from "../core/polygon.js";
 import { Plot } from "../core/plot.js";
 import { rr2, dist, calcAngle } from "../core/utils.js";
-import { fromDegrees } from "../core/runtime.js";
+import { fromDegrees, usesRadians } from "../core/runtime.js";
 import { HatchState, HatchSetState, hatch, getHatchLines } from "./hatch.js";
 import { BrushState, BrushSetState, getBrushParams, set } from "../stroke/stroke.js";
 import { wiggle } from "../core/flowfield.js";
@@ -117,8 +117,10 @@ function getMassPolygons(shape, x, y, scale) {
  * @param {number} angle
  * @returns {number}
  */
-function degreesToCurrentAngleMode(angle) {
-  return fromDegrees(angle);
+function getAngleConverter() {
+  return usesRadians()
+    ? (angle) => (angle * Math.PI) / 180
+    : (angle) => angle;
 }
 
 /**
@@ -221,14 +223,14 @@ function projectAnchorToBisector(anchor, x1, y1, x2, y2) {
  * @param {number} y2
  * @returns {[number, number]}
  */
-function getShortArcAngles(cx, cy, x1, y1, x2, y2) {
+function getShortArcAngles(cx, cy, x1, y1, x2, y2, toAngleUnit) {
   let startDeg = calcAngle(cx, cy, x1, y1);
   let endDeg = calcAngle(cx, cy, x2, y2);
   const sweep = ((endDeg - startDeg) % 360 + 360) % 360;
   if (sweep > 180) [startDeg, endDeg] = [endDeg, startDeg];
   return [
-    degreesToCurrentAngleMode(startDeg),
-    degreesToCurrentAngleMode(endDeg),
+    toAngleUnit(startDeg),
+    toAngleUnit(endDeg),
   ];
 }
 
@@ -265,7 +267,7 @@ function splitSegment(seg) {
  * @param {Polygon} polygon
  * @param {[number, number]} pivotBias
  */
-function drawMassArcs(polygon, pivotBias) {
+function drawMassArcs(polygon, pivotBias, toAngleUnit) {
   const anchor = getPivotAnchor(polygon, pivotBias);
   for (const seg of getHatchLines(polygon)) {
     const parts = !seg.isConnector && rr2() < 0.35 ? splitSegment(seg) : [seg];
@@ -281,6 +283,7 @@ function drawMassArcs(polygon, pivotBias) {
         part.y1,
         part.x2,
         part.y2,
+        toAngleUnit,
       );
       arc(center.x, center.y, radius, startAngle, endAngle);
     }
@@ -295,9 +298,9 @@ function drawMassArcs(polygon, pivotBias) {
  * @param {object} options
  * @param {[number, number]} pivotBias
  */
-function drawMassPass(polygon, dist, angle, options, pivotBias) {
+function drawMassPass(polygon, dist, angle, options, pivotBias, toAngleUnit) {
   hatch(dist, angle, options);
-  drawMassArcs(polygon, pivotBias);
+  drawMassArcs(polygon, pivotBias, toAngleUnit);
 }
 
 /**
@@ -322,6 +325,7 @@ export function createMass(shape, x, y, scale) {
   const hatchDist = 1.6 * rr2(scatter * 0.65, scatter * 0.85) - 0.4 * gradient;
   const baseAngle = rr2(-90, 90);
   const pivotBias = getPivotBias(baseAngle);
+  const toAngleUnit = getAngleConverter();
 
   set(State.mass.brush, State.mass.color, 1);
   wiggle(2 - precision);
@@ -330,26 +334,28 @@ export function createMass(shape, x, y, scale) {
   drawMassPass(
     pols[0],
     hatchDist * 0.9,
-    degreesToCurrentAngleMode(baseAngle),
+    fromDegrees(baseAngle),
     {
       gradient,
       rand: 2 - 2 * precision,
       continuous: true,
     },
     pivotBias,
+    toAngleUnit,
   );
 
   if (strength > 0.33) {
     drawMassPass(
       pols[1],
       hatchDist,
-      degreesToCurrentAngleMode(baseAngle + 20 * rr2(-1, 1)),
+      fromDegrees(baseAngle + 20 * rr2(-1, 1)),
       {
         gradient,
         rand: 0.6 - 0.6 * precision,
         continuous: true,
       },
       pivotBias,
+      toAngleUnit,
     );
   }
 
@@ -357,13 +363,14 @@ export function createMass(shape, x, y, scale) {
     drawMassPass(
       pols[2],
       hatchDist * 0.8,
-      degreesToCurrentAngleMode(baseAngle + 15 * rr2(-1, 1)),
+      fromDegrees(baseAngle + 15 * rr2(-1, 1)),
       {
         gradient,
         rand: 0.6 - 0.6 * precision,
         continuous: true,
       },
       pivotBias,
+      toAngleUnit,
     );
   }
 

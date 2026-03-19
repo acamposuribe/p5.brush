@@ -2,7 +2,6 @@ import * as Color from "../core/color.js";
 import {
   createFramebuffer,
   create2DCanvas,
-  get2DContext,
 } from "../core/compositor_runtime.js";
 
 // Small staging canvas used to upload only the dirty fill sub-rect into the
@@ -78,7 +77,6 @@ export function ensureFillCompositeResources(
 
   if (needsFillMaskCanvas(Renderer, maskWidth, maskHeight)) {
     Renderer.mask = create2DCanvas(maskWidth, maskHeight);
-    Renderer.mask.drawingContext = get2DContext(Renderer.mask);
   }
 
   if (needsFillMaskFramebuffer(Renderer, Cwidth, Cheight, Density)) {
@@ -98,7 +96,6 @@ export function ensureFillCompositeResources(
 
   Renderer.mask.dirtyRect ??= null;
   Renderer.mask.isDrawn ??= false;
-  Renderer.mask.drawingContext = get2DContext(Renderer.mask);
   Renderer.mask.drawingContext.imageSmoothingEnabled = false;
   return {
     mask: Renderer.mask,
@@ -185,10 +182,9 @@ export function getFillShaderMask(
     FillMaskUploadCanvas.height !== uploadHeight
   ) {
     FillMaskUploadCanvas = create2DCanvas(uploadWidth, uploadHeight);
-    FillMaskUploadCanvas.drawingContext = get2DContext(FillMaskUploadCanvas);
   }
 
-  const uploadContext = get2DContext(FillMaskUploadCanvas);
+  const uploadContext = FillMaskUploadCanvas.drawingContext;
   uploadContext.clearRect(0, 0, uploadWidth, uploadHeight);
   uploadContext.drawImage(
     mask,
