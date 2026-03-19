@@ -5,8 +5,8 @@ p5.brush is a p5.js library for natural drawing — pencils, charcoal, markers, 
 ## Installation
 
 ```html
-<script src="https://cdn.jsdelivr.net/npm/p5@2.1.1/lib/p5.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/p5.brush"></script>
+<script src="https://cdn.jsdelivr.net/npm/p5@2.2/lib/p5.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/p5.brush@2.1.0-beta"></script>
 ```
 
 ```js
