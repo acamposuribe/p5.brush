@@ -23,12 +23,17 @@ const controls = {
   textureVal: document.getElementById("textureVal"),
   borderVal: document.getElementById("borderVal"),
   seedVal: document.getElementById("seedVal"),
+  firstLoadVal: document.getElementById("firstLoadVal"),
   refreshSeed: document.getElementById("refreshSeed"),
   palette: document.getElementById("palette"),
 };
 
 let needsRender = true;
 let renderQueued = false;
+let firstLoadReported = false;
+const firstLoadStart =
+  performance.getEntriesByType("navigation")[0]?.domContentLoadedEventEnd ??
+  performance.now();
 
 function formatValue(value) {
   return Number.isInteger(value) ? String(value) : value.toFixed(2).replace(/0$/, "").replace(/\.$/, "");
@@ -79,6 +84,17 @@ function queueRender() {
   requestAnimationFrame(() => {
     renderQueued = false;
     redraw();
+  });
+}
+
+function reportFirstLoad() {
+  if (firstLoadReported) return;
+  firstLoadReported = true;
+  requestAnimationFrame(() => {
+    const total = performance.now() - firstLoadStart;
+    const text = `${total.toFixed(1)} ms`;
+    controls.firstLoadVal.textContent = text;
+    console.log(`fill_circle_explorer first load: ${text}`);
   });
 }
 
@@ -173,4 +189,5 @@ function draw() {
   if (!needsRender) return;
   needsRender = false;
   renderScene();
+  reportFirstLoad();
 }
