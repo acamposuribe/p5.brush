@@ -20,7 +20,7 @@
  * These are library-level contract fields, not host-specific internals.
  */
 
-export const create2DCanvas = (width, height) => {
+export const create2DCanvas = (width, height, willReadFrequently = false) => {
   const canvas =
     typeof OffscreenCanvas !== "undefined"
       ? new OffscreenCanvas(width, height)
@@ -30,16 +30,18 @@ export const create2DCanvas = (width, height) => {
           element.height = height;
           return element;
         })();
-  canvas.drawingContext = canvas.getContext("2d", {
-    willReadFrequently: true,
-  });
+  canvas.drawingContext = canvas.getContext(
+    "2d",
+    willReadFrequently ? { willReadFrequently: true } : undefined,
+  );
   return canvas;
 };
 
-export const get2DContext = (canvas) => {
-  canvas.drawingContext ??= canvas.getContext("2d", {
-    willReadFrequently: true,
-  });
+export const get2DContext = (canvas, willReadFrequently = false) => {
+  canvas.drawingContext ??= canvas.getContext(
+    "2d",
+    willReadFrequently ? { willReadFrequently: true } : undefined,
+  );
   return canvas.drawingContext;
 };
 

@@ -100,7 +100,6 @@ export function ensureFillCompositeResources(
   Renderer.mask.isDrawn ??= false;
   Renderer.mask.drawingContext = get2DContext(Renderer.mask);
   Renderer.mask.drawingContext.imageSmoothingEnabled = false;
-
   return {
     mask: Renderer.mask,
     ctx: Renderer.mask.drawingContext,
@@ -214,7 +213,6 @@ export function getFillShaderMask(
     gl.UNSIGNED_BYTE,
     FillMaskUploadCanvas,
   );
-
   return target;
 }
 

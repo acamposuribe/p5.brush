@@ -14,7 +14,7 @@ function cssColor(value) {
 }
 
 function buildTipSurface(canvas) {
-  const ctx = get2DContext(canvas);
+  const ctx = get2DContext(canvas, true);
   const surface = {
     canvas,
     drawingContext: ctx,
@@ -154,7 +154,7 @@ function buildTipSurface(canvas) {
 }
 
 function createTipSurface(width, height) {
-  return buildTipSurface(create2DCanvas(width, height));
+  return buildTipSurface(create2DCanvas(width, height, true));
 }
 
 function loadImageTip(src, imageToWhite) {
@@ -168,7 +168,7 @@ function loadImageTip(src, imageToWhite) {
     const nativeImg = new NativeImage();
     nativeImg.onload = () => {
       const surface = buildTipSurface(
-        create2DCanvas(nativeImg.naturalWidth, nativeImg.naturalHeight),
+        create2DCanvas(nativeImg.naturalWidth, nativeImg.naturalHeight, true),
       );
       surface.drawingContext.drawImage(nativeImg, 0, 0);
       imageToWhite(surface);

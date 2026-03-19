@@ -38,7 +38,7 @@ function ensureBlendSourceFramebuffer(
   density,
 ) {
   if (currentFramebuffer?.remove) currentFramebuffer.remove();
-  return renderer.createFramebuffer({
+  const fb = renderer.createFramebuffer({
     width,
     height,
     density,
@@ -46,6 +46,7 @@ function ensureBlendSourceFramebuffer(
     depth: false,
     stencil: false,
   });
+  return fb;
 }
 
 const createFramebuffer = (renderer, options) =>
