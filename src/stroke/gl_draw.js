@@ -13,13 +13,13 @@ import {
   isMixReady,
   State,
 } from "../core/color.js";
-import { Matrix } from "../core/flowfield.js";
 import { createProgram } from "../core/gl/utils.js";
 import {
   beginDirectMaskDraw,
   endDirectMaskDraw,
   resetDirectShaderTracking,
 } from "../core/renderer_runtime.js";
+import { getAffineMatrix } from "../core/runtime.js";
 import vertSrc from "./shader.vert";
 import fragSrc from "./shader.frag";
 import imgVertSrc from "./image.vert";
@@ -58,12 +58,13 @@ let _ma = 1,
  * Snapshots the current runtime affine transform. Call once at the start of each stroke.
  */
 export function snapshotMatrix() {
-  _ma = Matrix.a();
-  _mb = Matrix.b();
-  _mc = Matrix.c();
-  _md = Matrix.d();
-  _mx = Matrix.x();
-  _my = Matrix.y();
+  const m = getAffineMatrix();
+  _ma = m.a;
+  _mb = m.b;
+  _mc = m.c;
+  _md = m.d;
+  _mx = m.x;
+  _my = m.y;
   _halfW = Cwidth / 2;
   _halfH = Cheight / 2;
   _scale = Math.sqrt(_ma * _ma + _mb * _mb);

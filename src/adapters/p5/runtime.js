@@ -8,20 +8,40 @@ import { getSketchRenderer } from "./target.js";
 
 const getP5RuntimeRenderer = () =>
   Renderer ?? getSketchRenderer?.() ?? window.self?.p5?.instance ?? null;
+const identityMatrix = {
+  a: 1,
+  b: 0,
+  c: 0,
+  d: 1,
+  x: 0,
+  y: 0,
+};
+const affineMatrix = {
+  a: 1,
+  b: 0,
+  c: 0,
+  d: 1,
+  x: 0,
+  y: 0,
+};
 
 export function initP5Runtime() {
   setRuntime({
-    usesRadians: () =>
-      !!getP5RuntimeRenderer() &&
-      typeof getP5RuntimeRenderer().angleMode === "function" &&
-      getP5RuntimeRenderer().angleMode() === getP5RuntimeRenderer().RADIANS,
+    usesRadians: () => {
+      const renderer = getP5RuntimeRenderer();
+      return !!renderer &&
+        typeof renderer.angleMode === "function" &&
+        renderer.angleMode() === renderer.RADIANS;
+    },
 
-    fromDegrees: (angle) =>
-      !!getP5RuntimeRenderer() &&
-      typeof getP5RuntimeRenderer().angleMode === "function" &&
-      getP5RuntimeRenderer().angleMode() === getP5RuntimeRenderer().RADIANS
+    fromDegrees: (angle) => {
+      const renderer = getP5RuntimeRenderer();
+      return !!renderer &&
+        typeof renderer.angleMode === "function" &&
+        renderer.angleMode() === renderer.RADIANS
         ? (angle * Math.PI) / 180
-        : angle,
+        : angle;
+    },
 
     createColor: (...args) => {
       const renderer = getP5RuntimeRenderer();
@@ -34,24 +54,15 @@ export function initP5Runtime() {
     getAffineMatrix: () => {
       const renderer = getP5RuntimeRenderer();
       const mat4 = renderer?._renderer?.uModelMatrix?.mat4;
-      if (!mat4) {
-        return {
-          a: 1,
-          b: 0,
-          c: 0,
-          d: 1,
-          x: 0,
-          y: 0,
-        };
-      }
-      return {
-        a: mat4[0],
-        b: mat4[1],
-        c: mat4[4],
-        d: mat4[5],
-        x: mat4[12],
-        y: mat4[13],
-      };
+      if (!mat4) return identityMatrix;
+
+      affineMatrix.a = mat4[0];
+      affineMatrix.b = mat4[1];
+      affineMatrix.c = mat4[4];
+      affineMatrix.d = mat4[5];
+      affineMatrix.x = mat4[12];
+      affineMatrix.y = mat4[13];
+      return affineMatrix;
     },
   });
 }

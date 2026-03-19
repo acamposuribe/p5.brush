@@ -7,22 +7,6 @@ import { getAffineMatrix } from "./runtime.js";
 // Section: Matrix transformations
 // =============================================================================
 
-/**
- * The `Matrix` object exposes the current 2D affine transform from the active runtime.
- * mat4 layout (column-major 4x4):
- *   [0]=a [1]=b [4]=c [5]=d [12]=tx [13]=ty
- * where the 2D transform of a point (x,y) is: (a*x + c*y + tx,  b*x + d*y + ty)
- */
-export const Matrix = {
-  x: () => getAffineMatrix().x,
-  y: () => getAffineMatrix().y,
-  a: () => getAffineMatrix().a,
-  b: () => getAffineMatrix().b,
-  c: () => getAffineMatrix().c,
-  d: () => getAffineMatrix().d,
-};
-
-
 // =============================================================================
 // Section: Field Initialization
 // =============================================================================
@@ -58,6 +42,9 @@ export class Position {
    */
   constructor(x, y) {
     isFieldReady();
+    const m = getAffineMatrix();
+    this.mx = m.x;
+    this.my = m.y;
     this.update(x, y);
     this.plotted = 0; // Tracks the total distance plotted
   }
@@ -70,8 +57,8 @@ export class Position {
   update(x, y) {
     this.x = x;
     this.y = y;
-    this.colIdx = Position.getColIndex(x);
-    this.rowIdx = Position.getRowIndex(y);
+    this.colIdx = Math.round((x + this.mx - left_x) / resolution);
+    this.rowIdx = Math.round((y + this.my - top_y) / resolution);
   }
 
   /**
@@ -99,8 +86,8 @@ export class Position {
     const margin = 0.3;
     const w = Cwidth;
     const h = Cheight;
-    const x = this.x + Matrix.x();
-    const y = this.y + Matrix.y();
+    const x = this.x + this.mx;
+    const y = this.y + this.my;
     return (
       x >= -margin * w &&
       x <= (1 + margin) * w &&
@@ -174,7 +161,7 @@ export class Position {
    * @returns {number} - The row index.
    */
   static getRowIndex(y, d = 1) {
-    const y_offset = y + Matrix.y() - top_y;
+    const y_offset = y + getAffineMatrix().y - top_y;
     return Math.round(y_offset / resolution / d);
   }
 
@@ -184,7 +171,7 @@ export class Position {
    * @returns {number} - The column index.
    */
   static getColIndex(x, d = 1) {
-    const x_offset = x + Matrix.x() - left_x;
+    const x_offset = x + getAffineMatrix().x - left_x;
     return Math.round(x_offset / resolution / d);
   }
 

@@ -31,8 +31,8 @@ import {
   sin,
   _onSeed,
 } from "../core/utils.js";
-import { isFieldReady, Matrix } from "../core/flowfield.js";
-import { createColor } from "../core/runtime.js";
+import { isFieldReady } from "../core/flowfield.js";
+import { createColor, getAffineMatrix } from "../core/runtime.js";
 import { Polygon } from "../core/polygon.js";
 import { Plot } from "../core/plot.js";
 
@@ -514,14 +514,15 @@ class FillPoly {
     if (switchingToFill) Mix.justChanged = true;
     Mix.blend(color);
 
+    const m = getAffineMatrix();
     Mix.ctx.save();
     Mix.ctx.setTransform(
-      Density * Matrix.a(),
-      Density * Matrix.b(),
-      Density * Matrix.c(),
-      Density * Matrix.d(),
-      Density * (Matrix.x() + Cwidth / 2),
-      Density * (Matrix.y() + Cheight / 2),
+      Density * m.a,
+      Density * m.b,
+      Density * m.c,
+      Density * m.d,
+      Density * (m.x + Cwidth / 2),
+      Density * (m.y + Cheight / 2),
     );
 
     Mix.ctx.strokeStyle = `rgb(${color._getRed()} ${color._getGreen()} ${color._getBlue()} / ${

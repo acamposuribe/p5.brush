@@ -10,7 +10,7 @@ import { Renderer, Cwidth, Cheight, isCanvasReady } from "../core/target.js";
 import { State, flushActiveComposite } from "../core/color.js";
 import { Polygon } from "../core/polygon.js";
 import { Plot } from "../core/plot.js";
-import { Matrix } from "../core/flowfield.js";
+import { getAffineMatrix } from "../core/runtime.js";
 import { createProgram } from "../core/gl/utils.js";
 import { createColor } from "../core/runtime.js";
 import { resetDirectShaderTracking } from "../core/renderer_runtime.js";
@@ -141,9 +141,10 @@ function ensureWashReady() {
  * @returns {[number, number]} The transformed screen-space position.
  */
 function transformVertexToScreen(x, y) {
+  const m = getAffineMatrix();
   return [
-    Matrix.a() * x + Matrix.c() * y + Matrix.x() + loadedWidth / 2,
-    Matrix.b() * x + Matrix.d() * y + Matrix.y() + loadedHeight / 2,
+    m.a * x + m.c * y + m.x + loadedWidth / 2,
+    m.b * x + m.d * y + m.y + loadedHeight / 2,
   ];
 }
 
