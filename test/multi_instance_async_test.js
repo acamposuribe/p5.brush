@@ -271,6 +271,9 @@ function createWorker(runId, scenario, index) {
           }
 
           scenario.completedPasses++;
+          if (scenario.completedPasses === 1) {
+            window.reportP5FirstFrame?.("multi_instance_async_test");
+          }
           worker.nextPass++;
           worker.pendingSample = null;
           updateWorkerLog(

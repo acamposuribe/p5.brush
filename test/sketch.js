@@ -574,5 +574,6 @@ function draw() {
   // WEBGL resets transforms each frame; re-translate to top-left
   translate(-width / 2, -height / 2);
   if (!nativeDebugStage) image(labelBuf, 0, 0, width, height);
+  window.reportP5FirstFrame?.("visual_suite");
   noLoop(); // static sketch — draw only once
 }

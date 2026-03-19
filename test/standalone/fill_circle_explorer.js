@@ -31,6 +31,7 @@ const controls = {
 };
 
 let renderQueued = false;
+let urlSyncQueued = false;
 let firstLoadReported = false;
 const firstLoadStart =
   performance.getEntriesByType("navigation")[0]?.domContentLoadedEventEnd ??
@@ -63,7 +64,18 @@ function syncUrl() {
     color: state.color,
     seed: String(state.seed),
   });
-  history.replaceState(null, "", `?${qs.toString()}`);
+  const nextSearch = `?${qs.toString()}`;
+  if (location.search === nextSearch) return;
+  history.replaceState(null, "", nextSearch);
+}
+
+function queueUrlSync() {
+  if (urlSyncQueued) return;
+  urlSyncQueued = true;
+  requestAnimationFrame(() => {
+    urlSyncQueued = false;
+    syncUrl();
+  });
 }
 
 function syncReadouts() {
@@ -111,7 +123,7 @@ function setupPalette() {
     btn.addEventListener("click", () => {
       state.color = color;
       syncPalette();
-      syncUrl();
+      queueUrlSync();
       queueRender();
     });
     controls.palette.appendChild(btn);
@@ -123,7 +135,7 @@ function bindSlider(key, input, readout) {
   input.addEventListener("input", () => {
     state[key] = Number(input.value);
     readout.textContent = formatValue(state[key]);
-    syncUrl();
+    queueUrlSync();
     queueRender();
   });
 }
@@ -150,7 +162,7 @@ bindSlider("border", controls.border, controls.borderVal);
 controls.refreshSeed.addEventListener("click", () => {
   state.seed = 100000 + Math.floor(Math.random() * 900000);
   syncReadouts();
-  syncUrl();
+  queueUrlSync();
   queueRender();
 });
 

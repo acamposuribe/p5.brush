@@ -345,4 +345,5 @@ function draw() {
   // ================================================================
   image(labelBuf, 0, 0);
   console.log("Hatch test complete");
+  window.reportP5FirstFrame?.("hatch_test");
 }

@@ -280,6 +280,7 @@ const sketch = (p) => {
     }
 
     p.image(labelBuf, 0, 0)
+    window.reportP5FirstFrame?.("instance_mode_test")
   }
 }
 

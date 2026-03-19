@@ -570,4 +570,5 @@ function draw() {
   ]);
 
   image(labelBuf, 0, 0);
+  window.reportP5FirstFrame?.("angle_mode_test");
 }

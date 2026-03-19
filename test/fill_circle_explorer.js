@@ -30,10 +30,7 @@ const controls = {
 
 let needsRender = true;
 let renderQueued = false;
-let firstLoadReported = false;
-const firstLoadStart =
-  performance.getEntriesByType("navigation")[0]?.domContentLoadedEventEnd ??
-  performance.now();
+let urlSyncQueued = false;
 
 function formatValue(value) {
   return Number.isInteger(value) ? String(value) : value.toFixed(2).replace(/0$/, "").replace(/\.$/, "");
@@ -60,7 +57,18 @@ function syncUrl() {
     color: state.color,
     seed: String(state.seed),
   });
-  history.replaceState(null, "", `?${qs.toString()}`);
+  const nextSearch = `?${qs.toString()}`;
+  if (location.search === nextSearch) return;
+  history.replaceState(null, "", nextSearch);
+}
+
+function queueUrlSync() {
+  if (urlSyncQueued) return;
+  urlSyncQueued = true;
+  requestAnimationFrame(() => {
+    urlSyncQueued = false;
+    syncUrl();
+  });
 }
 
 function syncReadouts() {
@@ -88,14 +96,7 @@ function queueRender() {
 }
 
 function reportFirstLoad() {
-  if (firstLoadReported) return;
-  firstLoadReported = true;
-  requestAnimationFrame(() => {
-    const total = performance.now() - firstLoadStart;
-    const text = `${total.toFixed(1)} ms`;
-    controls.firstLoadVal.textContent = text;
-    console.log(`fill_circle_explorer first load: ${text}`);
-  });
+  window.reportP5FirstFrame?.("fill_circle_explorer");
 }
 
 function setupPalette() {
@@ -109,7 +110,7 @@ function setupPalette() {
     btn.addEventListener("click", () => {
       state.color = color;
       syncPalette();
-      syncUrl();
+      queueUrlSync();
       queueRender();
     });
     controls.palette.appendChild(btn);
@@ -121,7 +122,7 @@ function bindSlider(key, input, readout) {
   input.addEventListener("input", () => {
     state[key] = Number(input.value);
     readout.textContent = formatValue(state[key]);
-    syncUrl();
+    queueUrlSync();
     queueRender();
   });
 }
@@ -148,7 +149,7 @@ bindSlider("border", controls.border, controls.borderVal);
 controls.refreshSeed.addEventListener("click", () => {
   state.seed = 100000 + Math.floor(Math.random() * 900000);
   syncReadouts();
-  syncUrl();
+  queueUrlSync();
   queueRender();
 });
 

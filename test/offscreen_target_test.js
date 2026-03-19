@@ -381,4 +381,5 @@ function draw() {
   }
 
   image(labelBuf, 0, 0)
+  window.reportP5FirstFrame?.("offscreen_target_test")
 }
