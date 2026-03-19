@@ -22,7 +22,7 @@ The canvas **must use WEBGL mode**. The library initializes automatically when `
 async function setup() {
   createCanvas(600, 600, WEBGL)
   angleMode(DEGREES)      // optional, but all angle-taking brush APIs follow p5's angleMode
-  brush.scaleBrushes(1.5) // optional: scale all default brushes
+  brush.scaleBrushes(3)   // usually necessary: good starting point for a 600x600 canvas, then confirm visually
 }
 ```
 
@@ -55,7 +55,7 @@ Exception: `brush.addField(name, fn, { angleMode })` lets custom field generator
 ### Configuration
 
 - `brush.load(buffer?)` — Use this when targeting a **secondary** canvas. Pass a `p5.Graphics` buffer or an active `p5.Framebuffer` to redirect brush drawing there. Call `brush.load()` with no args to return to the main canvas. For `p5.Graphics`, create the buffer in `WEBGL`, call `brush.load(pg)`, draw, then call `brush.load()` again before presenting it with `image(pg, ...)`. For framebuffers, call `brush.load(framebuffer)` only while that framebuffer is active inside `begin()` / `end()` or `draw()`, then call `brush.load()` again after leaving that scope. `brush.load(...)` only changes p5.brush's target; native p5 drawing calls still need to be directed at the same target explicitly. Framebuffers created from `p5.Graphics` are not supported.
-- `brush.scaleBrushes(scale)` — Scale all currently registered brushes by `scale`. Call once in setup; if you only want the built-ins scaled, call it before adding custom brushes.
+- `brush.scaleBrushes(scale)` — Scale all currently registered brushes by `scale`. In practice this is usually necessary to adapt brushes to the canvas size, not just optional polish. For a `600x600` canvas, `brush.scaleBrushes(3)` is a good starting point, but it should still be confirmed visually. Call once in setup; if you only want the built-ins scaled, call it before adding custom brushes.
 - `brush.instance(p)` — Use when p5 is in instance mode. Call before setup/draw.
 - `brush.preload()` — Compatibility helper for preloading image tips. Usually unnecessary in v2 if you `await brush.add(...)` for image brushes.
 
@@ -77,8 +77,11 @@ Fill simulates watercolor — soft edges, bleed, texture layering.
 
 - `brush.fill(color, opacity)` or `brush.fill(r, g, b, opacity)` — Set fill color. Opacity uses p5-style alpha values (typically 0–255). Enables fill.
 - `brush.noFill()` — Disable fill.
+- `brush.wash(color, opacity)` — Fast solid fill pass for subsequent shapes. No watercolor bleed or texture simulation.
+- `brush.noWash()` — Disable wash.
 - `brush.fillBleed(strength, direction?)` — Edge bleed amount, 0–1. Direction: `"out"` or `"in"`.
 - `brush.fillTexture(textureStrength, borderIntensity)` — Texture and border, both 0–1.
+- For better fill performance, prefer drawing fills in color batches when possible. Group shapes by fill color/opacities so the library can reuse its internal color-specific caching more effectively.
 
 ---
 
@@ -89,6 +92,8 @@ Hatching draws parallel lines inside shapes. Activate before drawing a shape, di
 - `brush.hatch(dist, angle, options?)` — Enable hatching. `dist` = spacing in canvas units, `angle` is interpreted using the current `angleMode()` when `brush.hatch()` is called. Options: `{rand: 0–1, continuous: bool, gradient: 0–1}`.
 - `brush.noHatch()` — Disable hatching.
 - `brush.hatchStyle(name, color, weight)` — Set brush used for hatching (independent of stroke brush).
+- `brush.mass(brush, color, options?)` — Enable massing: layered hand-filled value built from internal hatch geometry and curved gestures. Options: `{precision: 0–1, strength: 0–1, gradient: 0–1, outline: bool}`.
+- `brush.noMass()` — Disable massing.
 - `brush.hatchArray(polygons)` — Apply current hatch style directly to a `brush.Polygon` or array of polygons.
 
 ---
@@ -141,6 +146,7 @@ brush.endStroke(angle, pressure)
 - `brush.circle(x, y, radius, r?)` — Circle. `r` = hand-drawn irregularity (0–1). Circles can be stroked, hatched, and filled.
 - `brush.arc(x, y, radius, start, end)` — Arc. `start` and `end` follow the current `angleMode()`. Stroke only.
 - `brush.polygon(pointsArray)` — Polygon from `[[x,y], ...]`. Not affected by vector fields.
+- Prefer avoiding `brush.polygon(...)` in generated examples when field-following behavior or robust fill behavior matters. It bypasses the field-aware primitive generation used by `rect()`, `circle()`, `beginShape()`, etc., and it can be a poor choice when fills are involved.
 - `brush.beginShape(curvature?)` / `brush.vertex(x, y, pressure?)` / `brush.endShape(close?)` — Custom shape.
 
 ---
@@ -173,6 +179,7 @@ If an LLM is helping a user design a brush, prefer pointing them to the interact
 | `image` | `"image"` type: `{ src: "./tip.jpg" }` |
 | `rotate` | `"none"`, `"natural"`, `"random"` |
 | `markerTip` | `"marker"`, `"custom"`, `"image"` only. Boolean. Defaults to `true`. Set `false` to disable the extra soft tip buildup at the start/end of strokes. |
+| `noise` | Multiplies subtle line-noise variation along the stroke. Use `0–1`; `0` disables it and `1` keeps the standard amount. |
 
 Important `brush.add()` guidance for LLMs:
 
@@ -213,7 +220,9 @@ await brush.add("photo", {
 let p = new brush.Polygon([[x1,y1],[x2,y2],[x3,y3]])
 p.draw(brushName, color, weight)
 p.fill(color, opacity, bleed, texture)
+p.wash(color, opacity)
 p.hatch(distance, angle, options)
+p.mass()
 p.intersect(line)  // returns [{x,y}, ...]
 // Attributes: p.vertices, p.sides
 ```
@@ -228,7 +237,9 @@ plot.addSegment(angle, length, pressure)
 plot.endPlot(angle, pressure)
 plot.draw(x, y)   // draws with current stroke state
 plot.fill(x, y)   // fills with current fill state
+plot.wash(x, y)   // washes with current wash state
 plot.hatch(x, y)  // hatches with current hatch state
+plot.mass(x, y)   // masses with current mass state
 plot.rotate(angle)
 plot.genPol(x, y) // returns a Polygon
 ```
@@ -252,7 +263,7 @@ pos.plotTo(plot, length, stepLength, scale)
 ```js
 async function setup() {
   createCanvas(600, 600, WEBGL)
-  brush.scaleBrushes(2)
+  brush.scaleBrushes(3)
   angleMode(DEGREES)
   background("#fffceb")
 }

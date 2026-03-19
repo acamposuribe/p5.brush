@@ -19,13 +19,6 @@ const { blend, mockCtx, mockState } = vi.hoisted(() => ({
 }));
 
 vi.mock("../src/core/color.js", () => ({
-  Renderer: {
-    color: () => ({
-      _getBlue: () => 64,
-      _getGreen: () => 128,
-      _getRed: () => 255,
-    }),
-  },
   Mix: {
     blend,
     ctx: mockCtx,
@@ -33,6 +26,17 @@ vi.mock("../src/core/color.js", () => ({
     justChanged: false,
   },
   State: mockState,
+  registerFillComposite: () => {},
+}));
+
+vi.mock("../src/core/target.js", () => ({
+  Renderer: {
+    color: () => ({
+      _getBlue: () => 64,
+      _getGreen: () => 128,
+      _getRed: () => 255,
+    }),
+  },
   Cwidth: 800,
   Cheight: 600,
   Density: 1,

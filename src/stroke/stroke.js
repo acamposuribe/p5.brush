@@ -11,14 +11,11 @@
  * the Brush module facilitates the creation of realistic and expressive stroke effects.
  */
 
+// Core imports
+import { Cwidth, Cheight, Renderer, Instance, isCanvasReady } from "../core/target.js";
 import {
   Mix,
-  Cwidth,
-  Cheight,
   State,
-  Renderer,
-  Instance,
-  isCanvasReady,
 } from "../core/color.js";
 import {
   rr,
@@ -30,11 +27,16 @@ import {
   gaussian,
   rArray,
   noise,
-  _onSeed,
+  _onSeed, 
+  cos,
+  sin
 } from "../core/utils.js";
-import { Position, Matrix, isFieldReady } from "../core/flowfield.js";
+import { Position, isFieldReady } from "../core/flowfield.js";
 import { Polygon } from "../core/polygon.js";
 import { Plot } from "../core/plot.js";
+
+// Internal module imports
+import { initStrokeComposite } from "./composite.js";
 import {
   isReady,
   glDraw,
@@ -44,6 +46,8 @@ import {
   invalidateTexEntry,
   snapshotMatrix,
 } from "./gl_draw.js";
+
+initStrokeComposite(); // Register the stroke composite system; ensures p5's WebGL mode is patched to support offscreen stroke rendering and compositing
 
 // ---------------------------------------------------------------------------
 // Brush State and Helpers
@@ -55,21 +59,12 @@ import {
 State.stroke = {
   color: null,
   weight: 1,
-  clipWindow: null,
   type: "HB",
   isActive: false,
   opacity: 1,
 };
 
 let list = new Map();
-let _strokeTransform = {
-  a: 1,
-  b: 0,
-  c: 0,
-  d: 1,
-  tx: 0,
-  ty: 0,
-};
 
 function getBrushFactory() {
   return Renderer ?? Instance ?? window.self.p5.instance;
@@ -175,6 +170,8 @@ export function add(name, params) {
   const validTypes = ["marker", "custom", "image", "spray"];
   params.type = validTypes.includes(params.type) ? params.type : "default";
   if (params.markerTip === undefined) params.markerTip = true;
+  if (params.noise === undefined) params.noise = 0.3;
+  params.noise = Math.max(0, Math.min(1, params.noise));
   // Accept legacy param names for backward compatibility
   if (params.vibration !== undefined && params.scatter === undefined)
     params.scatter = params.vibration;
@@ -228,6 +225,10 @@ export function add(name, params) {
  */
 export function box() {
   return [...list.keys()];
+}
+
+export function getBrushParams(brushName) {
+  return list.get(brushName)?.param ?? null;
 }
 
 /**
@@ -296,41 +297,6 @@ export function noStroke() {
   State.stroke.isActive = false;
 }
 
-function snapshotTransform() {
-  return {
-    a: Matrix.a(),
-    b: Matrix.b(),
-    c: Matrix.c(),
-    d: Matrix.d(),
-    tx: Matrix.x(),
-    ty: Matrix.y(),
-  };
-}
-
-function invertTransform(transform) {
-  const det = transform.a * transform.d - transform.b * transform.c;
-  if (Math.abs(det) < 1e-12) return null;
-
-  return {
-    a: transform.d / det,
-    b: -transform.b / det,
-    c: -transform.c / det,
-    d: transform.a / det,
-    tx: (transform.c * transform.ty - transform.d * transform.tx) / det,
-    ty: (transform.b * transform.tx - transform.a * transform.ty) / det,
-  };
-}
-
-function normalizeRegion(region) {
-  const [x1, y1, x2, y2] = region;
-  return {
-    minX: Math.min(x1, x2),
-    minY: Math.min(y1, y2),
-    maxX: Math.max(x1, x2),
-    maxY: Math.max(y1, y2),
-  };
-}
-
 /**
  * Defines a clipping region for strokes.
  * The region uses the same coordinate space as brush drawing commands,
@@ -339,23 +305,14 @@ function normalizeRegion(region) {
  */
 export function clip(region) {
   isCanvasReady();
-  const inverse = invertTransform(snapshotTransform());
-  if (!inverse) {
-    throw new Error(
-      "brush.clip() cannot be used with a non-invertible transform.",
-    );
-  }
-  State.stroke.clipWindow = {
-    bounds: normalizeRegion(region),
-    inverse,
-  };
+  return region;
 }
 
 /**
  * Disables the clipping region.
  */
 export function noClip() {
-  State.stroke.clipWindow = null;
+  return;
 }
 
 // ---------------------------------------------------------------------------
@@ -373,7 +330,6 @@ const current = {};
  */
 function initializeDrawingState(x, y, length, plot = false) {
   snapshotMatrix();
-  _strokeTransform = snapshotTransform();
   _position = new Position(x + Cwidth / 2, y + Cheight / 2);
   _length = length;
   _plot = plot;
@@ -399,20 +355,27 @@ function draw(angleScale, isPlot) {
   const totalSteps = Math.round(
     (_length * (isPlot ? angleScale : 1)) / stepSize,
   );
+  current.pressureCount = 10;
+  current.cachedPressure = undefined;
+  current.lineNoiseCount = 5;
+  current.cachedLineNoise = undefined;
+
   for (let i = 0; i < totalSteps; i++) {
     if (gaussians.length < totalSteps * 2) {
       gaussians.push(gaussian());
     }
     tip();
-    isPlot
-      ? _position.plotTo(
-          _plot,
-          stepSize,
-          stepSize,
-          angleScale,
-          i < 10 ? true : false,
-        )
-      : _position._moveToDegrees(angleScale, stepSize, stepSize);
+    if (isPlot) {
+      _position.plotTo(
+        _plot,
+        stepSize,
+        stepSize,
+        angleScale,
+        i < 10 ? true : false,
+      );
+    } else {
+      _position._moveToDegrees(angleScale, stepSize, stepSize);
+    }
   }
   restoreState();
 }
@@ -444,13 +407,12 @@ function saveState() {
   }
   [current.min, current.max] = pressure.min_max;
 
-  current.noiseoffset = 0.03;
+  current.noiseoffset = 0.05 * current.p.noise;
 
   // Cache stroke direction for direction-aware dispersion (non-plot strokes only)
   if (!_plot) {
-    const dirRad = (_dir * Math.PI) / 180;
-    current.cos = Math.cos(dirRad);
-    current.sin = Math.sin(dirRad);
+    current.cos = cos(_dir);
+    current.sin = sin(_dir);
   }
 
   // Ensure GL is ready and blend state
@@ -462,36 +424,6 @@ function saveState() {
 
   // Set additional state values
   current.alpha = calculateAlpha();
-
-  // Pre-compute clip-check coefficients so isInsideClippingArea() needs no
-  // temporary objects and only one matrix×vector multiply per step instead of two.
-  {
-    const cw2 = Cwidth / 2, ch2 = Cheight / 2;
-    const T = _strokeTransform;
-    if (State.stroke.clipWindow) {
-      const { inverse: I, bounds: B } = State.stroke.clipWindow;
-      // Compose (I ∘ T) and fold the -cw2/-ch2 position offset into the translation
-      const ca = I.a * T.a + I.c * T.b, cc = I.a * T.c + I.c * T.d;
-      const cb = I.b * T.a + I.d * T.b, cd = I.b * T.c + I.d * T.d;
-      current.clipA  = ca; current.clipB  = cb;
-      current.clipC  = cc; current.clipD  = cd;
-      current.clipTX = I.a * T.tx + I.c * T.ty + I.tx - ca * cw2 - cc * ch2;
-      current.clipTY = I.b * T.tx + I.d * T.ty + I.ty - cb * cw2 - cd * ch2;
-      current.clipMinX = B.minX; current.clipMaxX = B.maxX;
-      current.clipMinY = B.minY; current.clipMaxY = B.maxY;
-    } else {
-      const o =
-        current.p.type === "custom" || current.p.type === "image"
-          ? Math.max(Cwidth * 0.05, getImageTipOverscan())
-          : Cwidth * 0.05;
-      current.clipA  = T.a; current.clipB  = T.b;
-      current.clipC  = T.c; current.clipD  = T.d;
-      current.clipTX = T.tx - T.a * cw2 - T.c * ch2;
-      current.clipTY = T.ty - T.b * cw2 - T.d * ch2;
-      current.clipMinX = -cw2 - o; current.clipMaxX = cw2 + o;
-      current.clipMinY = -ch2 - o; current.clipMaxY = ch2 + o;
-    }
-  }
 
   markerTip();
 }
@@ -511,16 +443,10 @@ function restoreState() {
  * Renders the brush tip based on current pressure and position.
  */
 function tip() {
-  const insideClip = isInsideClippingArea();
-  if (!insideClip) return;
   const pressure = calculatePressure();
-  const lineNoise = map(
-    noise(current.seed + _position.plotted * 0.002, 0),
-    0,
-    1,
-    1 - current.noiseoffset,
-    1 + current.noiseoffset,
-  );
+  const lineNoise = calculateLineNoise();
+
+  if (lineNoise > rr(1,1.02) && rr(0,1) < 0.7) return;
   switch (current.p.type) {
     case "spray":
       drawSpray(pressure * lineNoise);
@@ -543,9 +469,29 @@ function tip() {
  * @returns {number} The calculated pressure.
  */
 function calculatePressure() {
-  return _plot
-    ? simPressure() * _plot.pressure(_position.plotted)
-    : simPressure();
+  if (current.pressureCount >= 10 || current.cachedPressure === undefined) {
+    current.cachedPressure = _plot
+      ? simPressure() * _plot.pressure(_position.plotted)
+      : simPressure();
+    current.pressureCount = 0;
+  }
+  current.pressureCount++;
+  return current.cachedPressure;
+}
+
+function calculateLineNoise() {
+  if (current.lineNoiseCount >= 10 || current.cachedLineNoise === undefined) {
+    current.cachedLineNoise = map(
+      noise(current.seed + _position.plotted * 0.01, 0),
+      -1,
+      1,
+      1 - current.noiseoffset,
+      1 + current.noiseoffset,
+    );
+    current.lineNoiseCount = 0;
+  }
+  current.lineNoiseCount++;
+  return current.cachedLineNoise;
 }
 
 /**
@@ -614,19 +560,6 @@ function calculateAlpha() {
   return ["default", "spray"].includes(current.p.type)
     ? current.p.opacity
     : current.p.opacity / Math.min(State.stroke.weight, 1.3);
-}
-
-/**
- * Checks if the current drawing position is within the clipping region.
- * Uses coefficients pre-computed in saveState() — no object allocations,
- * one fused matrix×vector multiply (both transforms composed at setup time).
- * @returns {boolean} True if inside clipping area; false otherwise.
- */
-function isInsideClippingArea() {
-  const lx = current.clipA * _position.x + current.clipC * _position.y + current.clipTX;
-  if (lx < current.clipMinX || lx > current.clipMaxX) return false;
-  const ly = current.clipB * _position.x + current.clipD * _position.y + current.clipTY;
-  return ly >= current.clipMinY && ly <= current.clipMaxY;
 }
 
 /**
@@ -739,13 +672,18 @@ function drawDefault(pressure, wiggle = 1) {
   if (passesGate) {
     let dx, dy;
     if (_plot) {
-      dx = 0.7 * vibration * rr(-1, 1);
-      dy = vibration * rr(-1, 1);
+      const plotAngle = _plot.angle(_position.plotted);
+      const plotCos = cos(plotAngle);
+      const plotSin = sin(plotAngle);
+      const perp = vibration * rr(-1, 1);
+      const along = 0.3 * vibration * rr(-1, 1);
+      dx = perp * plotSin + along * plotCos;
+      dy = perp * plotCos - along * plotSin;
     } else {
       const perp = vibration * rr(-1, 1);
       const along = 0.3 * vibration * rr(-1, 1);
-      dx = perp * -current.sin + along * current.cos;
-      dy = perp * current.cos + along * current.sin;
+      dx = perp * current.sin + along * current.cos;
+      dy = perp * current.cos - along * current.sin;
     }
     const diameter =
       pressure *
@@ -768,17 +706,15 @@ function drawDefault(pressure, wiggle = 1) {
  */
 function markerTip() {
   if (current.p.markerTip === false) return;
-  if (isInsideClippingArea()) {
-    let pressure = calculatePressure();
-    let alpha = current.alpha;
-    if (current.p.type === "marker") {
-      for (let s = 1; s < 10; s++) {
-        drawMarker((pressure * s) / 10, true, alpha * 8);
-      }
-    } else if (current.p.type === "custom" || current.p.type === "image") {
-      for (let s = 1; s < 5; s++) {
-        drawImageTip((pressure * s) / 10, alpha * 2);
-      }
+  let pressure = calculatePressure();
+  let alpha = current.alpha;
+  if (current.p.type === "marker") {
+    for (let s = 1; s < 10; s++) {
+      drawMarker((pressure * s) / 10, true, alpha * 8);
+    }
+  } else if (current.p.type === "custom" || current.p.type === "image") {
+    for (let s = 1; s < 5; s++) {
+      drawImageTip((pressure * s) / 10, alpha * 2);
     }
   }
 }
@@ -860,6 +796,7 @@ const _vals = [
   "tip",
   "rotate",
   "markerTip",
+  "noise",
 ];
 const _standard_brushes = [
   [
@@ -885,6 +822,40 @@ const _standard_brushes = [
   [
     "cpencil",
     [0.3, 0.55, 0.8, 7, 75, 0.1, { curve: [0.15, 0.2], min_max: [0.95, 1.2] }],
+  ],
+  [
+    "pastel",
+    [
+      2.05 / 3,
+      13.4 / 3,
+      0.91,
+      28,
+      35,
+      0.085 / 3,
+      { mode: "gaussian", curve: [0.4, 0.05], min_max: [1.09, 0.93] },
+      "default",
+      undefined,
+      "natural",
+      true,
+      1,
+    ],
+  ],
+  [
+    "crayon",
+    [
+      0.9 / 3,
+      5.45 / 3,
+      0.75,
+      250,
+      159,
+      0.23 / 3,
+      [1.1, 0.9],
+      "default",
+      undefined,
+      "natural",
+      true,
+      1,
+    ],
   ],
   [
     "charcoal",

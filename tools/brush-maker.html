@@ -599,7 +599,7 @@
 
     <div class="control-row">
       <label>scatter</label>
-      <input type="range" id="scatter" min="0" max="15" step="0.05" value="1.8" />
+      <input type="range" id="scatter" min="0" max="25" step="0.05" value="1.8" />
       <span class="val" id="scatter-val">1.8</span>
     </div>
 
@@ -629,6 +629,12 @@
       <label>spacing</label>
       <input type="range" id="spacing" min="0.01" max="2" step="0.01" value="0.3" />
       <span class="val" id="spacing-val">0.3</span>
+    </div>
+
+    <div class="control-row" id="noise-row" style="display:none">
+      <label>noise</label>
+      <input type="range" id="noise" min="0" max="4" step="0.05" value="1" />
+      <span class="val" id="noise-val">0.5</span>
     </div>
 
     <div class="control-row" id="rotate-row" style="display:none">
@@ -799,6 +805,7 @@ const params = {
   grain:     10,
   opacity:   170,
   spacing:   0.3,
+  noise:     0.5,
   rotate:    'natural',
   markerTip: true,
   pressureMode: 'simple',
@@ -917,12 +924,13 @@ function generateCode() {
   const markerTipField = (p.type === 'marker' || p.type === 'custom' || p.type === 'image')
     ? `  markerTip: ${p.markerTip},\n`
     : '';
+  const noiseField = `  noise:   ${p.noise},\n`;
 
   const prefix = p.type === 'image'
     ? '// Image brushes must be awaited inside async setup()\nawait '
     : '';
 
-  return `${prefix}brush.add("${p.name}", {\n  type:    "${p.type}",\n  weight:  ${p.weight},\n  scatter: ${p.scatter},\n${typeSpecific}  opacity: ${p.opacity},\n  spacing: ${p.spacing},\n  pressure: ${pressure},\n  rotate:  "${p.rotate}",\n${markerTipField}${imageField}${tipField}});`;
+  return `${prefix}brush.add("${p.name}", {\n  type:    "${p.type}",\n  weight:  ${p.weight},\n  scatter: ${p.scatter},\n${typeSpecific}  opacity: ${p.opacity},\n  spacing: ${p.spacing},\n${noiseField}  pressure: ${pressure},\n  rotate:  "${p.rotate}",\n${markerTipField}${imageField}${tipField}});`;
 }
 
 function updateCode() {
@@ -983,6 +991,7 @@ wire('scatter',   'scatter',   v => Math.round(parseFloat(v) * 100) / 100);
 wire('sharpness', 'sharpness', v => Math.round(parseFloat(v) * 100) / 100);
 wire('opacity',   'opacity',   v => Math.round(parseFloat(v) * 100) / 100);
 wire('spacing',   'spacing',   v => Math.max(0.001, Math.round(parseFloat(v) * 1000) / 1000));
+wire('noise',     'noise',     v => Math.round(parseFloat(v) * 100) / 100);
 wire('press-start','pressStart', v => Math.round(parseFloat(v) * 100) / 100);
 wire('press-mid',  'pressMid',   v => Math.round(parseFloat(v) * 100) / 100);
 wire('press-end',  'pressEnd',   v => Math.round(parseFloat(v) * 100) / 100);
@@ -1028,27 +1037,31 @@ wire('gauss-max', 'gaussMax', v => Math.round(parseFloat(v) * 100) / 100);
 const SLIDER_RANGES = {
   default: {
     weight:  { min: 0,    max: 3,   step: 0.01 },
-    scatter: { min: 0,    max: 15,  step: 0.05 },
+    scatter: { min: 0,    max: 25,  step: 0.05 },
     opacity: { min: 1,    max: 255, step: 1     },
     spacing: { min: 0.01, max: 2,   step: 0.01  },
+    noise:   { min: 0,    max: 1,   step: 0.05  },
   },
   spray: {
     weight:  { min: 0,  max: 3,   step: 0.01 },
     scatter: { min: 10, max: 50,  step: 1     },
     opacity: { min: 1,  max: 255, step: 1     },
     spacing: { min: 2,  max: 50,  step: 1     },
+    noise:   { min: 0,  max: 1,   step: 0.05  },
   },
   marker: {
     weight:  { min: 0,     max: 50,  step: 1     },
     scatter: { min: 0,     max: 15,  step: 0.05  },
     opacity: { min: 0,     max: 5,   step: 0.01  },
     spacing: { min: 0.002, max: 0.5, step: 0.002 },
+    noise:   { min: 0,     max: 1,   step: 0.05  },
   },
   custom: {
     weight:  { min: 1,   max: 60,  step: 1    },
     scatter: { min: 0,   max: 10,  step: 0.05 },
     opacity: { min: 1,   max: 50,  step: 1    },
     spacing: { min: 0.1, max: 15,  step: 0.1  },
+    noise:   { min: 0,   max: 1,   step: 0.05 },
   },
   image: {
     weight:  { min: 1,   max: 60,  step: 1    },
@@ -1064,31 +1077,31 @@ const TYPE_PRESETS = {
     weight: 0.9, scatter: 1.8, sharpness: 0.3, grain: 10,
     opacity: 170, spacing: 0.3, pressStart: 1.1, pressEnd: 0.9,
     gaussCurveA: 0.15, gaussCurveB: 0.2, gaussMin: 1.1, gaussMax: 0.9,
-    rotate: 'natural', referenceBrush: 'HB',
+    rotate: 'natural', noise: 1, referenceBrush: 'HB',
   },
   spray: {
     weight: 0.6, scatter: 18, sharpness: null, grain: 40,
     opacity: 90, spacing: 5, pressStart: 0.7, pressEnd: 1,
     gaussCurveA: 0.2, gaussCurveB: 0.35, gaussMin: 0.7, gaussMax: 1,
-    rotate: 'random', referenceBrush: 'spray',
+    rotate: 'random', noise: 1, referenceBrush: 'spray',
   },
   marker: {
     weight: 6, scatter: 0.36, sharpness: null, grain: null,
     opacity: 1, spacing: 0.09, pressStart: 1.2, pressEnd: 0.85,
     gaussCurveA: 0.35, gaussCurveB: 0.25, gaussMin: 1.2, gaussMax: 0.85,
-    rotate: 'none', markerTip: true, referenceBrush: 'marker',
+    rotate: 'none', markerTip: true, noise: 1, referenceBrush: 'marker',
   },
   custom: {
     weight: 29, scatter: 0.45, sharpness: null, grain: null,
     opacity: 6, spacing: 0.4, pressStart: 0.8, pressEnd: 1.2,
     gaussCurveA: 0.15, gaussCurveB: 0.2, gaussMin: 1.1, gaussMax: 0.9,
-    rotate: 'none', markerTip: true, referenceBrush: 'HB',
+    rotate: 'none', markerTip: true, noise: 1, referenceBrush: 'HB',
   },
   image: {
     weight: 17, scatter: 0.15, sharpness: null, grain: null,
     opacity: 47, spacing: 9.5, pressStart: 0.8, pressEnd: 1.2,
     gaussCurveA: 0.15, gaussCurveB: 0.2, gaussMin: 1.1, gaussMax: 0.9,
-    rotate: 'random', markerTip: true, referenceBrush: 'HB',
+    rotate: 'random', markerTip: true, noise: 1, referenceBrush: 'HB',
   },
 };
 
@@ -1111,6 +1124,7 @@ function updateTypeUI() {
   document.getElementById('weight-row').style.display = '';
   document.getElementById('rotate-row').style.display = (isCustom || isImage) ? '' : 'none';
   document.getElementById('marker-tip-row').style.display = showMarkerTip ? 'flex' : 'none';
+  document.getElementById('noise-row').style.display = 'flex';
   document.getElementById('sharpness-row').style.display = showSharpness ? '' : 'none';
   document.getElementById('grain-row').style.display = showGrain ? '' : 'none';
   document.getElementById('tip-section').style.display = isCustom ? '' : 'none';
@@ -1120,6 +1134,7 @@ function updateTypeUI() {
   applySliderRange('opacity', ranges.opacity);
   applySliderRange('spacing', ranges.spacing);
   if (ranges.scatter) applySliderRange('scatter', ranges.scatter);
+  if (ranges.noise) applySliderRange('noise', ranges.noise);
 }
 
 function applySliderRange(id, cfg) {
@@ -1142,6 +1157,7 @@ function applyTypePreset(type) {
   params.scatter   = preset.scatter;   applySliderValue('scatter', preset.scatter);
   params.opacity   = preset.opacity;   applySliderValue('opacity', preset.opacity);
   params.spacing   = preset.spacing;   applySliderValue('spacing', preset.spacing);
+  params.noise     = preset.noise ?? 1; applySliderValue('noise', params.noise);
   params.pressStart = preset.pressStart; applySliderValue('press-start', preset.pressStart);
   params.pressEnd   = preset.pressEnd;   applySliderValue('press-end',   preset.pressEnd);
   params.gaussCurveA = preset.gaussCurveA; applySliderValue('gauss-curve-a', preset.gaussCurveA);
@@ -1171,6 +1187,7 @@ function syncControlsFromParams() {
   applySliderValue('scatter', params.scatter);
   applySliderValue('opacity', params.opacity);
   applySliderValue('spacing', params.spacing);
+  applySliderValue('noise', params.noise);
   applySliderValue('press-start', params.pressStart);
   applySliderValue('press-mid', params.pressMid);
   applySliderValue('press-end', params.pressEnd);
@@ -1228,6 +1245,7 @@ function applyGeneratedCode(source, reformat = false) {
   if (cfg.scatter !== undefined) applySliderValue('scatter', cfg.scatter);
   if (cfg.opacity !== undefined) applySliderValue('opacity', cfg.opacity);
   if (cfg.spacing !== undefined) applySliderValue('spacing', cfg.spacing);
+  if (cfg.noise !== undefined) applySliderValue('noise', cfg.noise);
   if (cfg.sharpness !== undefined) applySliderValue('sharpness', cfg.sharpness);
   if (cfg.grain !== undefined) applySliderValue('grain', cfg.grain);
 
@@ -1491,6 +1509,8 @@ const sketch = (p) => {
       cfg.sharpness = params.sharpness;
       cfg.grain     = params.grain;
     }
+
+    cfg.noise = params.noise;
 
     if (params.type === 'custom') {
       const tipLines = params.tipBody.split('\n').map(l => l.trim()).filter(Boolean).map(l => `_m.${l}`).join('\n');

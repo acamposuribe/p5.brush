@@ -139,10 +139,12 @@ p5.brush.js provides a comprehensive API for creating complex drawings and effec
 |                                            | brush.strokeWeight()|   | [Configuration](#optional-configuration)   | brush.load()        |
 | [Fill Operations](#fill-operations)        | brush.fill()        |   |                                            |      |
 |                                            | brush.noFill()      |   |                                            | brush.scaleBrushes()|
-|                                            | brush.fillBleed()   |   |                                            | brush.instance()    |
+|                                            | brush.wash()        |   |                                            | brush.instance()    |
+|                                            | brush.noWash()      |   |                                            |                     |
+|                                            | brush.fillBleed()   |   |                                            |                     |
 |                                            | brush.fillTexture() |   |                                            |                     |
-|                                            |                     |   | [Classes](#exposed-classes)                | brush.Polygon()     |
-|                                            |                     |   |                                            | brush.Plot()        |
+| [Hatch Operations](#hatch-operations)      | brush.mass()        |   | [Classes](#exposed-classes)                | brush.Polygon()     |
+|                                            | brush.noMass()      |   |                                            | brush.Plot()        |
 |                                            |                     |   |                                            | brush.Position()    |
 
 ---
@@ -309,6 +311,7 @@ Functions for managing brush behaviors and properties.
       - `image`: Only for `"image"` type. An object with a `src` property pointing to your image file: `{ src: "./tip.jpg" }`.
       - `rotate`: How the tip rotates as it moves. `"none"` keeps it fixed, `"natural"` follows the stroke direction, `"random"` spins randomly.
       - `markerTip`: Only for `"marker"`, `"custom"`, and `"image"` types. Set to `false` to disable the extra soft tip buildup those brushes add at the start and end of each stroke. Defaults to `true`.
+      - `noise`: Multiplies the subtle line-noise variation used along the stroke. `1` keeps the default behavior, `0` disables it, and higher values make the line wobble more.
   - **Usage**:
     ```javascript
     // Image brush — use a photo as the brush tip.
@@ -515,6 +518,29 @@ The Fill Management section focuses on managing fill properties for shapes, enab
 
 ---
 
+- `brush.wash(color, opacity)`
+  - **Description**: Enables a fast solid fill pass for subsequent shapes. Unlike `fill()`, `wash()` does not simulate watercolor bleed or texture; it draws a direct flat color with the given opacity.
+  - **Parameters**:
+    - `color` (String|p5.Color): The wash color.
+    - `opacity` (Number): Opacity from 0 to 255.
+  - **Usage**:
+    ```javascript
+    brush.wash("#f7e4a0", 255);
+    brush.circle(width / 2, height / 2, 180);
+    brush.noWash();
+    ```
+
+---
+
+- `brush.noWash()`
+  - **Description**: Disables wash mode for subsequent geometry.
+  - **Usage**:
+    ```javascript
+    brush.noWash();
+    ```
+
+---
+
 - `brush.fillBleed(strength, direction)`
   - **Description**: Adjust the bleed intensity for the fill operation, mimicking the edge diffusion of watercolor paints.
   - **Parameters**:
@@ -587,6 +613,38 @@ The Hatching section focuses on creating and drawing hatching patterns, which in
   - **Usage**:
     ```javascript
     brush.hatchStyle("rotring", "green", 1.3);
+    ```
+
+---
+
+- `brush.mass(brushName, color, options)`
+  - **Description**: Enables massing for subsequent shapes. Massing builds layered hand-filled value using internally generated hatch geometry and curved gestures rather than explicit watercolor fills.
+  - **Parameters**:
+    - `brushName` (String): Brush used for the mass strokes.
+    - `color` (String|p5.Color): Color of the mass.
+    - `options` (Object): Optional settings:
+      - `precision`: `0` to `1`. Higher values reduce jitter and randomness.
+      - `strength`: `0` to `1`. Controls how many of the three internal layers are drawn.
+      - `gradient`: `0` to `1`. Passed through to hatch generation for spacing variation.
+      - `outline`: `true` or `false`. If true, the first polygon is also outlined.
+  - **Usage**:
+    ```javascript
+    brush.mass("pastel", "#4b6cb7", {
+      precision: 0.55,
+      strength: 0.9,
+      gradient: 0.35,
+      outline: true,
+    });
+    brush.circle(width / 2, height / 2, 180);
+    ```
+
+---
+
+- `brush.noMass()`
+  - **Description**: Disables massing for subsequent geometry.
+  - **Usage**:
+    ```javascript
+    brush.noMass();
     ```
 
 ---
@@ -912,11 +970,11 @@ This section covers functions for initializing the drawing system and configurin
   - **Description**: Adjusts the global scale of all currently registered brush parameters, including weight, scatter, and spacing, based on the given scaling factor.
   - **Parameters**:
     - `scale` (Number): The scaling factor to be applied to the brush parameters.
-  - **Note**: This affects the brushes that already exist when you call it. If you only want the built-in brushes scaled, call it before adding custom brushes. If you add custom brushes later, call `brush.scaleBrushes()` again to scale them too.
+  - **Note**: In practice, using `brush.scaleBrushes()` is usually necessary to adapt the built-in brushes to your canvas size. For a `600x600` canvas, `brush.scaleBrushes(3)` is a good starting point, but the final value should still be confirmed visually. This affects the brushes that already exist when you call it. If you only want the built-in brushes scaled, call it before adding custom brushes. If you add custom brushes later, call `brush.scaleBrushes()` again to scale them too.
   - **Usage**:
     ```javascript
-    // Scale all standard brushes by a factor of 1.5
-    brush.scaleBrushes(1.5);
+    // Good starting point for a 600x600 canvas
+    brush.scaleBrushes(3);
     ```
     Using `brush.scaleBrushes()`, you can easily adjust the size and spacing characteristics of brushes in your project, providing a convenient way to adapt to different canvas sizes or artistic styles.
     
@@ -975,8 +1033,12 @@ Exposed Classes provide foundational elements for creating and manipulating shap
     - Draws the polygon on the canvas, following the current stroke state or the provided params.
   - `.fill(color, opacity, bleed, texture)`
     - Fills the polygon on the canvas, adhering to the current fill state or to the provided params.
+  - `.wash(color, opacity)`
+    - Washes the polygon on the canvas with the current wash() state or the provided params.
   - `.hatch(distance, angle, options)`
     - Applies hatching to the polygon on the canvas, based on the current hatch state or the provided params.
+  - `.mass()`
+    - Applies the current mass() state to the polygon.
 
 - **Attributes**:
   - `.vertices`: An array of the polygon's vertices, each vertex being an object with `x` and `y` properties.
@@ -1024,11 +1086,21 @@ Exposed Classes provide foundational elements for creating and manipulating shap
     - Parameters:
       - `x` (Number): The x-coordinate to fill at.
       - `y` (Number): The y-coordinate to fill at.
+  - `.wash(x, y)`
+    - Washes the plot on the canvas with current wash() state.
+    - Parameters:
+      - `x` (Number): The x-coordinate to wash at.
+      - `y` (Number): The y-coordinate to wash at.
   - `.hatch(x, y)`
     - Hatches the plot on the canvas with current hatch() state.
     - Parameters:
       - `x` (Number): The x-coordinate to hatch at.
       - `y` (Number): The y-coordinate to hatch at.
+  - `.mass(x, y)`
+    - Applies the current mass() state to the plot.
+    - Parameters:
+      - `x` (Number): The x-coordinate to mass at.
+      - `y` (Number): The y-coordinate to mass at.
 
 - **Attributes**:
   - `.segments`: An array containing the lengths of all segments.

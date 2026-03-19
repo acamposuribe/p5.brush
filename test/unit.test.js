@@ -15,6 +15,13 @@ const { currentAngleMode, mockState, plotInstances } = vi.hoisted(() => ({
 
 // Mock color.js (pulls in GLSL shaders and WebGL — not available in Node)
 vi.mock("../src/core/color.js", () => ({
+  Mix: {},
+  State: mockState,
+  isCanvasReady: () => {},
+  isMixReady: () => {},
+}));
+
+vi.mock("../src/core/target.js", () => ({
   Renderer: {
     angleMode: () => currentAngleMode.value,
     RADIANS: "radians",
@@ -25,12 +32,8 @@ vi.mock("../src/core/color.js", () => ({
       },
     },
   },
-  Mix: {},
-  State: mockState,
   Cwidth: 800,
   Cheight: 600,
-  isCanvasReady: () => {},
-  isMixReady: () => {},
 }));
 
 vi.mock("../src/stroke/stroke.js", () => ({

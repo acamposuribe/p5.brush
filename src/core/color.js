@@ -1,3 +1,21 @@
+import {
+  Cwidth,
+  Cheight,
+  Renderer,
+  Density,
+  load as loadTarget,
+  isCanvasReady,
+  syncDensity,
+  getActiveFramebuffer,
+  isFramebufferTarget,
+} from "./target.js";
+import {
+  expandDirtyRect,
+  normalizeDirtyRect as clampDirtyRect,
+  unionDirtyRect,
+  getFullDirtyRect as getFullRect,
+} from "./dirty_rect.js";
+
 import vertSrc from "./gl/shader.vert";
 import fragSrc from "./gl/shader.frag";
 
@@ -10,127 +28,16 @@ import fragSrc from "./gl/shader.frag";
  * provides utilities for saving and restoring states.
  */
 
-export let Cwidth, Cheight, Instance, Renderer, Density; // Global canvas properties
+let strokeComposite = null;
+let fillComposite = null;
 
-let FillMaskUploadCanvas = null;
-let ReadySketch = null;
-let ActiveInstance = null;
-const ActiveInstanceStack = [];
-
-// =============================================================================
-// Section: Target Resolution
-// =============================================================================
-
-/**
- * Checks whether the given draw target is a p5.Framebuffer-like object.
- * @param {*} target - Candidate draw target.
- * @returns {boolean} True when the target behaves like a p5.Framebuffer.
- */
-const isFramebufferTarget = (target) =>
-  !!target &&
-  typeof target.begin === "function" &&
-  typeof target.end === "function" &&
-  !!target.renderer &&
-  !!target.renderer._pInst;
-
-const isFiniteSize = (value) =>
-  typeof value === "number" && Number.isFinite(value) && value > 0;
-
-const safeRead = (getter) => {
-  try {
-    return getter();
-  } catch (_error) {
-    return undefined;
-  }
+export const registerStrokeComposite = (composite) => {
+  strokeComposite = composite;
 };
 
-const isReadyWebGLSketch = (candidate) =>
-  !!candidate &&
-  typeof candidate.pixelDensity === "function" &&
-  typeof candidate.createFramebuffer === "function" &&
-  isFiniteSize(safeRead(() => candidate.width)) &&
-  isFiniteSize(safeRead(() => candidate.height)) &&
-  safeRead(() => candidate.webglVersion) === "webgl2";
-
-const getCurrentP5Instance = () => window.self?.p5?.instance ?? null;
-
-const rememberReadySketch = (candidate) => {
-  if (isReadyWebGLSketch(candidate)) ReadySketch = candidate;
-  return ReadySketch;
+export const registerFillComposite = (composite) => {
+  fillComposite = composite;
 };
-
-const getActiveSketchRenderer = () => {
-  if (!ActiveInstance) return null;
-  if (!isReadyWebGLSketch(ActiveInstance)) return null;
-  return rememberReadySketch(ActiveInstance);
-};
-
-/**
- * Resolves the sketch renderer that owns the current drawing session.
- * Preference order:
- * 1. the sketch currently executing a p5 lifecycle callback
- * 2. the explicitly selected instance from brush.instance(p), if ready
- * 3. the last known-good ready sketch
- * @returns {p5|Window["p5"]["instance"]|null} The active sketch renderer.
- */
-const getSketchRenderer = () =>
-  getActiveSketchRenderer() ||
-  rememberReadySketch(getCurrentP5Instance()) ||
-  rememberReadySketch(Instance) ||
-  ReadySketch;
-
-/**
- * Resolves the renderer and pixel size used by `brush.load()`.
- * @param {p5.Graphics|p5.Framebuffer|false} [buffer=false] - Optional draw target.
- * @returns {{renderer: object, width: number, height: number}} Active renderer info.
- */
-const resolveTarget = (buffer = false) => {
-  const sketchRenderer = getSketchRenderer();
-
-  // brush.load() can target the main sketch renderer, a p5.Graphics surface,
-  // or an active framebuffer owned by the current sketch.
-  if (!buffer) {
-    if (!sketchRenderer) {
-      throw new Error(
-        "p5.brush could not resolve an active WEBGL sketch. Call brush.instance(p) and brush.load() after createCanvas(..., WEBGL).",
-      );
-    }
-    return {
-      renderer: sketchRenderer,
-      width: sketchRenderer.width,
-      height: sketchRenderer.height,
-    };
-  }
-
-  if (isFramebufferTarget(buffer)) {
-    const owner = buffer.renderer._pInst;
-    rememberReadySketch(owner);
-
-    if (sketchRenderer && owner !== sketchRenderer) {
-      throw new Error(
-        "p5.brush only supports p5.Framebuffer targets created from the active sketch",
-      );
-    }
-
-    return {
-      renderer: owner,
-      width: buffer.width,
-      height: buffer.height,
-    };
-  }
-
-  return {
-    renderer: buffer,
-    width: buffer.width,
-    height: buffer.height,
-  };
-};
-
-/**
- * Returns the currently bound sketch framebuffer when drawing into one.
- * @returns {p5.Framebuffer|null} Active framebuffer or null.
- */
-const getActiveFramebuffer = () => Renderer?._renderer?.activeFramebuffer?.() ?? null;
 
 const clearTarget = (target) => {
   if (!target) return;
@@ -147,57 +54,9 @@ const clearTarget = (target) => {
   ctx.restore();
 };
 
-const uploadFillMaskToMirror = (mask, dirtyRect = null) => {
-  const target = Renderer.fillMaskFramebuffer;
-  const gl = Renderer.drawingContext;
-  const uploadRect = normalizeDirtyRect(dirtyRect) ?? getFullDirtyRect();
-  const uploadWidth = uploadRect.maxX - uploadRect.minX;
-  const uploadHeight = uploadRect.maxY - uploadRect.minY;
-
-  if (
-    !FillMaskUploadCanvas ||
-    FillMaskUploadCanvas.width !== uploadWidth ||
-    FillMaskUploadCanvas.height !== uploadHeight
-  ) {
-    FillMaskUploadCanvas = new OffscreenCanvas(uploadWidth, uploadHeight);
-    FillMaskUploadCanvas.drawingContext = FillMaskUploadCanvas.getContext("2d");
-  }
-
-  const uploadContext = FillMaskUploadCanvas.drawingContext;
-  uploadContext.clearRect(0, 0, uploadWidth, uploadHeight);
-  uploadContext.drawImage(
-    mask,
-    uploadRect.minX,
-    uploadRect.minY,
-    uploadWidth,
-    uploadHeight,
-    0,
-    0,
-    uploadWidth,
-    uploadHeight,
-  );
-
-  clearTarget(target);
-  gl.bindTexture(gl.TEXTURE_2D, target.colorTexture);
-  gl.texSubImage2D(
-    gl.TEXTURE_2D,
-    0,
-    uploadRect.minX,
-    uploadRect.minY,
-    gl.RGBA,
-    gl.UNSIGNED_BYTE,
-    FillMaskUploadCanvas,
-  );
-
-  return target;
-};
-
 // =============================================================================
 // Section: Dirty Rect Utilities
 // =============================================================================
-const DIRTY_BRUSH_PADDING = 2;
-const DIRTY_FILL_PADDING = 4;
-
 /**
  * Returns the current render target size in physical pixels.
  * @returns {{width: number, height: number}} Pixel size of the active target.
@@ -207,57 +66,10 @@ const getTargetPixelSize = () => ({
   height: Math.max(1, Math.round(Cheight * Density)),
 });
 
-/**
- * Expands a dirty rectangle outward by a constant padding value.
- * @param {{minX:number,minY:number,maxX:number,maxY:number}|null} rect - Rect to expand.
- * @param {number} [padding=0] - Padding in pixels.
- * @returns {{minX:number,minY:number,maxX:number,maxY:number}|null} Expanded rect.
- */
-const expandDirtyRect = (rect, padding = 0) =>
-  rect
-    ? {
-        minX: rect.minX - padding,
-        minY: rect.minY - padding,
-        maxX: rect.maxX + padding,
-        maxY: rect.maxY + padding,
-      }
-    : null;
-
-/**
- * Clamps a dirty rectangle to the current target bounds.
- * @param {{minX:number,minY:number,maxX:number,maxY:number}|null} rect - Candidate rect.
- * @returns {{minX:number,minY:number,maxX:number,maxY:number}|null} Clamped rect.
- */
 const normalizeDirtyRect = (rect) => {
   if (!rect) return null;
-
   const { width, height } = getTargetPixelSize();
-  const minX = Math.max(0, Math.floor(Math.min(rect.minX, rect.maxX)));
-  const minY = Math.max(0, Math.floor(Math.min(rect.minY, rect.maxY)));
-  const maxX = Math.min(width, Math.ceil(Math.max(rect.minX, rect.maxX)));
-  const maxY = Math.min(height, Math.ceil(Math.max(rect.minY, rect.maxY)));
-
-  if (maxX <= minX || maxY <= minY) return null;
-
-  return { minX, minY, maxX, maxY };
-};
-
-/**
- * Returns the union of two dirty rectangles.
- * @param {{minX:number,minY:number,maxX:number,maxY:number}|null} a - First rect.
- * @param {{minX:number,minY:number,maxX:number,maxY:number}|null} b - Second rect.
- * @returns {{minX:number,minY:number,maxX:number,maxY:number}|null} Union rect.
- */
-const unionDirtyRect = (a, b) => {
-  if (!a) return b;
-  if (!b) return a;
-
-  return {
-    minX: Math.min(a.minX, b.minX),
-    minY: Math.min(a.minY, b.minY),
-    maxX: Math.max(a.maxX, b.maxX),
-    maxY: Math.max(a.maxY, b.maxY),
-  };
+  return clampDirtyRect(rect, width, height);
 };
 
 /**
@@ -266,7 +78,7 @@ const unionDirtyRect = (a, b) => {
  */
 const getFullDirtyRect = () => {
   const { width, height } = getTargetPixelSize();
-  return { minX: 0, minY: 0, maxX: width, maxY: height };
+  return getFullRect(width, height);
 };
 
 // =============================================================================
@@ -315,60 +127,11 @@ const withScissor = (gl, rect, draw, flipY = true) => {
   }
 };
 
-// =============================================================================
-// Section: Load and State
-// =============================================================================
-/**
- * Loads and initializes a canvas for the drawing system.
- * @param {p5.Graphics|p5.Framebuffer|false} [buffer=false] - Optional offscreen target.
- * Pass a framebuffer only while drawing inside its begin()/end() or draw() scope.
- * Framebuffers created from p5.Graphics are not supported.
- */
-export const load = (buffer = false) => {
-  const target = resolveTarget(buffer);
-  Renderer = target.renderer;
-  rememberReadySketch(!buffer ? Renderer : getSketchRenderer());
-
-  if (Renderer.webglVersion !== "webgl2") {
-    throw new Error("p5.brush requires a WEBGL canvas");
-  }
-
-  Cwidth = target.width;
-  Cheight = target.height;
-
-  _isReady = true;
-  if (Renderer.loaded) Mix.load();
-};
-
-let _isReady = false;
-
-/**
- * Ensures the drawing system is ready before any operation.
- */
-export const isCanvasReady = () => {
-  if (!_isReady) load();
-};
-
 /**
  * Stores the current state of the drawing system.
  * Can be used to save and restore configurations or canvas states.
  */
 export const State = {};
-
-export const instance = (inst) => {
-  Instance = inst;
-  rememberReadySketch(inst);
-};
-
-export const activateInstance = (inst) => {
-  ActiveInstanceStack.push(ActiveInstance);
-  ActiveInstance = inst;
-  instance(inst);
-};
-
-export const deactivateInstance = () => {
-  ActiveInstance = ActiveInstanceStack.pop() ?? null;
-};
 /**
  * Handles color blending using WebGL shaders. Implements advanced blending
  * effects based on Kubelka-Munk theory. Relies on spectral.js for blending logic.
@@ -397,7 +160,7 @@ export const isMixReady = () => {
  */
 export const Mix = {
   isBlending: false,
-  cachedColor: new Object(),
+  cachedColor: null,
 
   /**
    * Merges a new dirty rectangle into the target's accumulated draw bounds.
@@ -417,10 +180,8 @@ export const Mix = {
    */
   clearMask(target) {
     if (!target) return;
-
-    clearTarget(target);
-    target.isDrawn = false;
-    target.dirtyRect = null;
+    const composite = target === this.glMask ? strokeComposite : fillComposite;
+    composite?.clearMask?.(target, clearTarget);
   },
 
   /**
@@ -430,17 +191,13 @@ export const Mix = {
    * @returns {{minX:number,minY:number,maxX:number,maxY:number}|null} Composite rect.
    */
   getCompositeRect(target, isBrushMask) {
-    if (!target) return null;
-    if (!target.dirtyRect) return getFullDirtyRect();
-
-    // Brush-mask dirty rects are still less predictable when the destination
-    // is itself a framebuffer, so keep that path conservative.
-    if (isBrushMask && getActiveFramebuffer()) return getFullDirtyRect();
-    return normalizeDirtyRect(
-      expandDirtyRect(
-        target.dirtyRect,
-        isBrushMask ? DIRTY_BRUSH_PADDING : DIRTY_FILL_PADDING,
-      ),
+    const composite = isBrushMask ? strokeComposite : fillComposite;
+    return composite?.getCompositeRect?.(
+      target,
+      getActiveFramebuffer,
+      getFullDirtyRect,
+      expandDirtyRect,
+      normalizeDirtyRect,
     );
   },
 
@@ -451,46 +208,34 @@ export const Mix = {
    * Ensures the mask buffers and blend shader exist for the current renderer.
    */
   load() {
-    Density = Renderer.pixelDensity();
-    const maskWidth = Math.max(1, Math.round(Cwidth * Density));
-    const maskHeight = Math.max(1, Math.round(Cheight * Density));
-    const needsBuffers =
-      !Renderer.mask ||
-      !Renderer.glMask ||
-      Renderer.mask.width !== maskWidth ||
-      Renderer.mask.height !== maskHeight ||
-      Renderer.glMask.width !== Cwidth ||
-      Renderer.glMask.height !== Cheight;
+    syncDensity();
     const needsBlendSourceFramebuffer =
       !Renderer.blendSourceFramebuffer ||
         Renderer.blendSourceFramebuffer.width !== Cwidth ||
         Renderer.blendSourceFramebuffer.height !== Cheight ||
         (typeof Renderer.blendSourceFramebuffer.pixelDensity === "function" &&
           Renderer.blendSourceFramebuffer.pixelDensity() !== Density);
-    const needsFillMaskFramebuffer =
-      !Renderer.fillMaskFramebuffer ||
-        Renderer.fillMaskFramebuffer.width !== Cwidth ||
-        Renderer.fillMaskFramebuffer.height !== Cheight ||
-        (typeof Renderer.fillMaskFramebuffer.pixelDensity === "function" &&
-          Renderer.fillMaskFramebuffer.pixelDensity() !== Density);
-    if (!Renderer.loaded || needsBuffers) {
-      if (Renderer.glMask?.remove) Renderer.glMask.remove();
-      // Keep one 2D mask for fill/hatch work and one framebuffer-backed mask
-      // for brush stamps so the brush path stays in the main renderer context.
-      Renderer.mask = new OffscreenCanvas(maskWidth, maskHeight);
-      Renderer.mask.drawingContext = Renderer.mask.getContext("2d");
-      Renderer.glMask = Renderer.createFramebuffer({
-        width: Cwidth,
-        height: Cheight,
-        density: Density,
-        antialias: false,
-        depth: false,
-        stencil: false,
-      });
+    if (!Renderer.loaded) {
       Renderer.loaded = true;
-
       Renderer.shaderProgram ??= Renderer.createShader(vertSrc, fragSrc);
     }
+
+    this.glMask = strokeComposite?.ensureResources?.(
+      Renderer,
+      Cwidth,
+      Cheight,
+      Density,
+    );
+    const fillResources = fillComposite?.ensureResources?.(
+      Renderer,
+      Cwidth,
+      Cheight,
+      Density,
+      clearTarget,
+    ) ?? {
+      mask: null,
+      ctx: null,
+    };
 
     if (needsBlendSourceFramebuffer) {
       if (Renderer.blendSourceFramebuffer?.remove) {
@@ -506,30 +251,8 @@ export const Mix = {
       });
     }
 
-    if (needsFillMaskFramebuffer) {
-      if (Renderer.fillMaskFramebuffer?.remove) {
-        Renderer.fillMaskFramebuffer.remove();
-      }
-      Renderer.fillMaskFramebuffer = Renderer.createFramebuffer({
-        width: Cwidth,
-        height: Cheight,
-        density: Density,
-        antialias: false,
-        depth: false,
-        stencil: false,
-      });
-      clearTarget(Renderer.fillMaskFramebuffer);
-    }
-
-    this.mask = Renderer.mask;
-    this.glMask = Renderer.glMask;
-    this.ctx = this.mask.drawingContext;
-    this.mask.dirtyRect ??= null;
-    this.mask.isDrawn ??= false;
-    this.ctx.imageSmoothingEnabled = false;
-
-    this.glMask.dirtyRect ??= null;
-    this.glMask.isDrawn ??= false;
+    this.mask = fillResources.mask;
+    this.ctx = fillResources.ctx;
   },
 
   // =============================================================================
@@ -542,7 +265,6 @@ export const Mix = {
    */
   blend(_color = false, _isLast = false) {
     isMixReady();
-
     // Only one mask is "active" for the current drawing mode; the other one
     // may still need flushing if the mode just changed mid-frame.
     const isBrushMask = this.isBrush === true;
@@ -551,15 +273,16 @@ export const Mix = {
     const nextColor = _color?._array;
     const colorChanged =
       !!nextColor &&
-      (this.cachedColor[0] !== nextColor[0] ||
-        this.cachedColor[1] !== nextColor[1] ||
-        this.cachedColor[2] !== nextColor[2] ||
-        this.cachedColor[3] !== nextColor[3]);
+      (this.cachedColor?.[0] !== nextColor[0] ||
+        this.cachedColor?.[1] !== nextColor[1] ||
+        this.cachedColor?.[2] !== nextColor[2] ||
+        this.cachedColor?.[3] !== nextColor[3]);
     if (!this.isBlending && nextColor) {
       this.isBlending = true;
       this.cachedColor = nextColor;
-      // Reset the brush mask at the start of each blend cycle.
-      clearTarget(this.glMask);
+      // Reset the brush mask fully at the start of each blend cycle so stale
+      // dirty-rect bookkeeping cannot leak an old stroke into the next color.
+      this.clearMask(this.glMask);
     }
 
     if (_isLast || colorChanged) {
@@ -571,7 +294,11 @@ export const Mix = {
         this.applyShader(mask, isBrushMask);
       }
       if (nextColor) this.cachedColor = nextColor;
-      if (_isLast) this.isBlending = false;
+      if (_isLast) {
+        this.isBlending = false;
+        this.cachedColor = null;
+        
+      }
     }
   },
 
@@ -607,11 +334,18 @@ export const Mix = {
     shader.setUniform("u_source", source);
     shader.setUniform("u_targetIsFramebuffer", targetIsFramebuffer);
     shader.setUniform("u_isBrush", isBrushMask);
-    if (isBrushMask) {
-      shader.setUniform("u_mask", mask);
-    } else {
-      shader.setUniform("u_mask", uploadFillMaskToMirror(mask, dirtyRect));
-    }
+    const composite = isBrushMask ? strokeComposite : fillComposite;
+    shader.setUniform(
+      "u_mask",
+      composite.getShaderMask(
+        Renderer,
+        mask,
+        dirtyRect,
+        normalizeDirtyRect,
+        getFullDirtyRect,
+        clearTarget,
+      ),
+    );
     shader.setUniform("u_color", this.cachedColor);
 
     withScissor(gl, dirtyRect, () => {
@@ -625,6 +359,32 @@ export const Mix = {
     if (hadDepthTest) gl.enable(gl.DEPTH_TEST);
     this.clearMask(mask);
   },
+};
+
+/**
+ * Flushes any pending stroke/fill mask work into the current target and resets
+ * the shared compositor back to its initial idle state.
+ */
+export const flushActiveComposite = () => {
+  isMixReady();
+  Mix.blend(false, true);
+  Mix.clearMask(Mix.glMask);
+  Mix.clearMask(Mix.mask);
+  Mix.justChanged = false;
+  Mix.isBlending = false;
+  Mix.isBrush = null;
+  Mix.cachedColor = null;
+};
+
+/**
+ * Loads and initializes the drawing target, then refreshes compositing
+ * resources if the renderer was already active.
+ *
+ * @param {p5.Graphics|p5.Framebuffer|false} [buffer=false] - Optional offscreen target.
+ */
+export const load = (buffer = false) => {
+  loadTarget(buffer);
+  if (Renderer.loaded) Mix.load();
 };
 
 /**

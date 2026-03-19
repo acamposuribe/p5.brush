@@ -1,4 +1,5 @@
-import { isMixReady, Cwidth, Cheight, State, Renderer } from "./color.js";
+import { Cwidth, Cheight, Renderer } from "./target.js";
+import { isMixReady, State } from "./color.js";
 import { randInt2, noise2, rr2, sin, cos, map, toDegreesSigned } from "./utils.js";
 
 // =============================================================================
@@ -111,8 +112,9 @@ export class Position {
    * Calculates the angle of the flow field at the position's current coordinates.
    * @returns {number} - The internal flow angle in degrees, or 0 if the position is not in the field or if no field is active.
    */
-  angle() {
-    return this.isIn() && State.field.isActive
+  angle(skipCheck = false) {
+    if (!State.field.isActive) return 0;
+    return (skipCheck || this.isIn())
       ? flow_field()[this.colIdx][this.rowIdx] * State.field.wiggle
       : 0;
   }
@@ -151,9 +153,12 @@ export class Position {
       this.plotted += _step / scaleFactor;
       return;
     }
-    for (let i = 0; i < _length / _step; i++) {
+    const steps = _length / _step;
+    const fieldActive = State.field.isActive;
+    const usePlot = !!_scale;
+    for (let i = 0; i < steps; i++) {
       const angle =
-        this.angle() - (_scale ? _dirPlot.angle(this.plotted) : _dirPlot);
+        (fieldActive ? this.angle(true) : 0) - (usePlot ? _dirPlot.angle(this.plotted) : _dirPlot);
       // Calculate new position
       this.update(this.x + _step * cos(angle), this.y + _step * sin(angle));
       this.plotted += _step / scaleFactor;

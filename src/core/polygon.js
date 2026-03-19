@@ -51,8 +51,10 @@ export class Polygon {
    * Displays the polygon with optional stroke, hatch, and fill effects.
    */
   show() {
-    if (State.stroke) this.draw();
-    if (State.hatch) this.hatch();
+    if (State.wash) this.wash();
     if (State.fill) this.fill();
+    if (State.mass) this.mass();
+    if (State.hatch) this.hatch();
+    if (State.stroke) this.draw();
   }
 }

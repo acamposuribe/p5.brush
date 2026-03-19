@@ -60,7 +60,8 @@
 export { weightedRand as wRand } from "./core/utils.js";
 
 // Color Blending
-export { load, instance } from "./core/color.js";
+export { load } from "./core/color.js";
+export { instance } from "./core/target.js";
 
 // Matrix transformations, FlowField and Position Class
 export {
@@ -115,17 +116,25 @@ export {
   noHatch,
   createHatch as hatchArray,
 } from "./hatch/hatch.js";
+export { 
+  mass, 
+  noMass 
+} from "./hatch/mass.js";
 
 // Fill
 export { fill, noFill, fillTexture, fillBleed } from "./fill/fill.js";
+export { wash, noWash } from "./fill/wash.js";
 
 // p5 addon registration
 import {
-  Mix,
+  Mix, 
+  flushActiveComposite,
+} from "./core/color.js";
+import {
   instance as bindInstance,
   activateInstance,
   deactivateInstance,
-} from "./core/color.js";
+} from "./core/target.js";
 import { push as brushPush, pop as brushPop } from "./core/save.js";
 import { seed as brushSeed, noiseSeed as brushNoiseSeed } from "./core/utils.js";
 
@@ -140,13 +149,13 @@ function registerAddon(_p5, fn, lifecycles) {
 
   lifecycles.postsetup = function () {
     bindInstance(this);
-    Mix.blend(false, true);
+    flushActiveComposite();
     deactivateInstance();
   };
 
   lifecycles.postdraw = function () {
     bindInstance(this);
-    Mix.blend(false, true);
+    flushActiveComposite();
     deactivateInstance();
   };
 

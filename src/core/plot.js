@@ -1,4 +1,5 @@
-import { State, Cwidth, Cheight } from "./color.js";
+import { Cwidth, Cheight } from "./target.js";
+import { State } from "./color.js";
 import { toDegrees, map, rr2 } from "./utils.js";
 import { Position, isFieldReady } from "./flowfield.js";
 import { Polygon } from "./polygon.js";
@@ -133,7 +134,7 @@ export class Plot {
    */
   genPol(_x, _y, _scale = 1, _side) {
     isFieldReady(); // Ensure that the drawing environment is prepared
-    const step = 0.5;
+    const step = _side < 0 ? 4 : 1;
     const vertices = [];
     const numSteps = Math.round(this.length / step);
     const pos = new Position(_x + Cwidth / 2, _y + Cheight / 2);
@@ -144,7 +145,7 @@ export class Plot {
       pos.plotTo(this, step, step);
       const idx = this.calcIndex(pos.plotted);
       pside += step;
-      const maxSize = _side === 0 ? 5 : Math.max(this.segments[idx] * _side * rr2(0.7, 1.3), 20);
+      let maxSize = _side <= 0 ? 8 : Math.max(this.segments[idx] * _side * rr2(0.7, 1.3), 20);
       if ((pside >= maxSize || idx >= prevIdx) && pos.x) {
         vertices.push([pos.x - Cwidth / 2, pos.y - Cheight / 2]);
         pside = 0;
@@ -161,8 +162,10 @@ export class Plot {
    * @param {number} scale - The scale factor.
    */
   show(x, y, scale = 1) {
-    if (State.stroke) this.draw(x, y, scale);
-    if (State.hatch) this.hatch(x, y, scale);
+    if (State.wash) this.wash(x, y, scale);
     if (State.fill) this.fill(x, y, scale);
+    if (State.mass) this.mass(x, y, scale);
+    if (State.hatch) this.hatch(x, y, scale);
+    if (State.stroke) this.draw(x, y, scale);
   }
 }

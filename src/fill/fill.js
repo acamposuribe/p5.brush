@@ -12,13 +12,11 @@
  * techniques for simulating watercolor paints.
  */
 
+// Core imports
+import { Renderer, Cwidth, Cheight, Density } from "../core/target.js";
 import {
-  Renderer,
   Mix,
   State,
-  Cwidth,
-  Cheight,
-  Density,
 } from "../core/color.js";
 import { drawPolygon, circle } from "./mask.js";
 import {
@@ -36,6 +34,11 @@ import {
 import { isFieldReady, Matrix } from "../core/flowfield.js";
 import { Polygon } from "../core/polygon.js";
 import { Plot } from "../core/plot.js";
+
+// Internal module imports
+import { initFillComposite } from "./composite.js";
+
+initFillComposite(); // Register the fill composite with the core color module
 
 // =============================================================================
 // Fill State and helpers
@@ -560,7 +563,7 @@ class FillPoly {
         if (texture !== 0) {
           pol.erase(texture * 3, intensity);
         }
-        Mix.blend(color, true, false, true);
+        Mix.blend(color, true);
       }
     }
 

@@ -7,14 +7,11 @@
  * then flushes those queues into the shared framebuffer-backed brush mask.
  */
 
+import { Cwidth, Cheight, Density, Renderer } from "../core/target.js";
 import {
   Mix,
-  Cwidth,
-  Cheight,
   isMixReady,
-  Density,
   State,
-  Renderer,
 } from "../core/color.js";
 import { Matrix } from "../core/flowfield.js";
 import { createProgram } from "../core/gl/utils.js";

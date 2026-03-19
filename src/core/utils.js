@@ -1,4 +1,4 @@
-import { Renderer } from "./color.js";
+import { Renderer } from "./target.js";
 
 // =============================================================================
 // Section: Randomness & Noise

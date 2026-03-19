@@ -18,6 +18,7 @@ import { Plot } from "./plot.js";
 
 /**
  * Creates a Polygon from an array of points and calls its show() method.
+ * Polygons ignore fields and won't be good for fills and masses
  * @param {Array<Array<number>>} pointsArray - Array of points [x, y, pressure]
  */
 export function polygon(pointsArray) {
