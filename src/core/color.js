@@ -326,7 +326,6 @@ export const Mix = {
       Renderer,
       mask,
       dirtyRect,
-      normalizeDirtyRect,
       getFullDirtyRect,
       clearTarget,
     );

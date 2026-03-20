@@ -11,7 +11,7 @@ export const DEGREES = "degrees";
 export const RADIANS = "radians";
 
 let colorContext = null;
-let currentAngleMode = DEGREES;
+let currentAngleMode = RADIANS;
 const transformStack = [];
 let currentTransform = {
   a: 1,

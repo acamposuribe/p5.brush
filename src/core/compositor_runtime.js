@@ -60,8 +60,6 @@ export function blitDefaultFramebufferSource({
 
   gl.bindFramebuffer(gl.READ_FRAMEBUFFER, null);
   gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, sourceFramebuffer.framebuffer);
-  gl.clearColor(0, 0, 0, 0);
-  gl.clear(gl.COLOR_BUFFER_BIT);
   gl.blitFramebuffer(
     sourceBox?.x ?? 0,
     sourceBox?.y ?? 0,

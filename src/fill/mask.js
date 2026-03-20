@@ -19,9 +19,9 @@ function strokePadding(ctx, matrix) {
  * Draws a polygon to the mask using the provided vertices.
  * @param {Array<{x: number, y: number}>} vertices - Array of vertex coordinates.
  */
-export function drawPolygon(vertices) {
+export function drawPolygon(vertices, matrix = null) {
   const ctx = Mix.ctx;
-  const matrix = ctx.getTransform();
+  if (!matrix) matrix = ctx.getTransform();
   // Cache the current 2D transform once so the hot loop can stay numeric and
   // avoid repeated property reads while we build bounds.
   const a = matrix.a;

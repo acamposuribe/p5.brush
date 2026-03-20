@@ -404,7 +404,6 @@ export function glDrawImages(p5img, src) {
   }
 
   gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, imgCount);
-  gl.flush();
 
   gl.bindVertexArray(null);
   gl.bindTexture(gl.TEXTURE_2D, null);
@@ -464,7 +463,6 @@ export function glDraw() {
   gl.uniform4f(Frag.u_color, ...color);
   gl.uniformMatrix4fv(Frag.u_matrix, false, getProjectionMatrix());
   gl.drawArrays(gl.POINTS, 0, circleCount);
-  gl.flush();
 
   gl.bindVertexArray(null);
   endMaskTarget(targetState);

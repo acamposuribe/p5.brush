@@ -166,13 +166,12 @@ export function getFillShaderMask(
   Renderer,
   mask,
   dirtyRect,
-  normalizeDirtyRect,
   getFullDirtyRect,
   clearTarget,
 ) {
   const target = Renderer.fillMaskFramebuffer;
   const gl = Renderer.drawingContext;
-  const uploadRect = normalizeDirtyRect(dirtyRect) ?? getFullDirtyRect();
+  const uploadRect = dirtyRect ?? getFullDirtyRect();
   const uploadWidth = uploadRect.maxX - uploadRect.minX;
   const uploadHeight = uploadRect.maxY - uploadRect.minY;
 

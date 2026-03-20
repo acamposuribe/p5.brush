@@ -21,7 +21,6 @@ import {
 import { drawPolygon, circle } from "./mask.js";
 import {
   constrain,
-  weightedRand,
   rr,
   map,
   randInt,
@@ -122,6 +121,7 @@ export function noFill() {
 // ---------------------------------------------------------------------------
 
 let _polygon;
+let _bbMinX, _bbMinY, _bbMaxX, _bbMaxY;
 
 // Pre-compute gaussians for reuse
 const GAUSSIAN_POOL_SIZE = 512;
@@ -151,11 +151,9 @@ function _center(pts) {
 
   if (pts.length < 8) {
     // Simple average for small polygons
-    const sum = pts.reduce(
-      (center, point) => ({ x: center.x + point.x, y: center.y + point.y }),
-      { x: 0, y: 0 },
-    );
-    return { x: sum.x / pts.length, y: sum.y / pts.length };
+    let sumX = 0, sumY = 0;
+    for (const pt of pts) { sumX += pt.x; sumY += pt.y; }
+    return { x: sumX / pts.length, y: sumY / pts.length };
   }
 
   // Close polygon if needed
@@ -191,14 +189,24 @@ export function createFill(polygon) {
     );
   }
   _polygon = polygon;
+  _bbMinX = Infinity; _bbMinY = Infinity; _bbMaxX = -Infinity; _bbMaxY = -Infinity;
+  for (const [a] of polygon.sides) {
+    if (a.x < _bbMinX) _bbMinX = a.x;
+    if (a.x > _bbMaxX) _bbMaxX = a.x;
+    if (a.y < _bbMinY) _bbMinY = a.y;
+    if (a.y > _bbMaxY) _bbMaxY = a.y;
+  }
   const v = [...polygon.vertices];
-  const fluid = ~~(v.length * 0.25 * weightedRand({ 1: 5, 2: 10, 3: 60 }));
+  const _wr = rr(0, 75);
+  const fluid = ~~(v.length * 0.25 * (_wr < 5 ? 1 : _wr < 15 ? 2 : 3));
   const strength = State.fill.bleed_strength;
   const modifiers = v.map(
     (_, i) => (i > fluid ? 1 : 0.3) * rr(0.85, 1.4) * strength,
   );
   const shift = randInt(0, v.length);
-  const shifted = [...v.slice(shift), ...v.slice(0, shift)];
+  const n = v.length;
+  const shifted = new Array(n);
+  for (let i = 0; i < n; i++) shifted[i] = v[(i + shift) % n];
   const center = _center(shifted);
   return new FillPoly(shifted, modifiers, center, [], true).fill(
     State.fill.color,
@@ -269,15 +277,35 @@ class FillPoly {
       this.sizeX = maxX;
       this.sizeY = maxY;
 
-      // Calculate directions
+      // Calculate directions — inline ray-polygon intersection to avoid
+      // O(n) overhead of Polygon.intersect() (cache-key string building,
+      // object allocation, intersectLines wrapper) per edge.
+      const polySides = _polygon.sides;
       this.dir = Array(v.length);
-      rayCalc.forEach((rc, i) => {
+      for (let i = 0; i < rayCalc.length; i++) {
+        const rc = rayCalc[i];
+        const r1x = rc.ray.point1.x, r1y = rc.ray.point1.y;
+        const r2x = rc.ray.point2.x, r2y = rc.ray.point2.y;
+        const rdx = r2x - r1x, rdy = r2y - r1y;
         let count = 0;
-        for (const isect of _polygon.intersect(rc.ray)) {
-          if (_isLeft(rc.v1, rc.v2, isect)) count++;
+        for (let j = 0; j < polySides.length; j++) {
+          const sa = polySides[j][0], sb = polySides[j][1];
+          const sdx = sb.x - sa.x, sdy = sb.y - sa.y;
+          const denom = sdy * rdx - sdx * rdy;
+          if (denom === 0) continue;
+          const ub = (rdx * (r1y - sa.y) - rdy * (r1x - sa.x)) / denom;
+          if (ub < 0 || ub > 1) continue;
+          // Compute intersection point inline
+          const ua = (sdx * (r1y - sa.y) - sdy * (r1x - sa.x)) / denom;
+          const ix = r1x + ua * rdx;
+          const iy = r1y + ua * rdy;
+          // _isLeft check inline: (v2-v1) × (isect-v1) > 0.01
+          if ((rc.v2.x - rc.v1.x) * (iy - rc.v1.y) - (rc.v2.y - rc.v1.y) * (ix - rc.v1.x) > 0.01) {
+            count++;
+          }
         }
         this.dir[i] = count % 2 === 0;
-      });
+      }
 
       // Randomize center (single calculation)
       const rx = rr(-0.6, 0.6) * maxX;
@@ -369,15 +397,22 @@ class FillPoly {
     for (const idx of indices) {
       const j = idx % L;
       let p = this.v[j];
-      let crossings = 0;
-      for (const [a, b] of sides) {
-        const ay = a.y,
-          by = b.y;
-        if ((ay > p.y) === (by > p.y)) continue;
-        const t = (p.y - ay) / (by - ay);
-        if (p.x < a.x + t * (b.x - a.x)) crossings++;
+      let outside = false;
+      // Bounding box reject — vertex outside AABB is definitely outside polygon
+      if (p.x < _bbMinX || p.x > _bbMaxX || p.y < _bbMinY || p.y > _bbMaxY) {
+        outside = true;
+      } else {
+        let crossings = 0;
+        for (const [a, b] of sides) {
+          const ay = a.y,
+            by = b.y;
+          if ((ay > p.y) === (by > p.y)) continue;
+          const t = (p.y - ay) / (by - ay);
+          if (p.x < a.x + t * (b.x - a.x)) crossings++;
+        }
+        outside = crossings % 2 === 0;
       }
-      if (crossings % 2 === 0) {
+      if (outside) {
         p = {
           x: mid.x + (p.x - mid.x) * rr(0.3, 0.6),
           y: mid.y + (p.y - mid.y) * rr(0.3, 0.6),
@@ -532,13 +567,13 @@ class FillPoly {
       Density * (m.y + Cheight / 2),
     );
 
-    Mix.ctx.strokeStyle = `rgb(${color._getRed()} ${color._getGreen()} ${color._getBlue()} / ${
-      0.005 * State.fill.border_strength
-    })`;
+    const fillColorBase = `rgb(${color._getRed()} ${color._getGreen()} ${color._getBlue()} / `;
+    Mix.ctx.strokeStyle = fillColorBase + (0.005 * State.fill.border_strength) + ")";
     Mix.ctx.lineCap = "round";
 
     GROW_CAP = GROW_MAX_VERTS * Math.max(0.1, 2 * State.fill.bleed_strength);
 
+    const fillMatrix = Mix.ctx.getTransform();
     const size = Math.max(this.sizeX, this.sizeY);
     const darker = rr(0.15, 0.7);
     let pol = this.grow();
@@ -560,13 +595,13 @@ class FillPoly {
 
       for (const p of pols) {
         const grown = p.grow(999).grow(997);
-        grown.layer(i, size, int, color);
+        grown.layer(i, size, int, fillColorBase, fillMatrix);
       }
       const sparseLayer = sparse.grow(999).flipDirs().grow(997);
-      sparseLayer.layer(i, size, int * texture, color);
+      sparseLayer.layer(i, size, int * texture, fillColorBase, fillMatrix);
       if (i % 2 === 0) {
         const darkerLayer = pol.grow(darker).grow(999);
-        darkerLayer.layer(i, size, int * 2, color);
+        darkerLayer.layer(i, size, int * 2, fillColorBase, fillMatrix);
       }
 
       if (i % 8 === 0 || i === numLayers - 1) {
@@ -584,12 +619,12 @@ class FillPoly {
    * Draws a layer of the fill polygon with stroke and fill.
    * @param {number} i - The layer index.
    */
-  layer(i, size, int, color) {
+  layer(i, size, int, colorBase, matrix = null) {
     Mix.ctx.lineWidth = map(i, 0, 24, size / 25, size / 30, true);
 
-    Mix.ctx.fillStyle = `rgb(${color._getRed()} ${color._getGreen()} ${color._getBlue()} / ${int}%)`;
+    Mix.ctx.fillStyle = colorBase + int + "%)";
 
-    drawPolygon(this.v);
+    drawPolygon(this.v, matrix);
     Mix.ctx.fill();
     Mix.ctx.stroke();
   }

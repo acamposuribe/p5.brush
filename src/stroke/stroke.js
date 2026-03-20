@@ -316,6 +316,7 @@ export function noClip() {
 // Drawing Variables and Functions
 // ---------------------------------------------------------------------------
 let _position, _length, _plot, _dir;
+let _cachedPlotAngle = 0;
 const current = {};
 
 /**
@@ -357,19 +358,16 @@ function draw(angleScale, isPlot) {
   current.lineNoiseCount = 5;
   current.cachedLineNoise = undefined;
 
+  const neededGaussians = totalSteps * 2;
+  while (gaussians.length < neededGaussians) {
+    gaussians.push(gaussian());
+  }
+
   for (let i = 0; i < totalSteps; i++) {
-    if (gaussians.length < totalSteps * 2) {
-      gaussians.push(gaussian());
-    }
+    if (isPlot) _cachedPlotAngle = _plot.angle(_position.plotted);
     tip();
     if (isPlot) {
-      _position.plotTo(
-        _plot,
-        stepSize,
-        stepSize,
-        angleScale,
-        i < 10 ? true : false,
-      );
+      _position.plotTo(_plot, stepSize, stepSize, angleScale, _cachedPlotAngle);
     } else {
       _position._moveToDegrees(angleScale, stepSize, stepSize);
     }
@@ -388,9 +386,10 @@ function saveState() {
 
   // Set pressure values for the stroke
   const { pressure } = param;
-  current.a = pressure.type !== "custom" ? rr(-1, 1) : 0;
-  current.b = pressure.type !== "custom" ? rr(1, 1.5) : 0;
-  if (pressure.type !== "custom") {
+  current.isCustomPressure = pressure.type === "custom";
+  current.a = !current.isCustomPressure ? rr(-1, 1) : 0;
+  current.b = !current.isCustomPressure ? rr(1, 1.5) : 0;
+  if (!current.isCustomPressure) {
     current.cp = rr(3, 3.5);
     current.ct = 0;
     current.cs = 1;
@@ -421,6 +420,12 @@ function saveState() {
 
   // Set additional state values
   current.alpha = calculateAlpha();
+  current.overscan = getImageTipOverscan();
+  current.drawFn =
+    current.p.type === "spray"  ? drawSpray :
+    current.p.type === "marker" ? drawMarker :
+    (current.p.type === "custom" || current.p.type === "image") ? drawImageTip :
+    drawDefault;
 
   markerTip();
 }
@@ -444,21 +449,7 @@ function tip() {
   const lineNoise = calculateLineNoise();
 
   if (lineNoise > rr(1,1.02) && rr(0,1) < 0.7) return;
-  switch (current.p.type) {
-    case "spray":
-      drawSpray(pressure * lineNoise);
-      break;
-    case "marker":
-      drawMarker(pressure * lineNoise);
-      break;
-    case "custom":
-    case "image":
-      drawImageTip(pressure * lineNoise);
-      break;
-    default:
-      drawDefault(pressure * lineNoise);
-      break;
-  }
+  current.drawFn(pressure * lineNoise);
 }
 
 /**
@@ -496,27 +487,20 @@ function calculateLineNoise() {
  * @returns {number} Simulated pressure value.
  */
 function simPressure() {
-  const value = current.p.pressure.type === "custom"
-    ? map(
-        current.p.pressure.curve(
-          Math.max(
-            0,
-            Math.min(
-              1,
-              0.5 + ((_position.plotted / _length) - 0.5 + current.ct) * current.cs,
-            ),
-          ),
-        ) +
-          current.cp +
-          current.ck * ((_position.plotted / _length) - 0.5),
-        0,
-        1,
-        current.min,
-        current.max,
-        true,
-      )
-    : gauss();
-  return value;
+  if (!current.isCustomPressure) return gauss();
+  const t = _position.plotted / _length;
+  return map(
+    current.p.pressure.curve(
+      Math.max(0, Math.min(1, 0.5 + (t - 0.5 + current.ct) * current.cs)),
+    ) +
+      current.cp +
+      current.ck * (t - 0.5),
+    0,
+    1,
+    current.min,
+    current.max,
+    true,
+  );
 }
 
 /**
@@ -564,9 +548,7 @@ function calculateAlpha() {
  * @returns {number} The spacing value.
  */
 function spacing() {
-  const { param } = list.get(State.stroke.type) ?? {};
-  if (!param) return 1;
-  return param.spacing;
+  return current.p?.spacing ?? 1;
 }
 
 function getImageTipOverscan() {
@@ -636,12 +618,12 @@ function drawImageTip(pressure, alpha = current.alpha) {
   const rx = vibration * rr(-1, 1);
   const ry = vibration * rr(-1, 1);
   const size = current.p.weight * State.stroke.weight * pressure;
-  const overscan = getImageTipOverscan();
+  const overscan = current.overscan;
   let angle = 0;
   if (current.p.rotate === "random") {
     angle = randInt(0, 360) * (Math.PI / 180);
   } else if (current.p.rotate === "natural") {
-    angle = ((_plot ? -_plot.angle(_position.plotted) : -_dir) + _position.angle()) * (Math.PI / 180);
+    angle = ((_plot ? -_cachedPlotAngle : -_dir) + _position.angle()) * (Math.PI / 180);
   }
   stampImage(
     _position.x + rx,
@@ -669,7 +651,7 @@ function drawDefault(pressure, wiggle = 1) {
   if (passesGate) {
     let dx, dy;
     if (_plot) {
-      const plotAngle = _plot.angle(_position.plotted);
+      const plotAngle = _cachedPlotAngle;
       const plotCos = cos(plotAngle);
       const plotSin = sin(plotAngle);
       const perp = vibration * rr(-1, 1);

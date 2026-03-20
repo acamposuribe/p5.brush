@@ -57,8 +57,10 @@ export class Position {
   update(x, y) {
     this.x = x;
     this.y = y;
-    this.colIdx = Math.round((x + this.mx - left_x) / resolution);
-    this.rowIdx = Math.round((y + this.my - top_y) / resolution);
+    if (State.field.isActive) {
+      this.colIdx = Math.round((x + this.mx - left_x) / resolution);
+      this.rowIdx = Math.round((y + this.my - top_y) / resolution);
+    }
   }
 
   /**
@@ -131,11 +133,11 @@ export class Position {
    * @param {number} _step_length - The length of each step.
    * @param {number} _scale - The scaling factor for the plotting path.
    */
-  plotTo(_plot, _length, _step_length, _scale = 1) {
-    this.movePos(_plot, _length, _step_length, _scale);
+  plotTo(_plot, _length, _step_length, _scale = 1, precomputedAngle = undefined) {
+    this.movePos(_plot, _length, _step_length, _scale, precomputedAngle);
   }
 
-  movePos(_dirPlot, _length, _step, _scale = false) {
+  movePos(_dirPlot, _length, _step, _scale = false, precomputedAngle = undefined) {
     const scaleFactor = _scale || 1;
     if (!this.isIn()) {
       this.plotted += _step / scaleFactor;
@@ -145,8 +147,10 @@ export class Position {
     const fieldActive = State.field.isActive;
     const usePlot = !!_scale;
     for (let i = 0; i < steps; i++) {
-      const angle =
-        (fieldActive ? this.angle(true) : 0) - (usePlot ? _dirPlot.angle(this.plotted) : _dirPlot);
+      const plotAngle = (usePlot && precomputedAngle !== undefined && i === 0)
+        ? precomputedAngle
+        : (usePlot ? _dirPlot.angle(this.plotted) : _dirPlot);
+      const angle = (fieldActive ? this.angle(true) : 0) - plotAngle;
       // Calculate new position
       this.update(this.x + _step * cos(angle), this.y + _step * sin(angle));
       this.plotted += _step / scaleFactor;
