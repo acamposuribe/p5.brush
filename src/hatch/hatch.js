@@ -129,10 +129,11 @@ function scanlineHatch(polygon, angle, dist, gradient) {
 
   // Scan, find crossings, rotate back
   const segments = [];
+  const cx = [];
   let Y = minY + dist * 0.5,
     step = dist;
   while (Y < maxY) {
-    const cx = [];
+    cx.length = 0;
     for (let i = 0; i < eLen; i += 2) {
       const y1 = edges[i][1],
         y2 = edges[i + 1][1];

@@ -78,12 +78,15 @@
       </div>
       <h1>Angle Mode Test <small style="font-size:0.55em;color:#8a9aa8;">standalone</small></h1>
       <p>
-        Compares degrees, radians, mixed mode changes, stored hatch angles, low-level Position movement, and custom fields.
-        Red dashed lines are mathematical references; matching panels confirm correct angle interpretation.
+        Each row compares equivalent degree and radian inputs across public APIs. Matching panels should produce the same direction, curvature, and hatch orientation.
+      </p>
+      <p>
+        Red dashed lines are mathematical references. The hatch row intentionally changes brush.angleMode() after brush.hatch() and should still match.
       </p>
       <div id="canvas-host"></div>
       <script src="./standalone_profiler.js"></script>
       <script type="module" src="./angle_mode_test.js"></script>
     </main>
+  <script src="../test-nav.js"></script>
   </body>
 </html>

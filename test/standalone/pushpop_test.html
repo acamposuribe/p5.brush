@@ -81,8 +81,7 @@
         Each column proves that standalone <b>brush.push()</b> and <b>brush.pop()</b> save and restore brush state.
       </p>
       <p>
-        Column 1 checks stroke color, column 2 checks stroke weight and brush type, column 3 checks fill color and opacity.
-        The "after pop" row must match the "before" row exactly.
+        Column 1 checks stroke color, column 2 checks stroke weight and brush type, and column 3 checks fill color and opacity. The "after pop" row should match the "before" row exactly.
       </p>
       <div id="canvas-host"></div>
     </main>
@@ -199,5 +198,6 @@
       brush.render();
       window.reportStandaloneFirstFrame?.("pushpop_test");
     </script>
+  <script src="../test-nav.js"></script>
   </body>
 </html>

@@ -47,6 +47,13 @@ initFillComposite(); // Register the fill composite with the core color module
 
 // Vertex cap for grow() — set to 0 or false to disable
 const GROW_MAX_VERTS = 2024;
+let GROW_CAP;
+
+// Reusable scratch arrays for grow() — avoids 4 allocations per call (~15× per fill)
+let _growInsX = [];
+let _growInsY = [];
+let _growMods = [];
+let _growDirs = [];
 
 /**
  * Global fill state settings.
@@ -401,10 +408,12 @@ class FillPoly {
     const len = tr_v.length;
 
     const outLen = len * 2;
-    const insertedX = new Array(len);
-    const insertedY = new Array(len);
-    const newMods = new Array(outLen);
-    const newDirs = new Array(outLen);
+    if (_growInsX.length < len) { _growInsX = new Array(len); _growInsY = new Array(len); }
+    if (_growMods.length < outLen) { _growMods = new Array(outLen); _growDirs = new Array(outLen); }
+    const insertedX = _growInsX;
+    const insertedY = _growInsY;
+    const newMods = _growMods;
+    const newDirs = _growDirs;
     const bleedDirDeg = State.fill.direction === "out" ? -90 : 90;
 
     if (_gaussians[0].length === 0) _fillGaussianPools();
@@ -466,9 +475,9 @@ class FillPoly {
     let fv,
       fm,
       fd;
-    const growCap = GROW_MAX_VERTS * Math.max(0.1, 2 * State.fill.bleed_strength);
-    if (growCap && idx > growCap) {
-      const step = Math.ceil(idx / growCap);
+    
+    if (GROW_CAP && idx > GROW_CAP) {
+      const step = Math.ceil(idx / GROW_CAP);
       const kept = Math.ceil(idx / step);
       fv = new Array(kept);
       fm = new Array(kept);
@@ -490,10 +499,8 @@ class FillPoly {
             ? tr_v[j >> 1]
             : { x: insertedX[j >> 1], y: insertedY[j >> 1] };
       }
-      newMods.length = idx;
-      newDirs.length = idx;
-      fm = newMods;
-      fd = newDirs;
+      fm = newMods.slice(0, idx);
+      fd = newDirs.slice(0, idx);
     }
     return new FillPoly(fv, fm, this.midP, fd, false, this.sizeX, this.sizeY);
   }
@@ -529,6 +536,8 @@ class FillPoly {
       0.005 * State.fill.border_strength
     })`;
     Mix.ctx.lineCap = "round";
+
+    GROW_CAP = GROW_MAX_VERTS * Math.max(0.1, 2 * State.fill.bleed_strength);
 
     const size = Math.max(this.sizeX, this.sizeY);
     const darker = rr(0.15, 0.7);

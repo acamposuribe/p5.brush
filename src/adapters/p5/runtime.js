@@ -25,23 +25,19 @@ const affineMatrix = {
   y: 0,
 };
 
+function isRadians() {
+  const renderer = getP5RuntimeRenderer();
+  return !!renderer &&
+    typeof renderer.angleMode === "function" &&
+    renderer.angleMode() === renderer.RADIANS;
+}
+
 export function initP5Runtime() {
   setRuntime({
-    usesRadians: () => {
-      const renderer = getP5RuntimeRenderer();
-      return !!renderer &&
-        typeof renderer.angleMode === "function" &&
-        renderer.angleMode() === renderer.RADIANS;
-    },
+    usesRadians: isRadians,
 
-    fromDegrees: (angle) => {
-      const renderer = getP5RuntimeRenderer();
-      return !!renderer &&
-        typeof renderer.angleMode === "function" &&
-        renderer.angleMode() === renderer.RADIANS
-        ? (angle * Math.PI) / 180
-        : angle;
-    },
+    fromDegrees: (angle) =>
+      isRadians() ? (angle * Math.PI) / 180 : angle,
 
     createColor: (...args) => {
       const renderer = getP5RuntimeRenderer();

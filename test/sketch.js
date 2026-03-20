@@ -20,40 +20,54 @@ const CONTENT_X = MARGIN + LABEL_W;
 const CONTENT_W = CANVAS_W - MARGIN - LABEL_W - 40;
 
 let currentY = MARGIN;
-let labelBuf; // P2D overlay for labels (composited at the end)
+let lc; // native 2D label overlay
 
 const palette = ["#002185", "#c0392b", "#27ae60", "#8e44ad", "#e67e22"];
-const query = new URLSearchParams(window.location.search);
-const nativeDebugStage = query.get("nativeDebug");
 
 function col(i) {
   return palette[i % palette.length];
 }
 
-// ---- Label helpers (all draw to labelBuf so they don't interfere with brush) ----
+// ---- Label helpers (draw to the native 2D overlay canvas) ----
+
+function lcText(text, x, y, maxW) {
+  if (!maxW) { lc.fillText(text, x, y); return; }
+  const words = text.split(" ");
+  let line = "";
+  let dy = y;
+  const lh = 13;
+  for (const word of words) {
+    const test = line + word + " ";
+    if (lc.measureText(test).width > maxW && line) {
+      lc.fillText(line.trim(), x, dy);
+      line = word + " ";
+      dy += lh;
+    } else {
+      line = test;
+    }
+  }
+  lc.fillText(line.trim(), x, dy);
+}
 
 function header(title) {
-  labelBuf.noStroke();
-  labelBuf.fill(15);
-  labelBuf.textSize(12);
-  labelBuf.textStyle(BOLD);
-  labelBuf.text(title, MARGIN, currentY + 15);
-  labelBuf.stroke(180);
-  labelBuf.strokeWeight(0.7);
-  labelBuf.line(MARGIN, currentY + 20, CANVAS_W - MARGIN, currentY + 20);
+  lc.fillStyle = "#0f0f0f";
+  lc.font = "bold 12px monospace";
+  lc.fillText(title, MARGIN, currentY + 4);
+  lc.strokeStyle = "rgb(180,180,180)";
+  lc.lineWidth = 0.7;
+  lc.beginPath();
+  lc.moveTo(MARGIN, currentY + 20);
+  lc.lineTo(CANVAS_W - MARGIN, currentY + 20);
+  lc.stroke();
   currentY += 30;
 }
 
 function rowLabel(text) {
-  labelBuf.noStroke();
-  // White bg so label is readable over any brush strokes that bleed left
-  labelBuf.fill(245);
-  labelBuf.rect(MARGIN - 2, currentY + 2, LABEL_W - 3, ROW_H - 4);
-  labelBuf.fill(70);
-  labelBuf.textSize(10);
-  labelBuf.textStyle(NORMAL);
-  // Constrain text to label column so it never overlaps brush strokes
-  labelBuf.text(text, MARGIN, currentY + ROW_H / 2 - 4, LABEL_W - 8, ROW_H);
+  lc.fillStyle = "rgb(245,245,245)";
+  lc.fillRect(MARGIN - 2, currentY + 2, LABEL_W - 3, ROW_H - 4);
+  lc.fillStyle = "rgb(70,70,70)";
+  lc.font = "10px monospace";
+  lcText(text, MARGIN, currentY + ROW_H / 2 - 12, LABEL_W - 8);
 }
 
 function nextRow() {
@@ -152,11 +166,17 @@ async function setup() {
   brush.scaleBrushes(5);
   angleMode(DEGREES);
 
-  // P2D buffer for labels — transparent background so brush strokes show through
-  labelBuf = createGraphics(CANVAS_W, CANVAS_H);
-  labelBuf.pixelDensity(pixelDensity());
-  labelBuf.textFont("monospace");
-  labelBuf.textLeading(14);
+  // Native 2D label overlay — same approach as the standalone visual suite
+  const labelCanvas = document.createElement("canvas");
+  labelCanvas.id = "label-canvas";
+  labelCanvas.width  = Math.round(CANVAS_W * pixelDensity());
+  labelCanvas.height = Math.round(CANVAS_H * pixelDensity());
+  labelCanvas.style.width  = CANVAS_W + "px";
+  labelCanvas.style.height = CANVAS_H + "px";
+  document.getElementById("canvas-host").appendChild(labelCanvas);
+  lc = labelCanvas.getContext("2d");
+  lc.setTransform(pixelDensity(), 0, 0, pixelDensity(), 0, 0);
+  lc.textBaseline = "top";
 
   // Gray canvas background (visible where no brush strokes land)
   background(245);
@@ -201,15 +221,9 @@ async function setup() {
 
   const ok = passed === total;
   if (!ok) {
-    labelBuf.noStroke();
-    labelBuf.fill("#b03030");
-    labelBuf.textSize(10);
-    labelBuf.textStyle(NORMAL);
-    labelBuf.text(
-      `Error tests: ${passed}/${total} passed. See browser console.`,
-      MARGIN,
-      currentY + 12,
-    );
+    lc.fillStyle = "#b03030";
+    lc.font = "10px monospace";
+    lc.fillText(`Error tests: ${passed}/${total} passed. See browser console.`, MARGIN, currentY + 2);
     currentY += 20;
     gap(6);
   }
@@ -312,17 +326,11 @@ async function setup() {
       }
 
       // Label above the hatch lines
-      labelBuf.noStroke();
-      labelBuf.fill(245);
-      labelBuf.rect(cellX, cellY, 130, 18);
-      labelBuf.fill(30);
-      labelBuf.textSize(10);
-      labelBuf.textStyle(BOLD);
-      labelBuf.text(
-        name === "hand" ? "hand  [wiggle(5)]" : name,
-        cellX + 4,
-        cellY + 13,
-      );
+      lc.fillStyle = "rgb(245,245,245)";
+      lc.fillRect(cellX, cellY, 130, 18);
+      lc.fillStyle = "rgb(30,30,30)";
+      lc.font = "bold 10px monospace";
+      lc.fillText(name === "hand" ? "hand  [wiggle(5)]" : name, cellX + 4, cellY + 4);
     }
     currentY += FIELD_CELL_H + 8;
   }
@@ -527,11 +535,9 @@ async function setup() {
 
   // Sub-section label helper
   function fillSubHeader(text) {
-    labelBuf.noStroke();
-    labelBuf.fill(120);
-    labelBuf.textSize(9);
-    labelBuf.textStyle(ITALIC);
-    labelBuf.text(text, MARGIN, currentY + 12);
+    lc.fillStyle = "rgb(120,120,120)";
+    lc.font = "italic 9px monospace";
+    lc.fillText(text, MARGIN, currentY + 4);
     currentY += 18;
   }
 
@@ -571,14 +577,11 @@ async function setup() {
   _setupMs = performance.now() - _scriptStart;
 }
 
-// draw() runs after postsetup — ideal moment to overlay labels
+// draw() — label overlay is a native 2D canvas; nothing to composite here
 function draw() {
-  // WEBGL resets transforms each frame; re-translate to top-left
-  translate(-width / 2, -height / 2);
-  if (!nativeDebugStage) image(labelBuf, 0, 0, width, height);
   window.reportP5FirstFrame?.("visual_suite", {
     parseMs: _scriptStart - (window.__brushLoadStart ?? _scriptStart),
     drawMs: _setupMs,
   });
-  noLoop(); // static sketch — draw only once
+  noLoop();
 }

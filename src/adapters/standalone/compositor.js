@@ -40,6 +40,9 @@ function makeShader(gl, vertSrc, fragSrc) {
   const program = createProgram(gl, vertSrc, fragSrc);
   const uniformCache = new Map();
 
+  // Persistent VAO for fullscreen-triangle draws (avoids create/delete per pass)
+  const quadVao = gl.createVertexArray();
+
   const getUniformLocation = (name) => {
     if (!uniformCache.has(name)) {
       uniformCache.set(name, gl.getUniformLocation(program, name));
@@ -47,8 +50,17 @@ function makeShader(gl, vertSrc, fragSrc) {
     return uniformCache.get(name);
   };
 
+  // Pre-cache sampler and color uniform locations (called every blend pass)
+  const loc_source = gl.getUniformLocation(program, "u_source");
+  const loc_mask = gl.getUniformLocation(program, "u_mask");
+  const loc_color = gl.getUniformLocation(program, "u_color");
+
   return {
     program,
+    quadVao,
+    loc_source,
+    loc_mask,
+    loc_color,
     setUniform(name, value) {
       const location = getUniformLocation(name);
       if (!location) return;
@@ -166,8 +178,7 @@ function runBlendShaderPass({
   const previousProgram = gl.getParameter(gl.CURRENT_PROGRAM);
   const previousVao = gl.getParameter(gl.VERTEX_ARRAY_BINDING);
 
-  const quadVao = gl.createVertexArray();
-  gl.bindVertexArray(quadVao);
+  gl.bindVertexArray(shader.quadVao);
   gl.useProgram(shader.program);
   gl.disable(gl.DEPTH_TEST);
   gl.enable(gl.BLEND);
@@ -176,20 +187,15 @@ function runBlendShaderPass({
 
   gl.activeTexture(gl.TEXTURE0);
   gl.bindTexture(gl.TEXTURE_2D, source.colorTexture);
-  gl.uniform1i(gl.getUniformLocation(shader.program, "u_source"), 0);
+  gl.uniform1i(shader.loc_source, 0);
 
   gl.activeTexture(gl.TEXTURE1);
   gl.bindTexture(gl.TEXTURE_2D, mask.colorTexture);
-  gl.uniform1i(gl.getUniformLocation(shader.program, "u_mask"), 1);
+  gl.uniform1i(shader.loc_mask, 1);
 
   shader.setUniform("u_targetIsFramebuffer", targetIsFramebuffer);
   shader.setUniform("u_isBrush", isBrushMask);
-  gl.uniform3f(
-    gl.getUniformLocation(shader.program, "u_color"),
-    color[0],
-    color[1],
-    color[2],
-  );
+  gl.uniform3f(shader.loc_color, color[0], color[1], color[2]);
 
   gl.bindFramebuffer(gl.FRAMEBUFFER, null);
   withScissor(
@@ -207,7 +213,6 @@ function runBlendShaderPass({
   gl.useProgram(previousProgram);
   gl.bindFramebuffer(gl.FRAMEBUFFER, previousFramebuffer);
   if (hadDepthTest) gl.enable(gl.DEPTH_TEST);
-  gl.deleteVertexArray(quadVao);
 }
 
 function blitSourceToFramebuffer(args) {

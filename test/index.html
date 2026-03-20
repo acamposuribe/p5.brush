@@ -216,27 +216,6 @@
             <span class="path">test/angle_mode_test.html</span>
           </a>
 
-          <a class="card" href="./offscreen_target_test.html">
-            <h3>Offscreen Targets</h3>
-            <p>Checks brush.load() on p5.Graphics and custom-sized main framebuffers, with pixel-count diagnostics.</p>
-            <span class="meta">Targets</span>
-            <span class="path">test/offscreen_target_test.html</span>
-          </a>
-
-          <a class="card" href="./instance_mode_test.html">
-            <h3>Instance Mode</h3>
-            <p>Checks brush.instance(p) on the instance canvas, an instance p5.Graphics target, and an instance-owned main framebuffer.</p>
-            <span class="meta">Instances</span>
-            <span class="path">test/instance_mode_test.html</span>
-          </a>
-
-          <a class="card" href="./multi_instance_async_test.html">
-            <h3>Async Multi-Instance</h3>
-            <p>Stress-tests the old multi-instance startup race with many instance-mode sketches and repeated canvas ownership checks.</p>
-            <span class="meta">Regression</span>
-            <span class="path">test/multi_instance_async_test.html</span>
-          </a>
-
           <a class="card" href="./transform_test.html">
             <h3>Transform Alignment</h3>
             <p>Checks that brush strokes and fills align with native p5 reference geometry under translate, rotate, and scale.</p>
@@ -263,6 +242,27 @@
             <p>Interactive field inspector for comparing built-in fields with adjustable density and line length.</p>
             <span class="meta">Explorer</span>
             <span class="path">test/field_explorer.html</span>
+          </a>
+
+          <a class="card" href="./p5_specific/offscreen_target_test.html">
+            <h3>Offscreen Targets</h3>
+            <p>Checks brush.load() on p5.Graphics and custom-sized main framebuffers, with pixel-count diagnostics.</p>
+            <span class="meta">Targets</span>
+            <span class="path">test/p5_specific/offscreen_target_test.html</span>
+          </a>
+
+          <a class="card" href="./p5_specific/instance_mode_test.html">
+            <h3>Instance Mode</h3>
+            <p>Checks brush.instance(p) on the instance canvas, an instance p5.Graphics target, and an instance-owned main framebuffer.</p>
+            <span class="meta">Instances</span>
+            <span class="path">test/p5_specific/instance_mode_test.html</span>
+          </a>
+
+          <a class="card" href="./p5_specific/multi_instance_async_test.html">
+            <h3>Async Multi-Instance</h3>
+            <p>Stress-tests the old multi-instance startup race with many instance-mode sketches and repeated canvas ownership checks.</p>
+            <span class="meta">Regression</span>
+            <span class="path">test/p5_specific/multi_instance_async_test.html</span>
           </a>
         </div>
       </section>
@@ -301,25 +301,39 @@
             <span class="path">test/standalone/field_explorer.html</span>
           </a>
 
-          <a class="card" href="./standalone/transform_alignment.html">
+          <a class="card" href="./standalone/transform_test.html">
             <h3>Standalone Transform Alignment</h3>
             <p>Native 2D references are overlaid on standalone brush marks to verify translate, rotate, scale, stroke, and fill alignment.</p>
             <span class="meta">Standalone</span>
-            <span class="path">test/standalone/transform_alignment.html</span>
+            <span class="path">test/standalone/transform_test.html</span>
           </a>
 
-          <a class="card" href="./standalone/pushpop.html">
+          <a class="card" href="./standalone/pushpop_test.html">
             <h3>Standalone Push / Pop</h3>
             <p>Checks that standalone push/pop restores stroke color, weight, brush type, and fill state.</p>
             <span class="meta">Standalone</span>
-            <span class="path">test/standalone/pushpop.html</span>
+            <span class="path">test/standalone/pushpop_test.html</span>
           </a>
 
-          <a class="card" href="./standalone/offscreen.html">
-            <h3>Standalone Offscreen</h3>
-            <p>Checks drawing into an OffscreenCanvas target and presenting the result to a visible canvas.</p>
-            <span class="meta">Standalone</span>
-            <span class="path">test/standalone/offscreen.html</span>
+          <a class="card" href="./standalone/wash_test.html">
+            <h3>Standalone Wash Test</h3>
+            <p>Draws random rect and circle polygons with palette colors at full opacity in the standalone build.</p>
+            <span class="meta">Coverage</span>
+            <span class="path">test/standalone/wash_test.html</span>
+          </a>
+
+          <a class="card" href="./standalone/pastel_hatching_test.html">
+            <h3>Standalone Pastel Hatching</h3>
+            <p>Custom crayon brush and centered rectangle for pastel hatching experiments in the standalone build.</p>
+            <span class="meta">Experiment</span>
+            <span class="path">test/standalone/pastel_hatching_test.html</span>
+          </a>
+
+          <a class="card" href="./standalone/angle_mode_test.html">
+            <h3>Standalone Angle Mode</h3>
+            <p>Compares degrees, radians, mixed mode changes, stored hatch angles, and custom fields in the standalone build.</p>
+            <span class="meta">Behavior</span>
+            <span class="path">test/standalone/angle_mode_test.html</span>
           </a>
         </div>
       </section>

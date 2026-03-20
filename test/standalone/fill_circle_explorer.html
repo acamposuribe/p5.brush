@@ -176,7 +176,10 @@
       </div>
       <h1>Fill Circle Explorer <small style="font-size:0.55em;color:#8a9aa8;">standalone</small></h1>
       <p>
-        Seeded standalone page for checking watercolor fill on a single centered circle with a fine HB stroke.
+        Seeded standalone page for checking watercolor fill behavior on a single centered circle with a fine HB stroke.
+      </p>
+      <p>
+        Use the sliders and palette below to inspect bleed, opacity, texture, and border behavior without changing the seed unless you refresh it.
       </p>
 
       <div class="workspace">
@@ -186,8 +189,7 @@
               <span>Seed</span>
               <strong id="seedVal">000000</strong>
             </div>
-            <div class="perf">First load <strong id="firstLoadVal">-</strong></div>
-            <button id="refreshSeed" type="button">Refresh seed</button>
+<button id="refreshSeed" type="button">Refresh seed</button>
           </div>
 
           <div class="control-grid">
@@ -394,5 +396,6 @@
       syncUrl();
       renderScene();
     </script>
+  <script src="../test-nav.js"></script>
   </body>
 </html>

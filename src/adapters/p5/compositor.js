@@ -66,7 +66,7 @@ function runBlendShaderPass({
   withScissor,
 }) {
   const gl = renderer.drawingContext;
-  const hadDepthTest = gl.getParameter(gl.DEPTH_TEST);
+  const hadDepthTest = gl.isEnabled(gl.DEPTH_TEST);
 
   gl.disable(gl.DEPTH_TEST);
 

@@ -61,6 +61,24 @@ function lcRoundRect(x, y, w, h, r) {
   lc.closePath();
 }
 
+// ---- Text wrapping helper ----
+
+function lcWrapText(text, x, y, maxW, lineH) {
+  const words = text.split(" ");
+  let line = "";
+  for (const word of words) {
+    const test = line ? line + " " + word : word;
+    if (lc.measureText(test).width > maxW && line) {
+      lc.fillText(line, x, y);
+      y += lineH;
+      line = word;
+    } else {
+      line = test;
+    }
+  }
+  if (line) lc.fillText(line, x, y);
+}
+
 // ---- Layout helpers ----
 
 function section(title, note) {
@@ -91,7 +109,7 @@ function drawRow(label, panels) {
   lc.fill();
   lc.fillStyle = "#2e2e2e";
   lc.font = "bold 11px monospace";
-  lc.fillText(label, MARGIN, currentY + 18);
+  lcWrapText(label, MARGIN, currentY + 18, LABEL_W - 20, 14);
 
   panels.forEach((panel, index) => {
     const x = MARGIN + LABEL_W + index * (panelW + PANEL_GAP);
@@ -114,7 +132,7 @@ function drawRow(label, panels) {
     lc.fill();
     lc.fillStyle = "#4a4a4a";
     lc.font = "9px monospace";
-    lc.fillText(panel.title, x + 14, y + 13);
+    lcWrapText(panel.title, x + 14, y + 13, panelW - 28, 11);
 
     // Hatch content
     panel.render(x + 10, y + 32, panelW - 20, ROW_H - 48);
