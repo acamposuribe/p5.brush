@@ -5,8 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>p5.brush - Offscreen Target Test</title>
     <script src="https://cdn.jsdelivr.net/npm/p5@2.1.1/lib/p5.min.js"></script>
-    <script src="../dist/p5.brush.js"></script>
-    <script src="./p5_first_frame_profiler.js"></script>
+    <script src="../../dist/p5.brush.js"></script>
+    <script src="../p5_first_frame_profiler.js"></script>
     <style>
       * {
         box-sizing: border-box;
@@ -34,6 +34,8 @@
       .nav {
         margin-bottom: 14px;
         font: 11px/1.2 Menlo, Monaco, "Courier New", monospace;
+        display: flex;
+        gap: 12px;
       }
 
       .nav a {
@@ -44,6 +46,8 @@
       .nav a:hover {
         text-decoration: underline;
       }
+
+      .nav .sep { color: #8a9aa8; }
 
       h1 {
         margin: 0 0 8px;
@@ -86,7 +90,11 @@
   </head>
   <body>
     <main>
-      <div class="nav"><a href="./index.html">All tests</a></div>
+      <div class="nav">
+        <a href="../index.html">All tests</a>
+        <span class="sep">·</span>
+        <span style="color:#8a9aa8;">p5 specific</span>
+      </div>
       <h1>Offscreen Target Test</h1>
       <p>
         This page checks that p5.brush can target offscreen drawing surfaces and still composite them back correctly.

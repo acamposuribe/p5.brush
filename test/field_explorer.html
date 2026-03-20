@@ -41,6 +41,8 @@
       .nav {
         margin-bottom: 14px;
         font: 11px/1.2 Menlo, Monaco, "Courier New", monospace;
+        display: flex;
+        gap: 12px;
       }
 
       .nav a {
@@ -49,6 +51,7 @@
       }
 
       .nav a:hover { text-decoration: underline; }
+      .nav .sep { color: #8a9aa8; }
 
       h1 {
         margin: 0 0 8px;
@@ -122,7 +125,11 @@
   </head>
   <body>
     <main>
-      <div class="nav"><a href="./index.html">All tests</a></div>
+      <div class="nav">
+        <a href="./index.html">All tests</a>
+        <span class="sep">·</span>
+        <a href="./standalone/field_explorer.html">Standalone →</a>
+      </div>
       <h1>Flow Field Explorer</h1>
       <p>
         Interactive browser page for comparing built-in vector fields with adjustable density and flow-line length.

@@ -23,7 +23,6 @@ const controls = {
   textureVal: document.getElementById("textureVal"),
   borderVal: document.getElementById("borderVal"),
   seedVal: document.getElementById("seedVal"),
-  firstLoadVal: document.getElementById("firstLoadVal"),
   refreshSeed: document.getElementById("refreshSeed"),
   palette: document.getElementById("palette"),
 };
@@ -93,10 +92,6 @@ function queueRender() {
     renderQueued = false;
     redraw();
   });
-}
-
-function reportFirstLoad() {
-  window.reportP5FirstFrame?.("fill_circle_explorer");
 }
 
 function setupPalette() {
@@ -190,5 +185,5 @@ function draw() {
   if (!needsRender) return;
   needsRender = false;
   renderScene();
-  reportFirstLoad();
+  window.reportP5FirstFrame?.("fill_circle_explorer");
 }

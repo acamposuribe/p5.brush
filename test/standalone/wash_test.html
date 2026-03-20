@@ -1,0 +1,212 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Wash Test — Standalone</title>
+    <style>
+      :root {
+        --paper: #f3eee2;
+        --ink: #22313f;
+        --muted: #52616e;
+        --line: #d4c8b8;
+        --panel: rgba(255, 252, 245, 0.86);
+        --accent: #153e5c;
+      }
+
+      * { box-sizing: border-box; }
+
+      body {
+        margin: 0;
+        color: var(--ink);
+        background:
+          radial-gradient(circle at top left, rgba(21, 62, 92, 0.08), transparent 24%),
+          linear-gradient(180deg, #f7f2e7 0%, #ece3d3 100%);
+        font-family: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", Palatino, serif;
+      }
+
+      main {
+        width: min(920px, calc(100vw - 24px));
+        margin: 0 auto;
+        padding: 18px 0 24px;
+        display: grid;
+        justify-items: center;
+      }
+
+      main > * { width: 100%; }
+
+      .nav {
+        margin-bottom: 14px;
+        font: 11px/1.2 Menlo, Monaco, "Courier New", monospace;
+        display: flex;
+        gap: 12px;
+      }
+
+      .nav a { color: var(--accent); text-decoration: none; }
+      .nav a:hover { text-decoration: underline; }
+      .nav .sep { color: #8a9aa8; }
+
+      h1 {
+        margin: 0 0 8px;
+        font-size: clamp(24px, 3.6vw, 34px);
+        letter-spacing: -0.04em;
+      }
+
+      p {
+        margin: 0 0 8px;
+        max-width: 760px;
+        color: var(--muted);
+        line-height: 1.45;
+        font-size: 13px;
+      }
+
+      .panel {
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: var(--panel);
+      }
+
+      .toolbar {
+        margin-top: 18px;
+        padding: 12px 14px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        flex-wrap: wrap;
+        font: 11px/1.4 Menlo, Monaco, "Courier New", monospace;
+      }
+
+      .seed { display: flex; align-items: center; gap: 8px; }
+      .seed strong { color: var(--accent); font-weight: 600; }
+
+      button {
+        border: 1px solid var(--line);
+        background: #fbf8f0;
+        color: var(--accent);
+        font: inherit;
+        padding: 6px 10px;
+        border-radius: 6px;
+        cursor: pointer;
+      }
+
+      button:hover { background: #f4eee2; }
+
+      #canvas-host {
+        margin-top: 16px;
+        padding: 10px;
+        display: grid;
+        justify-content: center;
+        width: 100%;
+        overflow: hidden;
+      }
+
+      #canvas-host canvas {
+        display: block;
+        border-radius: 6px;
+        max-width: 100%;
+        max-height: min(78vh, 760px);
+        height: auto !important;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <div class="nav">
+        <a href="../index.html">All tests</a>
+        <span class="sep">·</span>
+        <a href="../wash_test.html">← p5 version</a>
+      </div>
+      <h1>Wash Test <small style="font-size:0.55em;color:#8a9aa8;">standalone</small></h1>
+      <p>
+        Direct WebGL wash test that draws random rect and circle polygons with palette colors at full opacity.
+      </p>
+      <p>
+        Refresh the seed to regenerate shapes while keeping the wash path isolated from fill and stroke.
+      </p>
+
+      <div class="toolbar panel">
+        <div class="seed">
+          <span>Seed</span>
+          <strong id="seedVal">000000</strong>
+        </div>
+        <button id="refreshSeed" type="button">Refresh seed</button>
+      </div>
+
+      <div id="canvas-host" class="panel"></div>
+    </main>
+
+    <script src="./standalone_profiler.js"></script>
+    <script type="module">
+      import * as brush from "../../dist/brush.esm.js";
+
+      const PALETTE = ["#002185", "#003c32", "#fcd300", "#ff2702", "#6b9404"];
+      const PAPER = "#fffceb";
+      const CW = 840, CH = 720;
+
+      let currentSeed = 100000 + Math.floor(Math.random() * 900000);
+
+      const seedVal = document.getElementById("seedVal");
+      const refreshSeedBtn = document.getElementById("refreshSeed");
+
+      const pixelDensity = window.devicePixelRatio || 1;
+      brush.createCanvas(CW, CH, { id: "brush-canvas", parent: "#canvas-host", pixelDensity });
+      brush.scaleBrushes(3);
+
+      // Seeded RNG (simple mulberry32)
+      function mkRng(seed) {
+        let s = seed;
+        return () => {
+          s |= 0; s = s + 0x6D2B79F5 | 0;
+          let t = Math.imul(s ^ s >>> 15, 1 | s);
+          t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+          return ((t ^ t >>> 14) >>> 0) / 4294967296;
+        };
+      }
+
+      function drawScene() {
+        seedVal.textContent = String(currentSeed).padStart(6, "0");
+        brush.seed(currentSeed);
+        brush.noiseSeed(currentSeed);
+
+        brush.clear(PAPER);
+        brush.push();
+        brush.translate(-CW / 2, -CH / 2);
+
+        const rng = mkRng(currentSeed);
+        brush.wiggle(3);
+
+        for (let i = 0; i < 50; i++) {
+          const color = PALETTE[i % PALETTE.length];
+          brush.wash(color, 255);
+
+          const isCircle = rng() < 0.5;
+          if (isCircle) {
+            const radius = 100 + rng() * 100;
+            const cx = radius + 24 + rng() * (CW - 2 * (radius + 24));
+            const cy = radius + 24 + rng() * (CH - 2 * (radius + 24));
+            brush.circle(cx, cy, radius);
+          } else {
+            const rw = 190 + rng() * 60;
+            const rh = 190 + rng() * 60;
+            const rx = 24 + rng() * (CW - rw - 24);
+            const ry = 24 + rng() * (CH - rh - 24);
+            brush.rect(rx, ry, rw, rh);
+          }
+        }
+
+        brush.noWash();
+        brush.pop();
+        brush.render();
+        window.reportStandaloneFirstFrame?.("wash_test");
+      }
+
+      refreshSeedBtn.addEventListener("click", () => {
+        currentSeed = 100000 + Math.floor(Math.random() * 900000);
+        drawScene();
+      });
+
+      drawScene();
+    </script>
+  </body>
+</html>

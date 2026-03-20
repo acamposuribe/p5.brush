@@ -1,0 +1,203 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Push / Pop State — Standalone</title>
+    <style>
+      * { box-sizing: border-box; }
+
+      body {
+        margin: 0;
+        color: #22313f;
+        background:
+          radial-gradient(circle at top left, rgba(20, 48, 73, 0.08), transparent 24%),
+          linear-gradient(180deg, #f7f2e7 0%, #ece3d3 100%);
+        font-family: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", Palatino, serif;
+      }
+
+      main {
+        width: min(920px, calc(100vw - 24px));
+        margin: 0 auto;
+        padding: 18px 0 24px;
+        display: grid;
+        justify-items: center;
+      }
+
+      main > * { width: 100%; }
+
+      .nav {
+        margin-bottom: 14px;
+        font: 11px/1.2 Menlo, Monaco, "Courier New", monospace;
+        display: flex;
+        gap: 12px;
+      }
+
+      .nav a { color: #153e5c; text-decoration: none; }
+      .nav a:hover { text-decoration: underline; }
+      .nav .sep { color: #8a9aa8; }
+
+      h1 {
+        margin: 0 0 8px;
+        font-size: clamp(24px, 3.6vw, 34px);
+        letter-spacing: -0.04em;
+      }
+
+      p {
+        max-width: 760px;
+        margin: 0 0 8px;
+        color: #52616e;
+        line-height: 1.45;
+        font-size: 13px;
+      }
+
+      #canvas-host {
+        margin-top: 18px;
+        display: grid;
+        justify-content: center;
+        width: 100%;
+        overflow: hidden;
+      }
+
+      #canvas-host canvas {
+        grid-area: 1 / 1;
+        display: block;
+        max-width: 100%;
+        height: auto !important;
+      }
+
+      #label-canvas { pointer-events: none; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <div class="nav">
+        <a href="../index.html">All tests</a>
+        <span class="sep">·</span>
+        <a href="../pushpop_test.html">← p5 version</a>
+      </div>
+      <h1>Push / Pop State <small style="font-size:0.55em;color:#8a9aa8;">standalone</small></h1>
+      <p>
+        Each column proves that standalone <b>brush.push()</b> and <b>brush.pop()</b> save and restore brush state.
+      </p>
+      <p>
+        Column 1 checks stroke color, column 2 checks stroke weight and brush type, column 3 checks fill color and opacity.
+        The "after pop" row must match the "before" row exactly.
+      </p>
+      <div id="canvas-host"></div>
+    </main>
+
+    <script src="./standalone_profiler.js"></script>
+    <script type="module">
+      import * as brush from "../../dist/brush.esm.js";
+
+      const CW = 760, CH = 500;
+      const COLS = 3;
+      const CellW = CW / COLS;
+      const cxFn = (c) => c * CellW + CellW / 2;
+
+      const Y_BEFORE = 100, Y_INSIDE = 250, Y_AFTER = 400;
+
+      const pixelDensity = window.devicePixelRatio || 1;
+      brush.createCanvas(CW, CH, { id: "brush-canvas", parent: "#canvas-host", pixelDensity });
+      brush.scaleBrushes(1.5);
+
+      // Label canvas for grid lines and row labels
+      const labelCanvas = document.createElement("canvas");
+      labelCanvas.id = "label-canvas";
+      labelCanvas.width  = Math.round(CW * pixelDensity);
+      labelCanvas.height = Math.round(CH * pixelDensity);
+      labelCanvas.style.width  = CW + "px";
+      labelCanvas.style.height = CH + "px";
+      document.getElementById("canvas-host").appendChild(labelCanvas);
+      const lc = labelCanvas.getContext("2d");
+      lc.setTransform(pixelDensity, 0, 0, pixelDensity, 0, 0);
+      lc.textBaseline = "middle";
+
+      // Grid dividers
+      lc.strokeStyle = "rgba(190,190,190,0.8)";
+      lc.lineWidth = 1;
+      for (let c = 1; c < COLS; c++) {
+        lc.beginPath(); lc.moveTo(c * CellW, 0); lc.lineTo(c * CellW, CH); lc.stroke();
+      }
+
+      // Row separator lines
+      lc.strokeStyle = "rgba(200,200,200,0.5)";
+      lc.lineWidth = 0.5;
+      for (const y of [Y_BEFORE - 50, Y_INSIDE - 50, Y_AFTER - 50]) {
+        lc.beginPath(); lc.moveTo(0, y); lc.lineTo(CW, y); lc.stroke();
+      }
+
+      // Row labels
+      lc.fillStyle = "rgba(80,80,80,0.7)";
+      lc.font = "10px monospace";
+      for (const [label, y] of [["before", Y_BEFORE - 35], ["inside push", Y_INSIDE - 35], ["after pop", Y_AFTER - 35]]) {
+        lc.fillText(label, 8, y);
+      }
+
+      brush.clear("#f8f6ee");
+      brush.push();
+      brush.translate(-CW / 2, -CH / 2);
+
+      // ---- COL 0 — stroke COLOR ----
+      brush.pick("marker");
+      brush.stroke("#1a3a6a");
+      brush.strokeWeight(3);
+
+      brush.push(); brush.translate(cxFn(0), Y_BEFORE);
+      brush.line(-60, 0, 60, 0); brush.line(0, -30, 0, 30);
+      brush.pop();
+
+      brush.push(); brush.translate(cxFn(0), Y_INSIDE);
+      brush.stroke("#c0392b");
+      brush.line(-60, 0, 60, 0); brush.line(0, -30, 0, 30);
+      brush.pop();
+
+      brush.push(); brush.translate(cxFn(0), Y_AFTER);
+      brush.line(-60, 0, 60, 0); brush.line(0, -30, 0, 30);
+      brush.pop();
+
+      // ---- COL 1 — stroke WEIGHT + brush TYPE ----
+      brush.pick("HB");
+      brush.stroke("#1a3a6a");
+      brush.strokeWeight(1);
+      brush.noFill();
+
+      brush.push(); brush.translate(cxFn(1), Y_BEFORE);
+      brush.line(-60, 0, 60, 0); brush.line(0, -30, 0, 30);
+      brush.pop();
+
+      brush.push(); brush.translate(cxFn(1), Y_INSIDE);
+      brush.pick("charcoal"); brush.stroke("#c0392b"); brush.strokeWeight(6);
+      brush.line(-60, 0, 60, 0); brush.line(0, -30, 0, 30);
+      brush.pop();
+
+      brush.push(); brush.translate(cxFn(1), Y_AFTER);
+      brush.line(-60, 0, 60, 0); brush.line(0, -30, 0, 30);
+      brush.pop();
+
+      // ---- COL 2 — FILL color + opacity ----
+      brush.noStroke();
+      brush.fill("#1a3a6a", 70);
+      brush.fillBleed(0.2);
+      brush.fillTexture(0.4, 0.3);
+
+      brush.push(); brush.translate(cxFn(2), Y_BEFORE);
+      brush.rect(-55, -35, 110, 70, "corner");
+      brush.pop();
+
+      brush.push(); brush.translate(cxFn(2), Y_INSIDE);
+      brush.fill("#c0392b", 120);
+      brush.rect(-55, -35, 110, 70, "corner");
+      brush.pop();
+
+      brush.push(); brush.translate(cxFn(2), Y_AFTER);
+      brush.rect(-55, -35, 110, 70, "corner");
+      brush.pop();
+
+      brush.pop();
+      brush.render();
+      window.reportStandaloneFirstFrame?.("pushpop_test");
+    </script>
+  </body>
+</html>

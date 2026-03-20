@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Standalone Flow Field Explorer</title>
+    <title>Flow Field Explorer — Standalone</title>
     <style>
       :root {
         --paper: #f3eee2;
@@ -38,10 +38,13 @@
       .nav {
         margin-bottom: 14px;
         font: 11px/1.2 Menlo, Monaco, "Courier New", monospace;
+        display: flex;
+        gap: 12px;
       }
 
       .nav a { color: var(--accent); text-decoration: none; }
       .nav a:hover { text-decoration: underline; }
+      .nav .sep { color: #8a9aa8; }
 
       h1 {
         margin: 0 0 8px;
@@ -75,11 +78,7 @@
 
       label { display: flex; align-items: center; gap: 8px; }
 
-      select,
-      input[type=range] {
-        font: inherit;
-      }
-
+      select, input[type=range] { font: inherit; }
       select { padding: 5px 8px; }
       input[type=range] { width: 120px; }
       span.val { width: 28px; display: inline-block; color: var(--accent); }
@@ -105,7 +104,7 @@
         overflow: hidden;
       }
 
-      canvas {
+      #canvas-host canvas {
         display: block;
         border-radius: 6px;
         max-width: 100%;
@@ -115,13 +114,14 @@
   </head>
   <body>
     <main>
-      <div class="nav"><a href="../index.html">All tests</a></div>
-      <h1>Standalone Flow Field Explorer</h1>
+      <div class="nav">
+        <a href="../index.html">All tests</a>
+        <span class="sep">·</span>
+        <a href="../field_explorer.html">← p5 version</a>
+      </div>
+      <h1>Flow Field Explorer <small style="font-size:0.55em;color:#8a9aa8;">standalone</small></h1>
       <p>
-        Interactive browser page for comparing built-in vector fields with adjustable density and flow-line length.
-      </p>
-      <p>
-        Controls update the field live. The current seed stays in the URL so the same view remains reproducible.
+        Interactive standalone page for comparing built-in vector fields with adjustable density and flow-line length.
       </p>
 
       <div id="controls" class="panel">
@@ -140,15 +140,127 @@
           <span class="val" id="lineLenVal">55</span>
         </label>
         <label>
-          Seed:
-          <span class="val" id="seedVal" style="width:auto; min-width:56px;">42</span>
+          Seed: <span class="val" id="seedVal" style="width:auto;min-width:56px;">42</span>
         </label>
         <button id="refreshSeed" type="button">Refresh seed</button>
       </div>
 
       <div id="canvas-host" class="panel"></div>
-
-      <script type="module" src="./field_explorer.js"></script>
     </main>
+
+    <script src="./standalone_profiler.js"></script>
+    <script type="module">
+      import * as brush from "../../dist/brush.esm.js";
+
+      const FIELDS = ["curved", "zigzag", "waves", "seabed", "spiral", "columns", "hand"];
+      const CW = 800, CH = 800;
+
+      const params = new URLSearchParams(location.search);
+      let currentField   = params.get("field")   || "curved";
+      let currentDensity = parseInt(params.get("density") || "18");
+      let currentLen     = parseInt(params.get("len")     || "55");
+      let currentSeed    = params.has("seed")
+        ? parseInt(params.get("seed"), 10)
+        : Math.floor(Math.random() * 1000000);
+
+      // Populate select
+      const sel = document.getElementById("fieldSel");
+      FIELDS.forEach((f) => {
+        const opt = document.createElement("option");
+        opt.value = f;
+        opt.textContent = f;
+        if (f === currentField) opt.selected = true;
+        sel.appendChild(opt);
+      });
+
+      const densityEl  = document.getElementById("density");
+      const densityVal = document.getElementById("densityVal");
+      const lineLenEl  = document.getElementById("lineLen");
+      const lineLenVal = document.getElementById("lineLenVal");
+      const seedVal    = document.getElementById("seedVal");
+      const refreshSeedBtn = document.getElementById("refreshSeed");
+
+      densityEl.value = currentDensity;
+      densityVal.textContent = currentDensity;
+      lineLenEl.value = currentLen;
+      lineLenVal.textContent = currentLen;
+      seedVal.textContent = currentSeed;
+
+      function syncUrl() {
+        const qs = new URLSearchParams({
+          field: currentField, density: currentDensity,
+          len: currentLen, seed: currentSeed,
+        });
+        history.replaceState(null, "", `?${qs}`);
+      }
+      syncUrl();
+
+      const pixelDensity = window.devicePixelRatio || 1;
+      brush.createCanvas(CW, CH, { id: "brush-canvas", parent: "#canvas-host", pixelDensity });
+      brush.scaleBrushes(3);
+
+      let renderQueued = false;
+      function queueRender() {
+        if (renderQueued) return;
+        renderQueued = true;
+        requestAnimationFrame(() => { renderQueued = false; renderScene(); });
+      }
+
+      function renderScene() {
+        brush.seed(currentSeed);
+        brush.noiseSeed(currentSeed);
+        seedVal.textContent = currentSeed;
+
+        brush.clear("#f5f5f5");
+        brush.push();
+        brush.translate(-CW / 2, -CH / 2);
+
+        if (currentField === "hand") {
+          brush.wiggle(5);
+        } else {
+          brush.field(currentField);
+        }
+        brush.refreshField(0);
+        brush.set("HB", "#1a2a5a", 1);
+
+        const n = currentDensity;
+        for (let r = 0; r < n; r++) {
+          for (let c = 0; c < n; c++) {
+            const x = 40 + (c / (n - 1)) * 720;
+            const y = 40 + (r / (n - 1)) * 720;
+            brush.flowLine(x, y, currentLen, 0);
+          }
+        }
+
+        brush.noField();
+        brush.pop();
+        brush.render();
+        window.reportStandaloneFirstFrame?.("field_explorer");
+      }
+
+      function handleInput() {
+        currentField   = sel.value;
+        currentDensity = parseInt(densityEl.value);
+        currentLen     = parseInt(lineLenEl.value);
+        densityVal.textContent = currentDensity;
+        lineLenVal.textContent = currentLen;
+        syncUrl();
+        queueRender();
+      }
+
+      densityEl.addEventListener("input", handleInput);
+      lineLenEl.addEventListener("input", handleInput);
+      sel.addEventListener("input", handleInput);
+      sel.addEventListener("change", handleInput);
+
+      refreshSeedBtn.addEventListener("click", () => {
+        currentSeed = Math.floor(Math.random() * 1000000);
+        seedVal.textContent = currentSeed;
+        syncUrl();
+        queueRender();
+      });
+
+      renderScene();
+    </script>
   </body>
 </html>

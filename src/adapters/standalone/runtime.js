@@ -65,6 +65,17 @@ export class Color {
     }
 
     if (typeof r === "string") {
+      const rgbaMatch = /^rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*(?:,\s*([\d.]+))?\s*\)$/i.exec(r);
+      if (rgbaMatch) {
+        this.r = clamp(parseInt(rgbaMatch[1]), 0, 255);
+        this.g = clamp(parseInt(rgbaMatch[2]), 0, 255);
+        this.b = clamp(parseInt(rgbaMatch[3]), 0, 255);
+        this.hex = this.rgbToHex(this.r, this.g, this.b);
+        const alpha = rgbaMatch[4] !== undefined ? clamp(parseFloat(rgbaMatch[4]), 0, 1) : 1;
+        this._array = [this.r / 255, this.g / 255, this.b / 255, alpha];
+        this.gl = this._array;
+        return;
+      }
       this.hex = this.standardize(r);
       const rgb = this.hexToRgb(this.hex);
       this.r = rgb.r;

@@ -32,10 +32,13 @@
       .nav {
         margin-bottom: 14px;
         font: 11px/1.2 Menlo, Monaco, "Courier New", monospace;
+        display: flex;
+        gap: 12px;
       }
 
       .nav a { color: #153e5c; text-decoration: none; }
       .nav a:hover { text-decoration: underline; }
+      .nav .sep { color: #8a9aa8; }
 
       h1 {
         margin: 0 0 8px;
@@ -68,7 +71,11 @@
   </head>
   <body>
     <main>
-      <div class="nav"><a href="./index.html">All tests</a></div>
+      <div class="nav">
+        <a href="./index.html">All tests</a>
+        <span class="sep">·</span>
+        <a href="./standalone/pushpop_test.html">Standalone →</a>
+      </div>
       <h1>Push / Pop State Test</h1>
       <p>
         Each column proves that p5’s <b>push()</b> and <b>pop()</b> automatically save and restore brush state.
