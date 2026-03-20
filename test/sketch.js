@@ -7,6 +7,9 @@
 // Run:  open test/visual_suite.html
 // ============================================================
 
+const _scriptStart = performance.now();
+let _setupMs = 0;
+
 // ---- Layout constants ----
 const CANVAS_W = 1400;
 const CANVAS_H = 5200;
@@ -565,8 +568,7 @@ async function setup() {
   fillRow("opacity 90",  col(4), 90,  0.1, "out", 0.4, 0.4);
   fillRow("opacity 140", col(4), 140, 0.1, "out", 0.4, 0.4);
 
-  // ---- Composite label overlay on top of brush rendering ----
-  // (draw() runs after postsetup which composites the final brush pass)
+  _setupMs = performance.now() - _scriptStart;
 }
 
 // draw() runs after postsetup — ideal moment to overlay labels
@@ -574,6 +576,9 @@ function draw() {
   // WEBGL resets transforms each frame; re-translate to top-left
   translate(-width / 2, -height / 2);
   if (!nativeDebugStage) image(labelBuf, 0, 0, width, height);
-  window.reportP5FirstFrame?.("visual_suite");
+  window.reportP5FirstFrame?.("visual_suite", {
+    parseMs: _scriptStart - (window.__brushLoadStart ?? _scriptStart),
+    drawMs: _setupMs,
+  });
   noLoop(); // static sketch — draw only once
 }

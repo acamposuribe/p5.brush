@@ -178,70 +178,91 @@
       <section class="band">
         <div class="band-head">
           <h2>p5 Tests</h2>
-          <p>Use these pages to visually inspect the p5 build. Each links to its standalone counterpart.</p>
+          <p>Use these pages to visually inspect the p5 build directly in the browser.</p>
         </div>
         <div class="grid">
-          <a class="card" href="./p5/visual_suite.html">
+          <a class="card" href="./visual_suite.html">
             <h3>Visual API Suite</h3>
             <p>Wide coverage page that exercises most public APIs and logs error-message checks to the console.</p>
             <span class="meta">Coverage</span>
-            <span class="path">test/p5/visual_suite.html</span>
+            <span class="path">test/visual_suite.html</span>
           </a>
 
-          <a class="card" href="./p5/hatch_test.html">
-            <h3>Hatch Test</h3>
-            <p>Exercises hatch angles, spacing, rand/continuous/gradient options, cross-hatching, brush types, shapes, and multi-polygon arrays.</p>
-            <span class="meta">Coverage</span>
-            <span class="path">test/p5/hatch_test.html</span>
-          </a>
-
-          <a class="card" href="./p5/fill_circle_explorer.html">
+          <a class="card" href="./fill_circle_explorer.html">
             <h3>Fill Circle Explorer</h3>
             <p>Seeded single-shape page for inspecting watercolor fill bleed, opacity, texture, border, and palette color on a centered circle.</p>
             <span class="meta">Explorer</span>
-            <span class="path">test/p5/fill_circle_explorer.html</span>
+            <span class="path">test/fill_circle_explorer.html</span>
           </a>
 
-          <a class="card" href="./p5/wash_test.html">
+          <a class="card" href="./wash_test.html">
             <h3>Wash Test</h3>
             <p>Direct WEBGL wash page that draws five random rect and circle polygons with palette colors at full opacity.</p>
             <span class="meta">Coverage</span>
-            <span class="path">test/p5/wash_test.html</span>
+            <span class="path">test/wash_test.html</span>
           </a>
 
-          <a class="card" href="./p5/field_explorer.html">
-            <h3>Flow Field Explorer</h3>
-            <p>Interactive field inspector for comparing built-in fields with adjustable density and line length.</p>
-            <span class="meta">Explorer</span>
-            <span class="path">test/p5/field_explorer.html</span>
-          </a>
-
-          <a class="card" href="./p5/angle_mode_test.html">
-            <h3>Angle Mode Test</h3>
-            <p>Compares degrees, radians, mixed mode changes, stored hatch angles, low-level Position movement, and custom fields.</p>
-            <span class="meta">Behavior</span>
-            <span class="path">test/p5/angle_mode_test.html</span>
-          </a>
-
-          <a class="card" href="./p5/transform_test.html">
-            <h3>Transform Alignment</h3>
-            <p>Checks that brush strokes and fills align with native p5 reference geometry under translate, rotate, and scale.</p>
-            <span class="meta">Geometry</span>
-            <span class="path">test/p5/transform_test.html</span>
-          </a>
-
-          <a class="card" href="./p5/pushpop_test.html">
-            <h3>Push / Pop State</h3>
-            <p>Verifies that p5 push/pop restores stroke, brush, fill, and hatch state correctly.</p>
-            <span class="meta">State</span>
-            <span class="path">test/p5/pushpop_test.html</span>
-          </a>
-
-          <a class="card" href="./p5/pastel_hatching_test.html">
+          <a class="card" href="./pastel_hatching_test.html">
             <h3>Pastel Hatching Test</h3>
             <p>Minimal global-mode sketch with a custom crayon brush and a single centered rectangle for pastel hatching experiments.</p>
             <span class="meta">Experiment</span>
-            <span class="path">test/p5/pastel_hatching_test.html</span>
+            <span class="path">test/pastel_hatching_test.html</span>
+          </a>
+
+          <a class="card" href="./angle_mode_test.html">
+            <h3>Angle Mode Test</h3>
+            <p>Compares degrees, radians, mixed mode changes, stored hatch angles, low-level Position movement, and custom fields.</p>
+            <span class="meta">Behavior</span>
+            <span class="path">test/angle_mode_test.html</span>
+          </a>
+
+          <a class="card" href="./offscreen_target_test.html">
+            <h3>Offscreen Targets</h3>
+            <p>Checks brush.load() on p5.Graphics and custom-sized main framebuffers, with pixel-count diagnostics.</p>
+            <span class="meta">Targets</span>
+            <span class="path">test/offscreen_target_test.html</span>
+          </a>
+
+          <a class="card" href="./instance_mode_test.html">
+            <h3>Instance Mode</h3>
+            <p>Checks brush.instance(p) on the instance canvas, an instance p5.Graphics target, and an instance-owned main framebuffer.</p>
+            <span class="meta">Instances</span>
+            <span class="path">test/instance_mode_test.html</span>
+          </a>
+
+          <a class="card" href="./multi_instance_async_test.html">
+            <h3>Async Multi-Instance</h3>
+            <p>Stress-tests the old multi-instance startup race with many instance-mode sketches and repeated canvas ownership checks.</p>
+            <span class="meta">Regression</span>
+            <span class="path">test/multi_instance_async_test.html</span>
+          </a>
+
+          <a class="card" href="./transform_test.html">
+            <h3>Transform Alignment</h3>
+            <p>Checks that brush strokes and fills align with native p5 reference geometry under translate, rotate, and scale.</p>
+            <span class="meta">Geometry</span>
+            <span class="path">test/transform_test.html</span>
+          </a>
+
+          <a class="card" href="./pushpop_test.html">
+            <h3>Push / Pop State</h3>
+            <p>Verifies that p5 push/pop restores stroke, brush, fill, and hatch state correctly.</p>
+            <span class="meta">State</span>
+            <span class="path">test/pushpop_test.html</span>
+          </a>
+
+          <a class="card" href="./hatch_test.html">
+            <h3>Hatch Test</h3>
+            <p>Exercises hatch angles, spacing, rand/continuous/gradient options, cross-hatching, brush types, shapes, and multi-polygon arrays.</p>
+            <span class="meta">Coverage</span>
+            <span class="path">test/hatch_test.html</span>
+          </a>
+
+          <a class="card" href="./field_explorer.html">
+            <h3>Flow Field Explorer</h3>
+            <p>Interactive field inspector for comparing built-in fields with adjustable density and line length.</p>
+            <span class="meta">Explorer</span>
+            <span class="path">test/field_explorer.html</span>
           </a>
         </div>
       </section>
@@ -249,99 +270,56 @@
       <section class="band">
         <div class="band-head">
           <h2>Standalone Tests</h2>
-          <p>Same tests running the standalone build (no p5). Each links back to its p5 counterpart.</p>
+          <p>Use these pages to inspect the standalone build without p5.</p>
         </div>
         <div class="grid">
           <a class="card" href="./standalone/visual_suite.html">
-            <h3>Visual API Suite</h3>
-            <p>Broad standalone coverage page for brushes, fields, primitives, hatch, wash, fill, and custom/image brush types.</p>
+            <h3>Standalone Visual API Suite</h3>
+            <p>Broad standalone coverage page for brushes, fields, primitives, hatch, wash, mass, fill, and custom/image brush types.</p>
             <span class="meta">Coverage</span>
             <span class="path">test/standalone/visual_suite.html</span>
           </a>
 
-          <a class="card" href="./standalone/hatch_test.html">
-            <h3>Hatch Test</h3>
-            <p>Exercises hatch angles, spacing, rand/continuous/gradient options, cross-hatching, shape variety, and combined hatch settings.</p>
-            <span class="meta">Coverage</span>
-            <span class="path">test/standalone/hatch_test.html</span>
-          </a>
-
           <a class="card" href="./standalone/fill_circle_explorer.html">
-            <h3>Fill Circle Explorer</h3>
+            <h3>Standalone Fill Circle Explorer</h3>
             <p>Seeded single-shape page for inspecting watercolor fill bleed, opacity, texture, border, and palette color in the standalone build.</p>
             <span class="meta">Explorer</span>
             <span class="path">test/standalone/fill_circle_explorer.html</span>
           </a>
 
-          <a class="card" href="./standalone/wash_test.html">
-            <h3>Wash Test</h3>
-            <p>Standalone wash page with seeded PRNG drawing rect and circle polygons with palette colors at full opacity.</p>
+          <a class="card" href="./standalone/hatch_test.html">
+            <h3>Standalone Hatch Test</h3>
+            <p>Exercises hatch angles, spacing, rand/continuous/gradient options, cross-hatching, shape variety, and combined hatch settings.</p>
             <span class="meta">Coverage</span>
-            <span class="path">test/standalone/wash_test.html</span>
+            <span class="path">test/standalone/hatch_test.html</span>
           </a>
 
           <a class="card" href="./standalone/field_explorer.html">
-            <h3>Flow Field Explorer</h3>
+            <h3>Standalone Flow Field Explorer</h3>
             <p>Interactive field inspector for comparing built-in fields with adjustable density and line length in the standalone build.</p>
             <span class="meta">Explorer</span>
             <span class="path">test/standalone/field_explorer.html</span>
           </a>
 
-          <a class="card" href="./standalone/angle_mode_test.html">
-            <h3>Angle Mode Test</h3>
-            <p>Standalone angle mode coverage with canvas2D reference overlays for degrees, radians, hatch, flow lines, and custom fields.</p>
-            <span class="meta">Behavior</span>
-            <span class="path">test/standalone/angle_mode_test.html</span>
+          <a class="card" href="./standalone/transform_alignment.html">
+            <h3>Standalone Transform Alignment</h3>
+            <p>Native 2D references are overlaid on standalone brush marks to verify translate, rotate, scale, stroke, and fill alignment.</p>
+            <span class="meta">Standalone</span>
+            <span class="path">test/standalone/transform_alignment.html</span>
           </a>
 
-          <a class="card" href="./standalone/transform_test.html">
-            <h3>Transform Alignment</h3>
-            <p>Native 2D references overlaid on standalone brush marks to verify translate, rotate, scale, stroke, and fill alignment.</p>
-            <span class="meta">Geometry</span>
-            <span class="path">test/standalone/transform_test.html</span>
-          </a>
-
-          <a class="card" href="./standalone/pushpop_test.html">
-            <h3>Push / Pop State</h3>
+          <a class="card" href="./standalone/pushpop.html">
+            <h3>Standalone Push / Pop</h3>
             <p>Checks that standalone push/pop restores stroke color, weight, brush type, and fill state.</p>
-            <span class="meta">State</span>
-            <span class="path">test/standalone/pushpop_test.html</span>
+            <span class="meta">Standalone</span>
+            <span class="path">test/standalone/pushpop.html</span>
           </a>
 
-          <a class="card" href="./standalone/pastel_hatching_test.html">
-            <h3>Pastel Hatching Test</h3>
-            <p>Interactive standalone version with brush selector, precision, strength, gradient, and outline controls.</p>
-            <span class="meta">Experiment</span>
-            <span class="path">test/standalone/pastel_hatching_test.html</span>
-          </a>
-        </div>
-      </section>
-
-      <section class="band">
-        <div class="band-head">
-          <h2>p5-Specific Tests</h2>
-          <p>Tests for p5-only features: instance mode, multi-instance startup, and offscreen targets.</p>
-        </div>
-        <div class="grid">
-          <a class="card" href="./p5_specific/instance_mode_test.html">
-            <h3>Instance Mode</h3>
-            <p>Checks brush.instance(p) on the instance canvas, an instance p5.Graphics target, and an instance-owned main framebuffer.</p>
-            <span class="meta">Instances</span>
-            <span class="path">test/p5_specific/instance_mode_test.html</span>
-          </a>
-
-          <a class="card" href="./p5_specific/multi_instance_async_test.html">
-            <h3>Async Multi-Instance</h3>
-            <p>Stress-tests the old multi-instance startup race with many instance-mode sketches and repeated canvas ownership checks.</p>
-            <span class="meta">Regression</span>
-            <span class="path">test/p5_specific/multi_instance_async_test.html</span>
-          </a>
-
-          <a class="card" href="./p5_specific/offscreen_target_test.html">
-            <h3>Offscreen Targets</h3>
-            <p>Checks brush.load() on p5.Graphics and custom-sized main framebuffers, with pixel-count diagnostics.</p>
-            <span class="meta">Targets</span>
-            <span class="path">test/p5_specific/offscreen_target_test.html</span>
+          <a class="card" href="./standalone/offscreen.html">
+            <h3>Standalone Offscreen</h3>
+            <p>Checks drawing into an OffscreenCanvas target and presenting the result to a visible canvas.</p>
+            <span class="meta">Standalone</span>
+            <span class="path">test/standalone/offscreen.html</span>
           </a>
         </div>
       </section>

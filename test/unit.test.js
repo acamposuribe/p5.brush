@@ -72,10 +72,10 @@ import {
   seed,
   weightedRand,
   toDegreesSigned,
-} from "../../src/core/utils.js";
-import { arc } from "../../src/core/primitives.js";
-import { Position, addField, field as activateField, noField } from "../../src/core/flowfield.js";
-import { hatch } from "../../src/hatch/hatch.js";
+} from "../src/core/utils.js";
+import { arc } from "../src/core/primitives.js";
+import { Position, addField, field as activateField, noField } from "../src/core/flowfield.js";
+import { hatch } from "../src/hatch/hatch.js";
 
 beforeEach(() => {
   currentAngleMode.value = "radians";

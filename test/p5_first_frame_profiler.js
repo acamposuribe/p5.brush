@@ -3,7 +3,7 @@
     performance.getEntriesByType("navigation")[0]?.domContentLoadedEventEnd ??
     performance.now();
 
-  // Exposed so module scripts can compute parse time:
+  // Exposed so scripts can compute parse time:
   // const parseMs = performance.now() - window.__brushLoadStart;
   window.__brushLoadStart = start;
 
@@ -16,7 +16,7 @@
     if (!document.body) return null;
 
     badge = document.createElement("div");
-    badge.id = "standalone-first-load-badge";
+    badge.id = "p5-first-load-badge";
     badge.style.position = "fixed";
     badge.style.top = "12px";
     badge.style.right = "12px";
@@ -39,9 +39,9 @@
 
   // timing: optional { parseMs, drawMs }
   // render is derived as (total - parseMs - drawMs) inside the rAF, where total
-  // is rAF-measured and therefore includes actual GPU work — unlike a synchronous
-  // performance.now() after brush.render(), which always shows ~0ms (GL is async).
-  window.reportStandaloneFirstFrame = (label = document.title || "standalone test", timing = {}) => {
+  // is rAF-measured and therefore includes actual GPU work and any p5 draw() overhead
+  // (e.g. the image(labelBuf) blit) that runs after setup() but before the frame paints.
+  window.reportP5FirstFrame = (label = document.title || "p5 test", timing = {}) => {
     if (reported) return;
     reported = true;
     requestAnimationFrame(() => {

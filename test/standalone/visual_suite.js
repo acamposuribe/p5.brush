@@ -134,6 +134,8 @@ function runErrorTests() {
 // ================================================================
 
 (async () => {
+  const _scriptStart = performance.now();
+
   brush.seed(42);
   brush.noiseSeed(42);
   brush.scaleBrushes(5);
@@ -499,7 +501,11 @@ function runErrorTests() {
   fillRow("opacity 140", col(4), 140, 0.1, "out", 0.4, 0.4);
 
   brush.pop();
+  const _drawMs = performance.now() - _scriptStart;
   brush.render();
-  window.reportStandaloneFirstFrame?.("visual_suite");
+  window.reportStandaloneFirstFrame?.("visual_suite", {
+    parseMs: _scriptStart - (window.__brushLoadStart ?? _scriptStart),
+    drawMs: _drawMs,
+  });
   console.log("Standalone visual suite complete");
 })();
