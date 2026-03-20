@@ -9,6 +9,9 @@ const { blend, mockCtx, mockState } = vi.hoisted(() => ({
     save: vi.fn(),
     setTransform: vi.fn(),
     stroke: vi.fn(),
+    getTransform: vi.fn(() => ({
+      a: 1, b: 0, c: 0, d: 1, e: 0, f: 0,
+    })),
     fillStyle: "",
     globalCompositeOperation: "source-over",
     lineCap: "round",
@@ -65,6 +68,20 @@ vi.mock("../src/core/polygon.js", () => ({
 
 vi.mock("../src/core/plot.js", () => ({
   Plot: class Plot {},
+}));
+
+vi.mock("../src/core/runtime.js", () => ({
+  createColor: (r, g, b) => ({
+    r: typeof r === 'string' ? 255 : r,
+    g: g ?? r ?? 0,
+    b: b ?? r ?? 0,
+    _getRed: function() { return this.r; },
+    _getGreen: function() { return this.g; },
+    _getBlue: function() { return this.b; },
+  }),
+  getAffineMatrix: () => ({
+    a: 1, b: 0, c: 0, d: 1, x: 0, y: 0,
+  }),
 }));
 
 import { createFill, fill } from "../src/fill/fill.js";

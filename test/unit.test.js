@@ -21,6 +21,15 @@ vi.mock("../src/core/color.js", () => ({
   isMixReady: () => {},
 }));
 
+// Mock runtime.js to properly handle angle mode
+vi.mock("../src/core/runtime.js", () => ({
+  usesRadians: () => currentAngleMode.value === "radians",
+  fromDegrees: (angle) => currentAngleMode.value === "radians" ? (angle * Math.PI) / 180 : angle,
+  createColor: () => ({}),
+  getAffineMatrix: () => ({ a: 1, b: 0, c: 0, d: 1, x: 0, y: 0 }),
+  setRuntime: () => {},
+}));
+
 vi.mock("../src/core/target.js", () => ({
   Renderer: {
     angleMode: () => currentAngleMode.value,
