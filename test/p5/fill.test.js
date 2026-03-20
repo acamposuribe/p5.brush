@@ -67,7 +67,7 @@ vi.mock("../src/core/plot.js", () => ({
   Plot: class Plot {},
 }));
 
-import { createFill, fill } from "../src/fill/fill.js";
+import { createFill, fill } from "../../src/fill/fill.js";
 
 describe("createFill()", () => {
   beforeEach(() => {

@@ -59,7 +59,7 @@ vi.mock("../src/stroke/gl_draw.js", () => ({
   snapshotMatrix: () => {},
 }));
 
-import { add, box, normalizePressure } from "../src/stroke/stroke.js";
+import { add, box, normalizePressure } from "../../src/stroke/stroke.js";
 
 describe("normalizePressure()", () => {
   it("keeps function pressure in explicit custom mode", () => {

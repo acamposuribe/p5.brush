@@ -10,6 +10,10 @@
     "test:watch": "vitest",
     "build": "rollup --config -w"
   },
+  "files": [
+    "dist",
+    "src"
+  ],
   "sideEffects": false,
   "type": "module",
   "repository": {
