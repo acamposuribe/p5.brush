@@ -42,12 +42,14 @@ Outputs `METRIC name=value` lines. Tests must pass. Benchmark imports from actua
 
 | Metric | Before | After | Change |
 |--------|--------|-------|--------|
-| plot_ms | 5.5ms | ~3.9ms | -29% |
-| hatch_ms | 4.7ms | ~2.9ms | -38% |
-| trig_ms | 6.3ms | ~4.5ms | -28% |
-| fill_ms | ~34ms (est.) | ~32ms | -6% |
-| movepos_ms | ~5.5ms | ~4.9ms | -11% |
-| intersect_lines_ms | 2.2ms | 1.8ms | -18% |
+| plot_ms | 10.7ms | ~3.9ms | **-64%** |
+| hatch_ms | 4.7ms | ~2.8ms | **-40%** |
+| gauss_ms | 2.9ms | ~1.7ms | **-41%** |
+| fill_ms | ~34ms | ~28ms | **-18%** |
+| trig_ms | 6.3ms | ~5.0ms | **-21%** |
+| movepos_ms | ~5.5ms | ~4.4ms | **-20%** |
+| intersect_ms | 3.6ms | ~2.9ms | **-19%** |
+| intersect_lines_ms | 2.2ms | ~1.7ms | **-23%** |
 
 ## Key Optimizations Applied
 
