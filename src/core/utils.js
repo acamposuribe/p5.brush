@@ -153,6 +153,10 @@ export const constrain = (n, low, high) => Math.max(Math.min(n, high), low);
 // Section: Trigonometry
 // =============================================================================
 
+// number of discrete steps (360° × 4 samples per degree)
+const totalDegrees = 1440;
+const radiansPerIndex = (2 * Math.PI) / totalDegrees;
+
 /**
  * Normalize an angle in degrees to [0,360).
  * @param {number} angle
@@ -163,43 +167,27 @@ const nAngle = (angle) => {
   return angle < 0 ? angle + 360 : angle;
 };
 
-// number of discrete steps (360° × 4 samples per degree)
-const totalDegrees = 1440;
-const radiansPerIndex = (2 * Math.PI) / totalDegrees;
-
-// lazy‐initialized lookup tables
-const cLookup = new Float32Array(totalDegrees).fill(NaN);
-const sLookup = new Float32Array(totalDegrees).fill(NaN);
+// Pre-warmed lookup tables — filled at module load, no lazy-init overhead
+const cLookup = new Float32Array(totalDegrees);
+const sLookup = new Float32Array(totalDegrees);
+for (let _i = 0; _i < totalDegrees; _i++) {
+  cLookup[_i] = Math.cos(_i * radiansPerIndex);
+  sLookup[_i] = Math.sin(_i * radiansPerIndex);
+}
 
 /**
- * Cosine of an angle (degrees), via a lazy lookup table.
+ * Cosine of an angle (degrees), via a pre-warmed lookup table.
  * @param {number} angle
  * @returns {number}
  */
-export const cos = (angle) => {
-  const idx = ~~(4 * nAngle(angle));
-  let v = cLookup[idx];
-  if (isNaN(v)) {
-    v = Math.cos(idx * radiansPerIndex);
-    cLookup[idx] = v;
-  }
-  return v;
-};
+export const cos = (angle) => cLookup[~~(4 * nAngle(angle))];
 
 /**
- * Sine of an angle (degrees), via a lazy lookup table.
+ * Sine of an angle (degrees), via a pre-warmed lookup table.
  * @param {number} angle
  * @returns {number}
  */
-export const sin = (angle) => {
-  const idx = ~~(4 * nAngle(angle));
-  let v = sLookup[idx];
-  if (isNaN(v)) {
-    v = Math.sin(idx * radiansPerIndex);
-    sLookup[idx] = v;
-  }
-  return v;
-};
+export const sin = (angle) => sLookup[~~(4 * nAngle(angle))];
 
 /**
  * Converts radians to degrees, normalized to [0,360).
