@@ -325,7 +325,7 @@ Functions for managing brush behaviors and properties.
          - These simple/custom pressure modes include a subtle amount of per-stroke variation automatically, so repeated strokes feel less mechanical.
          - Advanced option for power users: use the library's built-in Gaussian pressure profile explicitly with an object like `{ mode: "gaussian", curve: [0.15, 0.2], min_max: [1.1, 0.9] }`.
            `curve` adjusts the wobble and asymmetry of the pressure envelope, while `min_max` sets the mapped pressure range. This is the same family of pressure logic used by the built-in brushes.
-      - `tip`: Only for `"custom"` type. A function `(_m) => { ... }` that draws the tip shape using p5 drawing commands. The coordinate space is 100×100 units with the origin at the centre — dark fills become opaque, light/white becomes transparent.
+      - `tip`: Only for `"custom"` type. A function `(_m) => { ... }` that draws the tip shape. `_m` is a `p5.Graphics` buffer. You draw in a **100×100 coordinate space with the origin at the centre** — so the edges of your tip are around ±50 units. The library converts the result to a mask: **dark fills become opaque, light or white becomes transparent**. This means you draw your tip shape in dark tones (or just leave the default `noStroke` / dark `fill`), and the brush color you set with `brush.set()` or `brush.stroke()` is applied on top at render time. You can use any p5 drawing commands inside `_m`: `rect`, `circle`, `ellipse`, `line`, `triangle`, `beginShape`/`vertex`/`endShape`, `push`/`pop`, `translate`, `rotate`, `scale`, and so on.
       - `image`: Only for `"image"` type. An object with a `src` property pointing to your image file: `{ src: "./tip.jpg" }`.
       - `rotate`: How the tip rotates as it moves. `"none"` keeps it fixed, `"natural"` follows the stroke direction, `"random"` spins randomly.
       - `markerTip`: Only for `"marker"`, `"custom"`, and `"image"` types. Set to `false` to disable the extra soft tip buildup those brushes add at the start and end of each stroke. Defaults to `true`.
@@ -355,6 +355,24 @@ Functions for managing brush behaviors and properties.
         brush.set("watercolor", "blue", 1);
         brush.line(100, 100, 400, 100);
     }
+
+    // Custom tip brush — draw any shape as your tip using p5 commands.
+    // The tip is drawn once into a 100×100 unit buffer (origin at centre).
+    // Dark areas → opaque, white/light → transparent.
+    brush.add("diamond", {
+        type: "custom",
+        weight: 5,
+        scatter: 0.08,
+        opacity: 23,
+        spacing: 0.6,
+        pressure: [0.5, 1.5, 0.5],   // thin → thick → thin
+        tip: (_m) => {
+            _m.rotate(45);            // degrees, follows p5 angleMode
+            _m.rect(-1.5, -1.5, 3, 3);
+        },
+        rotate: "natural",
+        markerTip: false,
+    });
 
     // Advanced: explicitly use the built-in Gaussian pressure mode
     brush.add("soft-pencil", {
