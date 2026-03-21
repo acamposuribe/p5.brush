@@ -8,6 +8,7 @@ For the p5 build see the main [README](../README.md).
 
 ## Table of Contents
 - [Installation](#installation)
+- [Custom tip brushes](#custom-tip-brushes)
 - [Setup](#setup)
 - [Frame lifecycle](#frame-lifecycle)
 - [Transforms](#transforms)
@@ -277,6 +278,72 @@ Seed the internal RNG.
 #### `brush.noiseSeed(n)`
 
 Seed the internal noise generator.
+
+---
+
+## Custom tip brushes
+
+In the p5 build, the `tip` function receives a real `p5.Graphics` object so any p5 drawing command works. In the standalone build it receives a **minimal 2D-canvas-backed surface** that deliberately mirrors the same method names, so most tip functions are portable between builds.
+
+### Available methods
+
+| Method | Notes |
+|---|---|
+| `push()` / `pop()` | Save / restore transform and state |
+| `translate(x, y)` | |
+| `scale(x, y?)` | |
+| `rotate(angle)` | **Always radians** — ignores `brush.angleMode()` |
+| `fill(value)` | Grayscale number `0–255` or CSS color string |
+| `noFill()` | |
+| `stroke(value)` | Grayscale number `0–255` or CSS color string |
+| `noStroke()` | |
+| `strokeWeight(value)` | |
+| `rect(x, y, w, h)` | |
+| `circle(x, y, diameter)` | |
+| `ellipse(x, y, w, h)` | |
+| `line(x1, y1, x2, y2)` | |
+| `beginShape()` / `vertex(x, y)` / `endShape(close?)` | |
+| `loadPixels()` / `updatePixels()` / `pixels` | Raw pixel access |
+
+### Coordinate space
+
+The tip surface is 500×500 px internally but the user-facing coordinate space is **100×100 units with the origin at the centre** (the library applies a ×5 scale and a translate to the centre automatically). Draw within roughly ±50 units.
+
+**Dark fills → high opacity. Light/white → transparent.** The library converts the tip to a white-tinted mask so it can be tinted with any brush color at draw time.
+
+### Colors
+
+Colors accept a **grayscale number** (0 = black/opaque, 255 = white/transparent) or any **CSS color string** (`'red'`, `'#3a2f1e'`, `'rgb(60, 47, 30)'`). `p5.Color` objects are not supported.
+
+```js
+// ✓ works in both builds
+brush.add('diamond', {
+  type: 'custom',
+  weight: 5,
+  scatter: 0.08,
+  opacity: 23,
+  spacing: 0.6,
+  pressure: [0.5, 1.5, 0.5],
+  tip: (_m) => {
+    _m.rotate(Math.PI / 4); // radians — works in both builds
+    _m.rect(-1.5, -1.5, 3, 3);
+  },
+  rotate: 'natural',
+  markerTip: false,
+});
+```
+
+```js
+// ✗ p5 build only — p5.Color and angleMode-aware rotate
+brush.add('p5only', {
+  type: 'custom',
+  tip: (_m) => {
+    _m.fill(color(30, 20, 10)); // p5.Color — standalone will break
+    _m.rotate(45);              // degrees via angleMode — standalone always uses radians
+    _m.rect(-2, -2, 4, 4);
+  },
+});
+```
 
 ---
 

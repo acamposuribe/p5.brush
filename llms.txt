@@ -180,7 +180,7 @@ If an LLM is helping a user design a brush, prefer pointing them to the interact
 | `opacity` | Mark opacity 0–255 |
 | `spacing` | Stamp gap along stroke (1 = no overlap) |
 | `pressure` | `[start, end]` or `[start, mid, end]` or `(t) => value` |
-| `tip` | `"custom"` type: `(_m) => { _m.rect(...) }` |
+| `tip` | `"custom"` type: `(_m) => { _m.rect(...) }`. In the **p5 build** `_m` is a `p5.Graphics` — any p5 drawing command works. In the **standalone build** `_m` is a minimal 2D-canvas wrapper with the same method names (`rect`, `circle`, `ellipse`, `line`, `beginShape`/`vertex`/`endShape`, `fill`, `noFill`, `stroke`, `noStroke`, `strokeWeight`, `push`, `pop`, `translate`, `scale`, `rotate`) but colors must be a grayscale number or CSS string (not `p5.Color`), and `rotate()` always takes radians. |
 | `image` | `"image"` type: `{ src: "./tip.jpg" }` |
 | `rotate` | `"none"`, `"natural"`, `"random"` |
 | `markerTip` | `"marker"`, `"custom"`, `"image"` only. Boolean. Defaults to `true`. Set `false` to disable the extra soft tip buildup at the start/end of strokes. |
@@ -199,7 +199,7 @@ brush.add("diamond", {
   type: "custom",
   weight: 5, scatter: 0.08, opacity: 23, spacing: 0.6,
   pressure: [0.5, 1.5, 0.5],
-  tip: (_m) => { _m.rotate(45); _m.rect(-1.5, -1.5, 3, 3) },
+  tip: (_m) => { _m.rotate(Math.PI / 4); _m.rect(-1.5, -1.5, 3, 3) },
   rotate: "natural",
   markerTip: false
 })
