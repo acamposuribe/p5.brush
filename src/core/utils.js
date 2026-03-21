@@ -157,16 +157,6 @@ export const constrain = (n, low, high) => Math.max(Math.min(n, high), low);
 const totalDegrees = 1440;
 const radiansPerIndex = (2 * Math.PI) / totalDegrees;
 
-/**
- * Normalize an angle in degrees to [0,360).
- * @param {number} angle
- * @returns {number}
- */
-const nAngle = (angle) => {
-  angle = angle % 360;
-  return angle < 0 ? angle + 360 : angle;
-};
-
 // Pre-warmed lookup tables — filled at module load, no lazy-init overhead
 const cLookup = new Float32Array(totalDegrees);
 const sLookup = new Float32Array(totalDegrees);
@@ -176,18 +166,36 @@ for (let _i = 0; _i < totalDegrees; _i++) {
 }
 
 /**
+ * Normalize an angle in degrees to a lookup-table index [0, 1440).
+ * Avoids the % operator for the common range [-360, 720) found in the library.
+ * @param {number} angle
+ * @returns {number} integer index in [0, 1440)
+ */
+const angleToIdx = (angle) => {
+  if (angle < 0) {
+    if (angle >= -360) return ~~((angle + 360) * 4);
+    angle = angle % 360;
+    return ~~((angle < 0 ? angle + 360 : angle) * 4);
+  }
+  if (angle < 360) return ~~(angle * 4);
+  if (angle < 720) return ~~((angle - 360) * 4);
+  angle = angle % 360;
+  return ~~((angle < 0 ? angle + 360 : angle) * 4);
+};
+
+/**
  * Cosine of an angle (degrees), via a pre-warmed lookup table.
  * @param {number} angle
  * @returns {number}
  */
-export const cos = (angle) => cLookup[~~(4 * nAngle(angle))];
+export const cos = (angle) => cLookup[angleToIdx(angle)];
 
 /**
  * Sine of an angle (degrees), via a pre-warmed lookup table.
  * @param {number} angle
  * @returns {number}
  */
-export const sin = (angle) => sLookup[~~(4 * nAngle(angle))];
+export const sin = (angle) => sLookup[angleToIdx(angle)];
 
 /**
  * Converts radians to degrees, normalized to [0,360).
