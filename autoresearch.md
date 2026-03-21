@@ -26,14 +26,11 @@ Outputs `METRIC name=value` lines. Tests must pass. Benchmark imports from actua
 - `benchmark/loader.mjs` — ESM loader stub for .vert/.frag files
 
 ## Off Limits
-- `src/stroke/gl_draw.js` — WebGL rendering
-- `src/core/color.js` — Compositor/color management
-- `test/` — Tests must keep passing unchanged
 - No new dependencies
 
 ## Constraints
 - All 50 existing tests must pass after every change
-- Visual output must be identical (same RNG sequence, same math results within float precision)
+- Visual output must be identical (same RNG sequence, same math results within float precision, same composited result)
 - No algorithmic changes that alter output values
 
 ## Results Summary
