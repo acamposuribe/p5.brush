@@ -447,33 +447,19 @@ class FillPoly {
     const skipInserted = preStep >= 2 && (preStep & 1) === 0;
 
     if (skipInserted) {
-      // Fast path: inserted vertices will be discarded — skip cossin/rotation.
-      // RNG calls preserved to maintain sequence; midpoint used as placeholder.
+      // Fast path: inserted vertices will be discarded by GROW_CAP step=2.
+      // Result is exactly the trimmed polygon — skip all array writes.
+      // Only consume RNG calls to maintain the sequence.
       for (let i = 0; i < len; i++) {
-        const cv = tr_v[i];
-        const nv = tr_v[i + 1 < len ? i + 1 : 0];
         const mi = tr_m[i];
-        const di = tr_dir[i];
         if (f < 997) mod = mi;
-        newMods[idx] = mi;
-        newDirs[idx] = di;
-        idx++;
-        if (mod < 0.05) {
-          insertedX[insertedIdx] = (cv.x + nv.x) * 0.5;
-          insertedY[insertedIdx] = (cv.y + nv.y) * 0.5;
-          newMods[idx] = mi;
-        } else {
-          rr(-1, 1); // consume rotDeg jitter RNG
-          gPool[~~(rr(0, 1) * gPoolLen)]; rr(0.65, 1.35); // consume displacement RNG
-          const nextMod = mi + g2Pool[~~(rr(0, 1) * g2PoolLen)];
-          insertedX[insertedIdx] = (cv.x + nv.x) * 0.5;
-          insertedY[insertedIdx] = (cv.y + nv.y) * 0.5;
-          newMods[idx] = nextMod;
+        if (mod >= 0.05) {
+          rr(-1, 1);
+          gPool[~~(rr(0, 1) * gPoolLen)]; rr(0.65, 1.35);
+          g2Pool[~~(rr(0, 1) * g2PoolLen)];
         }
-        newDirs[idx] = di;
-        idx++;
-        insertedIdx++;
       }
+      return new FillPoly(tr_v, tr_m, this.midP, tr_dir, false, this.sizeX, this.sizeY);
     } else {
     for (let i = 0; i < len; i++) {
       const cv = tr_v[i];
