@@ -280,6 +280,9 @@ class FillPoly {
         const r1x = rc.ray.point1.x, r1y = rc.ray.point1.y;
         const r2x = rc.ray.point2.x, r2y = rc.ray.point2.y;
         const rdx = r2x - r1x, rdy = r2y - r1y;
+        // Precompute _isLeft threshold: _isLeft(v1,v2,P) = ua*(-|edgeSide|²) > 0.01
+        const eSx = rc.v2.x - rc.v1.x, eSy = rc.v2.y - rc.v1.y;
+        const eNeg = -(eSx * eSx + eSy * eSy); // always < 0
         let count = 0;
         for (let j = 0; j < polySides.length; j++) {
           const sa = polySides[j][0], sb = polySides[j][1];
@@ -287,9 +290,9 @@ class FillPoly {
           const denom = sdy * rdx - sdx * rdy;
           if (denom === 0) continue;
           const ub = (rdx * (r1y - sa.y) - rdy * (r1x - sa.x)) / denom;
-          if (ub < 0 || ub >= 1) continue; // [0,1) half-open: each vertex counted once
+          if (ub < 0 || ub > 1) continue;
           const ua = (sdx * (r1y - sa.y) - sdy * (r1x - sa.x)) / denom;
-          if (ua >= 0) continue; // only count intersections in the -rt direction
+          if (ua * eNeg <= 0.01) continue; // exact _isLeft equivalent, no ix/iy needed
           count++;
         }
         this.dir[i] = count % 2 === 0;
