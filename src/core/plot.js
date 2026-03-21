@@ -70,14 +70,20 @@ export class Plot {
 
   /**
    * Calculates the pressure at a given distance along the plot.
+   * Inlined for performance — pressure values never need angle wrap-around.
+   * NOTE: relies on this.index / this.suma being set by a prior angle() call.
    * @param {number} _d - The distance along the plot.
    * @returns {number} - The interpolated pressure.
    */
   pressure(_d) {
-    // If the distance exceeds the plot length, return the last pressure
     if (_d > this.length) return this.pres[this.pres.length - 1];
-    // Otherwise, calculate the pressure using the curving function
-    return this.curving(this.pres, _d);
+    const p0 = this.pres[this.index];
+    const p1 = this.pres[this.index + 1];
+    if (p1 === undefined) return p0;
+    const seg = this.segments[this.index];
+    if (seg === 0) return p0;
+    const t = (_d - this.suma) / seg;
+    return t <= 0 ? p0 : t >= 1 ? p1 : p0 + t * (p1 - p0);
   }
 
   /**
@@ -86,18 +92,26 @@ export class Plot {
    * @returns {number} - The calculated angle.
    */
   angle(_d) {
-    // If the distance exceeds the plot length, return the last angle
     if (_d > this.length) return this.angles[this.angles.length - 1];
-    // Calculate the index for the given distance
     this.calcIndex(_d);
-    // Return the angle, adjusted for the plot type and direction
-    return this.type === "curve"
-      ? this.curving(this.angles, _d) + this.dir
-      : this.angles[this.index] + this.dir;
+    if (this.type !== "curve") return this.angles[this.index] + this.dir;
+    // Inline curving for angles with wrap-around handling
+    let a0 = this.angles[this.index];
+    let a1 = this.angles[this.index + 1];
+    if (a1 === undefined) return a0 + this.dir;
+    if (Math.abs(a1 - a0) > 180) {
+      if (a1 > a0) a1 = -(360 - a1);
+      else a0 = -(360 - a0);
+    }
+    const seg = this.segments[this.index];
+    const t = seg === 0 ? 0 : (_d - this.suma) / seg;
+    const r = a0 + t * (a1 - a0);
+    return (t <= 0 ? a0 : t >= 1 ? a1 : r) + this.dir;
   }
 
   /**
    * Interpolates values between segments for smooth transitions.
+   * Used externally — angle() and pressure() have inlined equivalents.
    * @param {Array<number>} array - The array to interpolate within.
    * @param {number} _d - The distance along the plot.
    * @returns {number} - The interpolated value.
