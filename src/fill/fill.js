@@ -287,15 +287,10 @@ class FillPoly {
           const denom = sdy * rdx - sdx * rdy;
           if (denom === 0) continue;
           const ub = (rdx * (r1y - sa.y) - rdy * (r1x - sa.x)) / denom;
-          if (ub < 0 || ub > 1) continue;
-          // Compute intersection point inline
+          if (ub < 0 || ub >= 1) continue; // [0,1) half-open: each vertex counted once
           const ua = (sdx * (r1y - sa.y) - sdy * (r1x - sa.x)) / denom;
-          const ix = r1x + ua * rdx;
-          const iy = r1y + ua * rdy;
-          // _isLeft check inline: (v2-v1) × (isect-v1) > 0.01
-          if ((rc.v2.x - rc.v1.x) * (iy - rc.v1.y) - (rc.v2.y - rc.v1.y) * (ix - rc.v1.x) > 0.01) {
-            count++;
-          }
+          if (ua >= 0) continue; // only count intersections in the -rt direction
+          count++;
         }
         this.dir[i] = count % 2 === 0;
       }

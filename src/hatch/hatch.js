@@ -155,7 +155,6 @@ function scanlineHatch(polygon, angle, dist, gradient) {
   let Y = minY + dist * 0.5,
     step = dist;
   const useGradient = gradient !== 1;
-  const YcosA = cosA, YsinA = sinA; // hoisted rotation constants
   while (Y < maxY) {
     cx.length = 0;
     for (let i = 0; i < eLen; i++) {
@@ -171,10 +170,10 @@ function scanlineHatch(polygon, angle, dist, gradient) {
       if (xi > xj) { const t = xi; xi = xj; xj = t; }
       segments.push({
         scanY: Y,
-        x1: xi * YcosA + Y * YsinA,
-        y1: -xi * YsinA + Y * YcosA,
-        x2: xj * YcosA + Y * YsinA,
-        y2: -xj * YsinA + Y * YcosA,
+        x1: xi * cosA + Y * sinA,
+        y1: -xi * sinA + Y * cosA,
+        x2: xj * cosA + Y * sinA,
+        y2: -xj * sinA + Y * cosA,
       });
     } else if (cxLen > 2) {
       cx.sort((a, b) => a - b);
@@ -182,10 +181,10 @@ function scanlineHatch(polygon, angle, dist, gradient) {
         const xi = cx[i], xj = cx[i + 1];
         segments.push({
           scanY: Y,
-          x1: xi * YcosA + Y * YsinA,
-          y1: -xi * YsinA + Y * YcosA,
-          x2: xj * YcosA + Y * YsinA,
-          y2: -xj * YsinA + Y * YcosA,
+          x1: xi * cosA + Y * sinA,
+          y1: -xi * sinA + Y * cosA,
+          x2: xj * cosA + Y * sinA,
+          y2: -xj * sinA + Y * cosA,
         });
       }
     }

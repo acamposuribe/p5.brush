@@ -78,8 +78,7 @@ export class Plot {
   pressure(_d) {
     if (_d > this.length) return this.pres[this.pres.length - 1];
     const p0 = this.pres[this.index];
-    const p1 = this.pres[this.index + 1];
-    if (p1 === undefined) return p0;
+    const p1 = this.pres[this.index + 1]; // always defined: pres.length = segments.length+1
     const seg = this.segments[this.index];
     // t ∈ [0,1) guaranteed by calcIndex; skip redundant bounds clamp
     return seg === 0 ? p0 : p0 + (_d - this.suma) / seg * (p1 - p0);
@@ -95,16 +94,15 @@ export class Plot {
     this.calcIndex(_d);
     if (this.type !== "curve") return this.angles[this.index] + this.dir;
     let a0 = this.angles[this.index];
-    let a1 = this.angles[this.index + 1];
-    if (a1 === undefined) return a0 + this.dir;
+    let a1 = this.angles[this.index + 1]; // always defined: angles.length = segments.length+1
     if (Math.abs(a1 - a0) > 180) {
       if (a1 > a0) a1 = -(360 - a1);
       else a0 = -(360 - a0);
     }
     const seg = this.segments[this.index];
     const t = seg === 0 ? 0 : (_d - this.suma) / seg;
-    const r = a0 + t * (a1 - a0);
-    return (t <= 0 ? a0 : t >= 1 ? a1 : r) + this.dir;
+    // t ∈ [0,1) guaranteed by calcIndex — clamp is unnecessary
+    return a0 + t * (a1 - a0) + this.dir;
   }
 
   /**
@@ -153,7 +151,7 @@ export class Plot {
 
     for (let i = 0; i < numSteps; i++) {
       pos.plotTo(this, step, step);
-      const idx = this.calcIndex(pos.plotted);
+      const idx = this.index; // already set by angle() inside plotTo
       pside += step;
       let maxSize = _side <= 0 ? 8 : Math.max(this.segments[idx] * _side * rr2(0.7, 1.3), 20);
       if ((pside >= maxSize || idx >= prevIdx) && pos.x) {
