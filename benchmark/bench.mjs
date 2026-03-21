@@ -10,6 +10,7 @@
 
 import { performance } from "perf_hooks";
 import { setTargetState, setTargetRuntime } from "../src/core/target.js";
+import { setRuntime } from "../src/core/runtime.js";
 import {
   cos, sin, gaussian, map, rr, randInt, constrain, dist, rotate, intersectLines, seed,
 } from "../src/core/utils.js";
@@ -17,13 +18,30 @@ import { Plot } from "../src/core/plot.js";
 import { Polygon } from "../src/core/polygon.js";
 import { hatch, getHatchLines } from "../src/hatch/hatch.js";
 import { isFieldReady, Position, noField } from "../src/core/flowfield.js";
+import { Mix } from "../src/core/color.js";
+import { fill, fillBleed, fillTexture, createFill } from "../src/fill/fill.js";
+
+// Mock canvas context for fill benchmarking
+const mockCtx = {
+  save: () => {}, restore: () => {}, beginPath: () => {}, fill: () => {}, stroke: () => {},
+  closePath: () => {}, moveTo: () => {}, lineTo: () => {}, arc: () => {},
+  setTransform: () => {}, strokeStyle: '', lineCap: '', lineWidth: 0, fillStyle: '',
+  globalCompositeOperation: 'source-over',
+  getTransform: () => ({ a: 1, b: 0, c: 0, d: 1, e: 400, f: 300 }),
+};
 
 // Setup minimal environment
 setTargetState({ Cwidth: 800, Cheight: 600, Density: 1, Renderer: { loaded: true } });
 setTargetRuntime({ isCanvasReady: () => {}, syncDensity: () => 1 });
+setRuntime({ createColor: (r, g, b) => ({ r, g, b }), getAffineMatrix: () => ({ a: 1, b: 0, c: 0, d: 1, x: 0, y: 0 }), usesRadians: () => false });
+Mix.ctx = mockCtx;
+Mix.isBrush = false; Mix.justChanged = false; Mix.blend = () => {}; Mix.mask = null; Mix.markDirtyRect = () => {};
+
 seed(42);
 isFieldReady();
 noField();
+
+fill(255, 0, 0, 150); fillBleed(0.07); fillTexture(0.8, 0.5);
 
 // ============================================================
 // BENCHMARK RUNNER
@@ -164,9 +182,25 @@ function benchIntersectLines() {
 const intersectLinesMs = medianOf(Array.from({ length: RUNS }, () => bench(benchIntersectLines, 500)));
 
 // ============================================================
+// 8. FILL: createFill() watercolor hot path
+// ============================================================
+const fillPolyPts = [];
+for (let i = 0; i < 30; i++) {
+  const a = (i / 30) * 2 * Math.PI;
+  fillPolyPts.push([Math.cos(a) * 100, Math.sin(a) * 100]);
+}
+const fillPolygon = new Polygon(fillPolyPts);
+
+function benchFill() {
+  seed(42);
+  createFill(fillPolygon);
+}
+const fillMs = medianOf(Array.from({ length: RUNS }, () => bench(benchFill, 30)));
+
+// ============================================================
 // TOTAL (primary metric)
 // ============================================================
-const total_ms = trigMs + gaussMs + plotMs + hatchMs + intersectMs + intersectLinesMs + movePosMs;
+const total_ms = trigMs + gaussMs + plotMs + hatchMs + intersectMs + intersectLinesMs + movePosMs + fillMs;
 
 console.log(`METRIC total_ms=${total_ms.toFixed(3)}`);
 console.log(`METRIC trig_ms=${trigMs.toFixed(3)}`);
@@ -176,3 +210,4 @@ console.log(`METRIC hatch_ms=${hatchMs.toFixed(3)}`);
 console.log(`METRIC intersect_ms=${intersectMs.toFixed(3)}`);
 console.log(`METRIC intersect_lines_ms=${intersectLinesMs.toFixed(3)}`);
 console.log(`METRIC movepos_ms=${movePosMs.toFixed(3)}`);
+console.log(`METRIC fill_ms=${fillMs.toFixed(3)}`);

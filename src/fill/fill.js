@@ -28,6 +28,7 @@ import {
   rotate,
   cos,
   sin,
+  cossin,
   _onSeed,
 } from "../core/utils.js";
 import { isFieldReady } from "../core/flowfield.js";
@@ -479,8 +480,8 @@ class FillPoly {
       }
 
       const rotDeg = (di ? bleedDirDeg : -bleedDirDeg) + rr(-1, 1) * 5;
-      const c = cos(rotDeg);
-      const s = sin(rotDeg);
+      const _cs = cossin(rotDeg);
+      const c = _cs[0], s = _cs[1];
 
       const sideX = nv.x - cv.x;
       const sideY = nv.y - cv.y;

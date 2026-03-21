@@ -37,6 +37,12 @@ Outputs `METRIC name=value` lines. Tests must pass. Benchmark imports from actua
 
 ## What's Been Tried
 
+### Key Finding: JIT Sensitivity
+Adding branches (if/else fast paths) to hot functions like `calcIndex()` and `movePos()` causes V8 to deoptimize the function OR unrelated code in the same module. This happened twice — sequential fast path in calcIndex, constant-direction fast path in movePos. **Do NOT add branches to these functions.**
+
+### Key Finding: Fill Performance
+The `createFill()` watercolor fill function is dominated by RNG calls (prng_alea ~6ns/call × ~87,000 calls/fill ≈ 522µs). A typed-array refactor of FillPoly vertices made it SLOWER because V8 handles short-lived `{x,y}` objects efficiently in young-gen GC. Real optimization opportunity: avoid calling `angleToIdx()` twice for the same angle (cos + sin).
+
 ### Baseline
 - Established benchmark: total_ms ≈ 36-37ms
 - trig_ms ≈ 7ms (lookup table already in place)

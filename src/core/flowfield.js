@@ -1,6 +1,6 @@
 import { Cwidth, Cheight } from "./target.js";
 import { isMixReady, State } from "./color.js";
-import { randInt2, noise2, rr2, sin, cos, map, toDegreesSigned } from "./utils.js";
+import { randInt2, noise2, rr2, sin, cos, cossin, map, toDegreesSigned } from "./utils.js";
 import { getAffineMatrix } from "./runtime.js";
 
 // =============================================================================
@@ -151,8 +151,9 @@ export class Position {
         ? precomputedAngle
         : (usePlot ? _dirPlot.angle(this.plotted) : _dirPlot);
       const angle = (fieldActive ? this.angle(true) : 0) - plotAngle;
-      // Calculate new position
-      this.update(this.x + _step * cos(angle), this.y + _step * sin(angle));
+      // Calculate new position — cossin() computes the index once for both cos and sin
+      const _cs = cossin(angle);
+      this.update(this.x + _step * _cs[0], this.y + _step * _cs[1]);
       this.plotted += _step / scaleFactor;
     }
   }

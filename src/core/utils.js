@@ -198,6 +198,22 @@ export const cos = (angle) => cLookup[angleToIdx(angle)];
 export const sin = (angle) => sLookup[angleToIdx(angle)];
 
 /**
+ * Returns [cos(angle), sin(angle)] via a single index computation.
+ * Use when both values are needed for the same angle — avoids computing
+ * angleToIdx() twice (once per separate cos/sin call).
+ * Returns a reusable Float32Array — use values immediately, do not store the reference.
+ * @param {number} angle
+ * @returns {Float32Array} [cos, sin]
+ */
+const _cosSinBuf = new Float32Array(2);
+export const cossin = (angle) => {
+  const idx = angleToIdx(angle);
+  _cosSinBuf[0] = cLookup[idx];
+  _cosSinBuf[1] = sLookup[idx];
+  return _cosSinBuf;
+};
+
+/**
  * Converts radians to degrees, normalized to [0,360).
  * @param {number} rad
  * @returns {number}
@@ -237,10 +253,10 @@ export const toDegreesSigned = (angle, isRad = false) =>
  * @returns {{x:number,y:number}}
  */
 export const rotate = (cx, cy, x, y, angle) => {
-  let coseno = cos(angle),
-    seno = sin(angle),
-    nx = coseno * (x - cx) + seno * (y - cy) + cx,
-    ny = coseno * (y - cy) - seno * (x - cx) + cy;
+  const cs = cossin(angle);
+  const coseno = cs[0], seno = cs[1];
+  const nx = coseno * (x - cx) + seno * (y - cy) + cx;
+  const ny = coseno * (y - cy) - seno * (x - cx) + cy;
   return { x: nx, y: ny };
 };
 
