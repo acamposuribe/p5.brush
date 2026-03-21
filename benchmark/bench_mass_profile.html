@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"/><title>mass.js pipeline profiler</title></head>
+<body style="margin:0;background:#000">
+<div id="host" style="position:fixed;left:-9999px;top:-9999px;visibility:hidden"></div>
+<script type="module">
+  import * as brush from '../dist/brush.esm.js';
+  // Profiling accumulators are exposed on globalThis by the instrumented bundle
+  const _prof    = () => window.__massProf;
+  const _arcProf = () => window.__arcProf;
+  const _sProf   = () => window.__strokeProf;
+  function resetAll() {
+    window.__massProfReset?.();
+    window.__arcProfReset?.();
+    window.__strokeProfReset?.();
+  }
+
+  const CW = 400, CH = 400;
+  brush.createCanvas(CW, CH, { parent: '#host', pixelDensity: 1 });
+  brush.scaleBrushes(1);
+
+  const syncCanvas = document.createElement('canvas');
+  syncCanvas.width = 1; syncCanvas.height = 1;
+  const syncCtx = syncCanvas.getContext('2d', { willReadFrequently: true });
+  const mainCanvas = document.querySelector('#host canvas');
+  function gpuSync() {
+    syncCtx.drawImage(mainCanvas, 0, 0, 1, 1, 0, 0, 1, 1);
+    syncCtx.getImageData(0, 0, 1, 1);
+  }
+
+  const WARMUP = 5, RUNS = 15;
+
+
+
+  // warmup
+  for (let i = 0; i < WARMUP; i++) {
+    brush.seed(42 + i); brush.clear('#fffceb'); brush.wiggle();
+    brush.mass('HB', '#335588', { precision: 0.3, strength: 0.6, gradient: 0.1 });
+    brush.set('HB', '#000', 0.5);
+    brush.circle(CW / 2, CH / 2, 90);
+    brush.noMass();
+    brush.render(); gpuSync();
+  }
+
+  resetAll();
+
+  const t_total0 = performance.now();
+  for (let i = 0; i < RUNS; i++) {
+    brush.seed(42 + i); brush.clear('#fffceb'); brush.wiggle();
+    brush.mass('HB', '#335588', { precision: 0.3, strength: 0.6, gradient: 0.1 });
+    brush.set('HB', '#000', 0.5);
+    brush.circle(CW / 2, CH / 2, 90);
+    brush.noMass();
+    brush.render(); gpuSync();
+  }
+  const t_total = (performance.now() - t_total0) / RUNS;
+
+  const p = _prof(), a = _arcProf(), s = _sProf();
+  const perRun = v => (v / RUNS).toFixed(2);
+
+  const breakdown = {
+    total_per_run_ms:         t_total.toFixed(2),
+    // mass.js phases
+    getMassPolygons_ms:       perRun(p.getMassPolygons_ms),
+    getHatchLines_ms:         perRun(p.getHatchLines_ms),
+    geometry_per_arc_ms:      perRun(p.geometry_ms),
+    arc_call_total_ms:        perRun(p.arc_ms),       // = plotConstruct + plotDraw
+    // arc() breakdown (primitives.js)
+    plotConstruct_ms:         perRun(a.plotConstruct_ms),
+    plotDraw_ms:              perRun(a.plotDraw_ms),  // = saveState + gaussians + loop + restoreState
+    // stroke draw() breakdown
+    saveState_ms:             perRun(s.saveState_ms),
+    gaussians_ms:             perRun(s.gaussians_ms),
+    angleCalc_ms:             perRun(s.angleCalc_ms), // _plot.angle() per step
+    tip_ms:                   perRun(s.tip_ms),
+    move_ms:                  perRun(s.move_ms),      // plotTo / moveTo per step
+    restoreState_glDraw_ms:   perRun(s.restoreState_ms),
+    // counts
+    nArcs_per_run:            (p.nArcs  / RUNS).toFixed(1),
+    nLines_per_run:           (p.nLines / RUNS).toFixed(1),
+    nSteps_per_run:           (s.nSteps / RUNS).toFixed(0),
+    nStrokes_per_run:         (s.nStrokes / RUNS).toFixed(1),
+  };
+
+  console.log('\n=== mass.js deep profile ===\n');
+  console.log(`Total per run           : ${breakdown.total_per_run_ms} ms`);
+  console.log(`\n-- mass.js phases --`);
+  console.log(`  getMassPolygons       : ${breakdown.getMassPolygons_ms} ms`);
+  console.log(`  getHatchLines (total) : ${breakdown.getHatchLines_ms} ms`);
+  console.log(`  geometry / arc math   : ${breakdown.geometry_per_arc_ms} ms`);
+  console.log(`  arc() calls (total)   : ${breakdown.arc_call_total_ms} ms`);
+  console.log(`\n-- arc() breakdown (primitives.js) --`);
+  console.log(`  Plot construction     : ${breakdown.plotConstruct_ms} ms`);
+  console.log(`  p.draw() / stroke     : ${breakdown.plotDraw_ms} ms`);
+  console.log(`\n-- stroke draw() loop --`);
+  console.log(`  saveState()           : ${breakdown.saveState_ms} ms`);
+  console.log(`  gaussian pool fill    : ${breakdown.gaussians_ms} ms`);
+  console.log(`  _plot.angle() total   : ${breakdown.angleCalc_ms} ms`);
+  console.log(`  tip() total           : ${breakdown.tip_ms} ms`);
+  console.log(`  plotTo/moveTo total   : ${breakdown.move_ms} ms`);
+  console.log(`  restoreState+glDraw   : ${breakdown.restoreState_glDraw_ms} ms`);
+  console.log(`\n-- counts per run --`);
+  console.log(`  hatch lines           : ${breakdown.nLines_per_run}`);
+  console.log(`  arcs rendered         : ${breakdown.nArcs_per_run}`);
+  console.log(`  stroke steps          : ${breakdown.nSteps_per_run}`);
+  console.log(`  strokes               : ${breakdown.nStrokes_per_run}`);
+
+  window.__profileDone = breakdown;
+</script>
+</body>
+</html>

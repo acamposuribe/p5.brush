@@ -277,13 +277,7 @@ function drawMassArcs(polygon, pivotBias, toAngleUnit) {
       const radius = dist(center.x, center.y, part.x1, part.y1);
       if (!radius) continue;
       const [startAngle, endAngle] = getShortArcAngles(
-        center.x,
-        center.y,
-        part.x1,
-        part.y1,
-        part.x2,
-        part.y2,
-        toAngleUnit,
+        center.x, center.y, part.x1, part.y1, part.x2, part.y2, toAngleUnit,
       );
       arc(center.x, center.y, radius, startAngle, endAngle);
     }

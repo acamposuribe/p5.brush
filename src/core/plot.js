@@ -92,9 +92,27 @@ export class Plot {
    */
   angle(_d) {
     if (_d > this.length) return this.angles[this.angles.length - 1];
+
+    // Fast path: single-segment plot (common case for arc strokes in mass.js).
+    // index is always 0 and suma is always 0, so calcIndex() can be skipped entirely.
+    if (this.segments.length === 1) {
+      this.index = 0;
+      this.suma = 0;
+      if (this.type !== "curve") return this.angles[0] + this.dir;
+      let a0 = this.angles[0];
+      let a1 = this.angles[1];
+      if (a1 === undefined) return a0 + this.dir;
+      if (Math.abs(a1 - a0) > 180) {
+        if (a1 > a0) a1 = -(360 - a1);
+        else a0 = -(360 - a0);
+      }
+      const t = this.segments[0] === 0 ? 0 : _d / this.segments[0];
+      const r = a0 + t * (a1 - a0);
+      return (t <= 0 ? a0 : t >= 1 ? a1 : r) + this.dir;
+    }
+
     this.calcIndex(_d);
     if (this.type !== "curve") return this.angles[this.index] + this.dir;
-    // Inline curving for angles with wrap-around handling
     let a0 = this.angles[this.index];
     let a1 = this.angles[this.index + 1];
     if (a1 === undefined) return a0 + this.dir;

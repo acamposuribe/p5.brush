@@ -37,15 +37,21 @@
 
     const POLY = circlePts(CW / 2, CH / 2, 90);
 
+    // wiggle() is always active — representative of real sketch usage.
+    // It is re-activated each run because brush.seed() may reset field state.
+    function setupFrame(seed) {
+      brush.seed(seed);
+      brush.clear('#fffceb');
+      brush.wiggle(); // always on
+    }
+
     // Time RUNS iterations of fn(), returning the median ms/run.
-    // Each run: seed → clear → fn() → render → gpuSync → time.
     function benchOp(runs, fn) {
       const times = [];
       for (let i = 0; i < runs; i++) {
-        brush.seed(42 + i);
-        brush.clear('#fffceb');
+        setupFrame(42 + i);
         const t0 = performance.now();
-        fn(i);
+        fn();
         brush.render();
         gpuSync();
         times.push(performance.now() - t0);
@@ -56,15 +62,15 @@
 
     async function run() {
       // Ensure module is fully initialised before timing
-      brush.seed(1); brush.clear('#fffceb'); brush.render(); gpuSync();
+      setupFrame(1); brush.render(); gpuSync();
 
       const WARMUP = 5;
       const RUNS   = 15;
 
       // ── stroke ──────────────────────────────────────────────────────────────
-      // 8 circles drawn with HB brush, no fill, no field
+      // 8 circles with HB brush, wiggle active
       for (let i = 0; i < WARMUP; i++) {
-        brush.seed(42 + i); brush.clear('#fffceb');
+        setupFrame(42 + i);
         brush.set('HB', '#222222', 1);
         for (let j = 0; j < 8; j++) brush.circle(CW / 2, CH / 2, 40 + j * 8);
         brush.render(); gpuSync();
@@ -75,9 +81,9 @@
       });
 
       // ── fill ─────────────────────────────────────────────────────────────────
-      // Watercolor fill on a 90-px circle polygon
+      // Watercolor fill on a 90-px circle polygon, wiggle active
       for (let i = 0; i < WARMUP; i++) {
-        brush.seed(42 + i); brush.clear('#fffceb');
+        setupFrame(42 + i);
         brush.fill(100, 50, 200, 180); brush.fillTexture(0.8, 0.5);
         brush.polygon(POLY); brush.noFill();
         brush.render(); gpuSync();
@@ -88,9 +94,9 @@
       });
 
       // ── hatch ────────────────────────────────────────────────────────────────
-      // HB hatch at 45° on the same polygon
+      // HB hatch at 45° on the same polygon, wiggle active
       for (let i = 0; i < WARMUP; i++) {
-        brush.seed(42 + i); brush.clear('#fffceb');
+        setupFrame(42 + i);
         brush.set('HB', '#333333', 0.5);
         brush.hatch(5, 45, { rand: 0.5, continuous: false });
         brush.polygon(POLY); brush.noHatch();
@@ -103,27 +109,25 @@
       });
 
       // ── mass ─────────────────────────────────────────────────────────────────
-      // Full mass pass (pastel brush + arc gestures + compositing)
+      // Mass pass using HB brush (same as hatch) so we isolate the mass
+      // overhead (arc conversion, 3 polygon layers, Plot creation) cleanly.
       for (let i = 0; i < WARMUP; i++) {
-        brush.seed(42 + i); brush.clear('#fffceb');
-        brush.wiggle();
-        brush.mass('pastel', '#335588', { precision: 0.3, strength: 0.6, gradient: 0.1 });
-        brush.set('pen', '#000000', 1);
+        setupFrame(42 + i);
+        brush.mass('HB', '#335588', { precision: 0.3, strength: 0.6, gradient: 0.1 });
+        brush.set('HB', '#000000', 0.5);
         brush.circle(CW / 2, CH / 2, 90);
         brush.noMass();
         brush.render(); gpuSync();
       }
       const mass_ms = benchOp(RUNS, () => {
-        brush.wiggle();
-        brush.mass('pastel', '#335588', { precision: 0.3, strength: 0.6, gradient: 0.1 });
-        brush.set('pen', '#000000', 1);
+        brush.mass('HB', '#335588', { precision: 0.3, strength: 0.6, gradient: 0.1 });
+        brush.set('HB', '#000000', 0.5);
         brush.circle(CW / 2, CH / 2, 90);
         brush.noMass();
       });
 
       // ── results ──────────────────────────────────────────────────────────────
       const total_visual_ms = stroke_ms + fill_ms + hatch_ms + mass_ms;
-      // Prefix with "v_" to avoid name collisions with the CPU benchmark metrics
       const results = {
         total_visual_ms,
         v_stroke_ms: stroke_ms,

@@ -355,8 +355,6 @@ function draw(angleScale, isPlot) {
   );
   current.pressureCount = 10;
   current.cachedPressure = undefined;
-  current.lineNoiseCount = 5;
-  current.cachedLineNoise = undefined;
 
   const neededGaussians = totalSteps * 2;
   while (gaussians.length < neededGaussians) {
@@ -403,7 +401,7 @@ function saveState() {
   }
   [current.min, current.max] = pressure.min_max;
 
-  current.noiseoffset = 0.05 * current.p.noise;
+
 
   // Cache stroke direction for direction-aware dispersion (non-plot strokes only)
   if (!_plot) {
@@ -419,7 +417,13 @@ function saveState() {
   Mix.blend(State.stroke.color);
 
   // Set additional state values
-  current.alpha = calculateAlpha();
+  // Stroke-level noise: modulate alpha once per stroke so whole strokes are
+  // subtly lighter or darker — organic variation without per-tip cost.
+  const baseAlpha = calculateAlpha();
+  const noiseStrength = 0.1 * (current.p.noise ?? 0);
+  current.alpha = noiseStrength > 0
+    ? Math.max(0, baseAlpha * (1 + gaussian(0, noiseStrength)))
+    : baseAlpha;
   current.overscan = getImageTipOverscan();
   current.drawFn =
     current.p.type === "spray"  ? drawSpray :
@@ -446,10 +450,8 @@ function restoreState() {
  */
 function tip() {
   const pressure = calculatePressure();
-  const lineNoise = calculateLineNoise();
 
-  if (lineNoise > rr(1,1.02) && rr(0,1) < 0.7) return;
-  current.drawFn(pressure * lineNoise);
+  current.drawFn(pressure);
 }
 
 /**
@@ -465,21 +467,6 @@ function calculatePressure() {
   }
   current.pressureCount++;
   return current.cachedPressure;
-}
-
-function calculateLineNoise() {
-  if (current.lineNoiseCount >= 10 || current.cachedLineNoise === undefined) {
-    current.cachedLineNoise = map(
-      noise(current.seed + _position.plotted * 0.01, 0),
-      -1,
-      1,
-      1 - current.noiseoffset,
-      1 + current.noiseoffset,
-    );
-    current.lineNoiseCount = 0;
-  }
-  current.lineNoiseCount++;
-  return current.cachedLineNoise;
 }
 
 /**
@@ -639,16 +626,13 @@ function drawImageTip(pressure, alpha = current.alpha) {
  * Draws the default brush tip.
  * @param {number} pressure - Current pressure.
  */
-function drawDefault(pressure, wiggle = 1) {
-  wiggle = map(wiggle, 0, 1, 0.9, 1.05);
+function drawDefault(pressure) {
+  if (rr(0, current.p.grain * pressure) < 1) return;
   const vibration =
-    wiggle *
     State.stroke.weight *
     current.p.scatter *
     (current.p.sharpness +
       ((1 - current.p.sharpness) * rArray(gaussians)) / pressure);
-  const passesGate = rr(0, current.p.grain * pressure) > 0.4;
-  if (passesGate) {
     let dx, dy;
     if (_plot) {
       const plotAngle = _cachedPlotAngle;
@@ -677,7 +661,7 @@ function drawDefault(pressure, wiggle = 1) {
       diameter,
       alpha,
     );
-  }
+  
 }
 
 /**
