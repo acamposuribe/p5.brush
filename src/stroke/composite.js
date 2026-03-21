@@ -1,4 +1,5 @@
 import * as Color from "../core/color.js";
+import { createFramebuffer } from "../core/compositor_runtime.js";
 
 let isStrokeCompositeRegistered = false;
 const DIRTY_BRUSH_PADDING = 2;
@@ -11,7 +12,7 @@ const DIRTY_BRUSH_PADDING = 2;
  * This happens when the renderer has no mask yet, or when the canvas size or
  * pixel density changed since the last allocation.
  *
- * @param {object} Renderer - Active p5 renderer/sketch.
+ * @param {object} Renderer - Active host renderer.
  * @param {number} Cwidth - Target width in sketch units.
  * @param {number} Cheight - Target height in sketch units.
  * @param {number} Density - Active pixel density.
@@ -35,7 +36,7 @@ function needsStrokeMask(Renderer, Cwidth, Cheight, Density) {
  * canvas dimensions. Stroke stamps are rendered into this mask in WebGL before
  * being blended into the main target.
  *
- * @param {object} Renderer - Active p5 renderer/sketch.
+ * @param {object} Renderer - Active host renderer.
  * @param {number} Cwidth - Target width in sketch units.
  * @param {number} Cheight - Target height in sketch units.
  * @param {number} Density - Active pixel density.
@@ -49,7 +50,7 @@ export function ensureStrokeCompositeResources(
 ) {
   if (needsStrokeMask(Renderer, Cwidth, Cheight, Density)) {
     if (Renderer.glMask?.remove) Renderer.glMask.remove();
-    Renderer.glMask = Renderer.createFramebuffer({
+    Renderer.glMask = createFramebuffer(Renderer, {
       width: Cwidth,
       height: Cheight,
       density: Density,
@@ -116,7 +117,7 @@ export function getStrokeCompositeRect(
  * Returns the resource that should be bound to the blend shader's `u_mask`
  * uniform for stroke compositing.
  *
- * @param {object} _Renderer - Active p5 renderer/sketch.
+ * @param {object} _Renderer - Active host renderer.
  * @param {object} mask - Stroke mask framebuffer.
  * @returns {object} Stroke mask framebuffer.
  */

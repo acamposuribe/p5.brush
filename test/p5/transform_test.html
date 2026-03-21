@@ -1,0 +1,273 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>p5.brush - Transform Test</title>
+    <script src="https://cdn.jsdelivr.net/npm/p5@2.1.1/lib/p5.min.js"></script>
+    <script src="../../dist/p5.brush.js"></script>
+    <script src="./p5_first_frame_profiler.js"></script>
+    <style>
+      * { box-sizing: border-box; }
+
+      body {
+        margin: 0;
+        color: #22313f;
+        background:
+          radial-gradient(circle at top left, rgba(20, 48, 73, 0.08), transparent 24%),
+          linear-gradient(180deg, #f7f2e7 0%, #ece3d3 100%);
+        font-family: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", Palatino, serif;
+      }
+
+      main {
+        width: min(920px, calc(100vw - 24px));
+        margin: 0 auto;
+        padding: 18px 0 24px;
+        display: grid;
+        justify-items: center;
+      }
+
+      main > * { width: 100%; }
+
+      .nav {
+        margin-bottom: 14px;
+        font: 11px/1.2 Menlo, Monaco, "Courier New", monospace;
+        display: flex;
+        gap: 12px;
+      }
+
+      .nav a { color: #153e5c; text-decoration: none; }
+      .nav a:hover { text-decoration: underline; }
+      .nav .sep { color: #8a9aa8; }
+
+      h1 {
+        margin: 0 0 8px;
+        font-size: clamp(24px, 3.6vw, 34px);
+        letter-spacing: -0.04em;
+      }
+
+      p {
+        max-width: 760px;
+        margin: 0 0 8px;
+        color: #52616e;
+        line-height: 1.45;
+        font-size: 13px;
+      }
+
+      #canvas-host {
+        margin-top: 18px;
+        display: grid;
+        justify-content: center;
+        width: 100%;
+        overflow: hidden;
+      }
+
+      canvas {
+        display: block;
+        max-width: 100%;
+        height: auto !important;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <div class="nav">
+        <a href="../index.html">All tests</a>
+        <span class="sep">·</span>
+        <a href="../standalone/transform_test.html">Standalone →</a>
+      </div>
+      <h1>Transform Alignment Test</h1>
+      <p>
+        Red native p5 references are drawn at the exact same coordinates as p5.brush marks, so they should align precisely.
+      </p>
+      <p>
+        Columns cover <b>translate(+80, -40)</b>, <b>rotate(PI/5)</b>, and <b>scale(1.8)</b>. Row 1 checks strokes and row 2 checks fills.
+      </p>
+      <div id="canvas-host"></div>
+
+      <script>
+      // Canvas / grid layout
+      const CW = 760,
+        CH = 600;
+      const COLS = 3,
+        ROWS = 2;
+      const CellW = CW / COLS; // 253
+      const CellH = CH / ROWS; // 300
+      const cx = (c) => c * CellW + CellW / 2;
+      const cy = (r) => r * CellH + CellH / 2;
+
+      // Colours
+      const BLUE = "#1a3a6a";
+      const RED = "#c0392b";
+      const OLIVE = "#4a6a1a";
+      const SEED = 12345;
+
+      // ----------------------------------------------------------------
+      // p5 sketch
+      // ----------------------------------------------------------------
+      function setup() {
+        const canvas = createCanvas(CW, CH, WEBGL);
+        canvas.parent("canvas-host");
+        randomSeed(SEED);
+        noiseSeed(SEED);
+        brush.load();
+        brush.scaleBrushes(2);
+        noLoop();
+      }
+
+      function draw() {
+        // Shift origin to top-left (standard for p5.brush in WEBGL mode)
+        translate(-CW / 2, -CH / 2);
+        background(248, 246, 238);
+
+        // ---- grid lines & column headers ----
+        stroke(190);
+        strokeWeight(1);
+        noFill();
+        for (let c = 1; c < COLS; c++) line(c * CellW, 0, c * CellW, CH);
+        line(0, CellH, CW, CellH);
+
+        // ================================================================
+        // HELPER: native p5 lines at the exact same coords as brushLines()
+        // ================================================================
+        function refLines() {
+          stroke(220, 30, 30);
+          strokeWeight(0.5);
+          noFill();
+          line(-60, 0, 60, 0);
+          line(0, -40, 0, 40);
+          line(-50, -20, 50, 20);
+          noStroke();
+        }
+
+        // ================================================================
+        // HELPER: native p5 rect + fill at the exact same coords as brushFill()
+        // ================================================================
+        function refRect(hex) {
+          // translucent fill matching brush opacity (~80/255 ≈ 31%)
+          const c = color(hex);
+          fill(red(c), green(c), blue(c), 80);
+          stroke(220, 30, 30);
+          strokeWeight(2);
+          rect(-55, -40, 110, 80);
+          noFill();
+          noStroke();
+        }
+
+        // ================================================================
+        // HELPER: draw the same brush stroke pattern at local (0,0)
+        // ================================================================
+        function brushLines(color) {
+          brush.set("HB", color, 1.2);
+          brush.line(-60, 0, 60, 0); // horizontal line through origin
+          brush.line(0, -40, 0, 40); // vertical line through origin
+          brush.set("2B", color, 0.8);
+          brush.line(-50, -20, 50, 20); // diagonal
+        }
+
+        // ================================================================
+        // HELPER: draw a brush fill rect centred at (0,0)
+        // ================================================================
+        function brushFill(color) {
+          brush.noStroke();
+          brush.fill(color, 200);
+          brush.fillBleed(0.3);
+          brush.fillTexture(0.5, 0.4);
+          brush.rect(-55, -40, 110, 80, "corner");
+          brush.noFill();
+        }
+
+        const r0 = 0;
+        const dashLen = 3,
+          gapLen = 4,
+          unit = dashLen + gapLen;
+
+        // Col 0 — translate
+        push();
+        translate(cx(0), cy(r0));
+        stroke(180);
+        strokeWeight(0.5);
+        for (let d = -70; d < 70; d += unit)
+          line(d, 0, Math.min(d + dashLen, 70), 0);
+        for (let d = -60; d < 60; d += unit)
+          line(0, d, 0, Math.min(d + dashLen, 60));
+        push();
+        translate(80, -40);
+        refLines();
+        brushLines(BLUE);
+        pop();
+        pop();
+
+        // Col 1 — rotate
+        push();
+        translate(cx(1), cy(r0));
+        stroke(180);
+        strokeWeight(0.5);
+        for (let d = -70; d < 70; d += unit)
+          line(d, 0, Math.min(d + dashLen, 70), 0);
+        for (let d = -60; d < 60; d += unit)
+          line(0, d, 0, Math.min(d + dashLen, 60));
+        push();
+        rotate(Math.PI / 5);
+        refLines();
+        brushLines(RED);
+        pop();
+        pop();
+
+        // Col 2 — scale
+        push();
+        translate(cx(2), cy(r0));
+        stroke(180);
+        strokeWeight(0.5);
+        for (let d = -70; d < 70; d += unit)
+          line(d, 0, Math.min(d + dashLen, 70), 0);
+        for (let d = -60; d < 60; d += unit)
+          line(0, d, 0, Math.min(d + dashLen, 60));
+        push();
+        scale(1.8);
+        refLines();
+        brushLines(OLIVE);
+        pop();
+        pop();
+
+        // ================================================================
+        // ROW 1 — FILL TESTS
+        // ================================================================
+        const r1 = 1;
+
+        // Col 0 — translate
+        push();
+        translate(cx(0), cy(r1));
+        push();
+        translate(80, -40);
+        refRect(BLUE);
+        brushFill(BLUE);
+        pop();
+        pop();
+
+        // Col 1 — rotate
+        push();
+        translate(cx(1), cy(r1));
+        push();
+        rotate(Math.PI / 5);
+        refRect(RED);
+        brushFill(RED);
+        pop();
+        pop();
+
+        // Col 2 — scale
+        push();
+        translate(cx(2), cy(r1));
+        push();
+        scale(1.8);
+        refRect(OLIVE);
+        brushFill(OLIVE);
+        pop();
+        pop();
+        window.reportP5FirstFrame?.("transform_test");
+      }
+      </script>
+    </main>
+  <script src="../test-nav.js"></script>
+  </body>
+</html>

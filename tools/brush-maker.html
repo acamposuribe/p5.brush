@@ -609,10 +609,10 @@
       <span class="val" id="sharpness-val">0.3</span>
     </div>
 
-    <!-- grain uses a non-linear internal mapping: pos 0–60 → grain 0–30 (step 0.5), pos 60–107 → grain 30–500 (step 10) -->
+    <!-- grain: default type uses linear 0–1; spray type uses non-linear pos 0–107 → grain 0–500 -->
     <div class="control-row" id="grain-row">
       <label>grain</label>
-      <input type="range" id="grain" min="0" max="107" step="1" value="20" />
+      <input type="range" id="grain" min="0" max="1" step="0.01" value="0.9" />
       <span class="val" id="grain-val">10</span>
     </div>
 
@@ -802,7 +802,7 @@ const params = {
   weight:    0.9,
   scatter:   1.8,
   sharpness: 0.3,
-  grain:     10,
+  grain:     0.9,
   opacity:   170,
   spacing:   0.3,
   noise:     0.5,
@@ -894,6 +894,10 @@ function clampToRange(rawValue, el) {
 function clampGrainValue(rawValue) {
   let value = Number(rawValue);
   if (!Number.isFinite(value)) return null;
+  if (params.type === 'default') {
+    return Math.round(Math.max(0, Math.min(1, value)) * 100) / 100;
+  }
+  // spray: non-linear wide range
   value = Math.max(0, Math.min(500, value));
   return value <= 30 ? Math.round(value * 2) / 2 : Math.round(value / 10) * 10;
 }
@@ -974,13 +978,17 @@ function wire(id, key, transform = v => v) {
   sync(params[key], false);
 }
 
-// Non-linear grain mapping: slider 0–60 → grain 0–30 (step 0.5), slider 60–107 → grain 30–500 (step 10)
+// Grain mapping — type-aware:
+//   default: direct linear [0, 1]
+//   spray:   non-linear slider pos 0–60 → grain 0–30, pos 60–107 → grain 30–500
 function posToGrain(pos) {
+  if (params.type === 'default') return parseFloat(pos);
   pos = parseFloat(pos);
   return pos <= 60 ? Math.round(pos * 0.5 * 10) / 10
                    : Math.round((30 + (pos - 60) * 10) * 10) / 10;
 }
 function grainToPos(grain) {
+  if (params.type === 'default') return grain;
   return grain <= 30 ? grain / 0.5 : 60 + (grain - 30) / 10;
 }
 // Set grain slider initial position
@@ -1074,7 +1082,7 @@ const SLIDER_RANGES = {
 // Per-type starting values (effective after scaleBrushes(3))
 const TYPE_PRESETS = {
   default: {
-    weight: 0.9, scatter: 1.8, sharpness: 0.3, grain: 10,
+    weight: 0.9, scatter: 1.8, sharpness: 0.3, grain: 0.9,
     opacity: 170, spacing: 0.3, pressStart: 1.1, pressEnd: 0.9,
     gaussCurveA: 0.15, gaussCurveB: 0.2, gaussMin: 1.1, gaussMax: 0.9,
     rotate: 'natural', noise: 1, referenceBrush: 'HB',
@@ -1135,6 +1143,14 @@ function updateTypeUI() {
   applySliderRange('spacing', ranges.spacing);
   if (ranges.scatter) applySliderRange('scatter', ranges.scatter);
   if (ranges.noise) applySliderRange('noise', ranges.noise);
+
+  // Grain slider range is type-specific
+  if (showGrain) {
+    const grainRange = params.type === 'default'
+      ? { min: 0, max: 1, step: 0.01 }
+      : { min: 0, max: 107, step: 1 };
+    applySliderRange('grain', grainRange);
+  }
 }
 
 function applySliderRange(id, cfg) {

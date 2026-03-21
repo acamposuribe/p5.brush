@@ -12,7 +12,7 @@
  */
 
 // Core imports
-import { Cwidth, Cheight, Renderer, Instance, isCanvasReady } from "../core/target.js";
+import { Cwidth, Cheight, Renderer, isCanvasReady } from "../core/target.js";
 import {
   Mix,
   State,
@@ -31,9 +31,11 @@ import {
   cos,
   sin
 } from "../core/utils.js";
+import { createColor } from "../core/runtime.js";
 import { Position, isFieldReady } from "../core/flowfield.js";
 import { Polygon } from "../core/polygon.js";
 import { Plot } from "../core/plot.js";
+import { createTipSurface, loadImageTip } from "./runtime.js";
 
 // Internal module imports
 import { initStrokeComposite } from "./composite.js";
@@ -47,7 +49,7 @@ import {
   snapshotMatrix,
 } from "./gl_draw.js";
 
-initStrokeComposite(); // Register the stroke composite system; ensures p5's WebGL mode is patched to support offscreen stroke rendering and compositing
+initStrokeComposite(); // Register the stroke composite system for offscreen mask rendering and compositing.
 
 // ---------------------------------------------------------------------------
 // Brush State and Helpers
@@ -65,10 +67,6 @@ State.stroke = {
 };
 
 let list = new Map();
-
-function getBrushFactory() {
-  return Renderer ?? Instance ?? window.self.p5.instance;
-}
 
 const DEFAULT_CUSTOM_PRESSURE_VARIATION = {
   offset: 0.08,
@@ -189,8 +187,7 @@ export function add(name, params) {
     // dark fills/strokes → high opacity, light/white → transparent.
     const key = `custom::${name}`;
     invalidateTexEntry(key); // discard stale GPU texture if tip changed
-    const factory = getBrushFactory();
-    const g = factory.createGraphics(500, 500);
+    const g = createTipSurface(500, 500);
     g.pixelDensity(1);
     g.background(255);
     g.noSmooth();
@@ -266,7 +263,7 @@ export function pick(brushName) {
  */
 export function stroke(r, g, b) {
   isCanvasReady();
-  State.stroke.color = Renderer.color(...arguments);
+  State.stroke.color = createColor(...arguments);
   State.stroke.isActive = true;
 }
 
@@ -300,7 +297,7 @@ export function noStroke() {
 /**
  * Defines a clipping region for strokes.
  * The region uses the same coordinate space as brush drawing commands,
- * with the current p5 transform captured at call time.
+ * with the current runtime transform captured at call time.
  * @param {number[]} region - Array as [x1, y1, x2, y2] defining the clipping region.
  */
 export function clip(region) {
@@ -319,6 +316,7 @@ export function noClip() {
 // Drawing Variables and Functions
 // ---------------------------------------------------------------------------
 let _position, _length, _plot, _dir;
+let _cachedPlotAngle = 0;
 const current = {};
 
 /**
@@ -357,22 +355,17 @@ function draw(angleScale, isPlot) {
   );
   current.pressureCount = 10;
   current.cachedPressure = undefined;
-  current.lineNoiseCount = 5;
-  current.cachedLineNoise = undefined;
+
+  const neededGaussians = totalSteps * 2;
+  while (gaussians.length < neededGaussians) {
+    gaussians.push(gaussian());
+  }
 
   for (let i = 0; i < totalSteps; i++) {
-    if (gaussians.length < totalSteps * 2) {
-      gaussians.push(gaussian());
-    }
+    if (isPlot) _cachedPlotAngle = _plot.angle(_position.plotted);
     tip();
     if (isPlot) {
-      _position.plotTo(
-        _plot,
-        stepSize,
-        stepSize,
-        angleScale,
-        i < 10 ? true : false,
-      );
+      _position.plotTo(_plot, stepSize, stepSize, angleScale, _cachedPlotAngle);
     } else {
       _position._moveToDegrees(angleScale, stepSize, stepSize);
     }
@@ -391,9 +384,10 @@ function saveState() {
 
   // Set pressure values for the stroke
   const { pressure } = param;
-  current.a = pressure.type !== "custom" ? rr(-1, 1) : 0;
-  current.b = pressure.type !== "custom" ? rr(1, 1.5) : 0;
-  if (pressure.type !== "custom") {
+  current.isCustomPressure = pressure.type === "custom";
+  current.a = !current.isCustomPressure ? rr(-1, 1) : 0;
+  current.b = !current.isCustomPressure ? rr(1, 1.5) : 0;
+  if (!current.isCustomPressure) {
     current.cp = rr(3, 3.5);
     current.ct = 0;
     current.cs = 1;
@@ -407,7 +401,7 @@ function saveState() {
   }
   [current.min, current.max] = pressure.min_max;
 
-  current.noiseoffset = 0.05 * current.p.noise;
+
 
   // Cache stroke direction for direction-aware dispersion (non-plot strokes only)
   if (!_plot) {
@@ -423,7 +417,19 @@ function saveState() {
   Mix.blend(State.stroke.color);
 
   // Set additional state values
-  current.alpha = calculateAlpha();
+  // Stroke-level noise: modulate alpha once per stroke so whole strokes are
+  // subtly lighter or darker — organic variation without per-tip cost.
+  const baseAlpha = calculateAlpha();
+  const noiseStrength = 0.1 * (current.p.noise ?? 0);
+  current.alpha = noiseStrength > 0
+    ? Math.max(0, baseAlpha * (1 + gaussian(0, noiseStrength)))
+    : baseAlpha;
+  current.overscan = getImageTipOverscan();
+  current.drawFn =
+    current.p.type === "spray"  ? drawSpray :
+    current.p.type === "marker" ? drawMarker :
+    (current.p.type === "custom" || current.p.type === "image") ? drawImageTip :
+    drawDefault;
 
   markerTip();
 }
@@ -444,24 +450,8 @@ function restoreState() {
  */
 function tip() {
   const pressure = calculatePressure();
-  const lineNoise = calculateLineNoise();
 
-  if (lineNoise > rr(1,1.02) && rr(0,1) < 0.7) return;
-  switch (current.p.type) {
-    case "spray":
-      drawSpray(pressure * lineNoise);
-      break;
-    case "marker":
-      drawMarker(pressure * lineNoise);
-      break;
-    case "custom":
-    case "image":
-      drawImageTip(pressure * lineNoise);
-      break;
-    default:
-      drawDefault(pressure * lineNoise);
-      break;
-  }
+  current.drawFn(pressure);
 }
 
 /**
@@ -479,47 +469,25 @@ function calculatePressure() {
   return current.cachedPressure;
 }
 
-function calculateLineNoise() {
-  if (current.lineNoiseCount >= 10 || current.cachedLineNoise === undefined) {
-    current.cachedLineNoise = map(
-      noise(current.seed + _position.plotted * 0.01, 0),
-      -1,
-      1,
-      1 - current.noiseoffset,
-      1 + current.noiseoffset,
-    );
-    current.lineNoiseCount = 0;
-  }
-  current.lineNoiseCount++;
-  return current.cachedLineNoise;
-}
-
 /**
  * Simulates brush pressure based on stroke parameters.
  * @returns {number} Simulated pressure value.
  */
 function simPressure() {
-  const value = current.p.pressure.type === "custom"
-    ? map(
-        current.p.pressure.curve(
-          Math.max(
-            0,
-            Math.min(
-              1,
-              0.5 + ((_position.plotted / _length) - 0.5 + current.ct) * current.cs,
-            ),
-          ),
-        ) +
-          current.cp +
-          current.ck * ((_position.plotted / _length) - 0.5),
-        0,
-        1,
-        current.min,
-        current.max,
-        true,
-      )
-    : gauss();
-  return value;
+  if (!current.isCustomPressure) return gauss();
+  const t = _position.plotted / _length;
+  return map(
+    current.p.pressure.curve(
+      Math.max(0, Math.min(1, 0.5 + (t - 0.5 + current.ct) * current.cs)),
+    ) +
+      current.cp +
+      current.ck * (t - 0.5),
+    0,
+    1,
+    current.min,
+    current.max,
+    true,
+  );
 }
 
 /**
@@ -567,9 +535,7 @@ function calculateAlpha() {
  * @returns {number} The spacing value.
  */
 function spacing() {
-  const { param } = list.get(State.stroke.type) ?? {};
-  if (!param) return 1;
-  return param.spacing;
+  return current.p?.spacing ?? 1;
 }
 
 function getImageTipOverscan() {
@@ -639,12 +605,12 @@ function drawImageTip(pressure, alpha = current.alpha) {
   const rx = vibration * rr(-1, 1);
   const ry = vibration * rr(-1, 1);
   const size = current.p.weight * State.stroke.weight * pressure;
-  const overscan = getImageTipOverscan();
+  const overscan = current.overscan;
   let angle = 0;
   if (current.p.rotate === "random") {
     angle = randInt(0, 360) * (Math.PI / 180);
   } else if (current.p.rotate === "natural") {
-    angle = ((_plot ? -_plot.angle(_position.plotted) : -_dir) + _position.angle()) * (Math.PI / 180);
+    angle = ((_plot ? -_cachedPlotAngle : -_dir) + _position.angle()) * (Math.PI / 180);
   }
   stampImage(
     _position.x + rx,
@@ -660,19 +626,16 @@ function drawImageTip(pressure, alpha = current.alpha) {
  * Draws the default brush tip.
  * @param {number} pressure - Current pressure.
  */
-function drawDefault(pressure, wiggle = 1) {
-  wiggle = map(wiggle, 0, 1, 0.9, 1.05);
+function drawDefault(pressure) {
+  if (rr(0, 1) >= current.p.grain * pressure) return;
   const vibration =
-    wiggle *
     State.stroke.weight *
     current.p.scatter *
     (current.p.sharpness +
       ((1 - current.p.sharpness) * rArray(gaussians)) / pressure);
-  const passesGate = rr(0, current.p.grain * pressure) > 0.4;
-  if (passesGate) {
     let dx, dy;
     if (_plot) {
-      const plotAngle = _plot.angle(_position.plotted);
+      const plotAngle = _cachedPlotAngle;
       const plotCos = cos(plotAngle);
       const plotSin = sin(plotAngle);
       const perp = vibration * rr(-1, 1);
@@ -698,7 +661,7 @@ function drawDefault(pressure, wiggle = 1) {
       diameter,
       alpha,
     );
-  }
+  
 }
 
 /**
@@ -749,7 +712,7 @@ export function line(x1, y1, x2, y2) {
  * @param {number} x - Starting x-coordinate.
  * @param {number} y - Starting y-coordinate.
  * @param {number} length - Length of the stroke.
- * @param {number} dir - Direction, interpreted using the current p5 angle mode.
+ * @param {number} dir - Direction, interpreted using the current runtime angle units.
  */
 export function flowLine(x, y, length, dir) {
   if (!State.stroke.isActive || !State.stroke.color) {
@@ -801,36 +764,36 @@ const _vals = [
 const _standard_brushes = [
   [
     "pen",
-    [0.3, 0.15, 0.9, 2, 150, 0.1, { curve: [0.15, 0.2], min_max: [1.2, 1] }],
+    [0.3, 0.15, 0.9, 0.7, 150, 0.1, { curve: [0.15, 0.2], min_max: [1.2, 1] }],
   ],
   [
     "rotring",
-    [0.15, 0.05, 0.7, 15, 210, 0.1, { curve: [0.35, 0.2], min_max: [1.3, 1] }],
+    [0.15, 0.05, 0.7, 0.9, 210, 0.1, { curve: [0.35, 0.2], min_max: [1.3, 1] }],
   ],
   [
     "2B",
-    [0.3, 0.75, 0.45, 15, 180, 0.1, { curve: [0.1, 0.3], min_max: [1.1, 0.9] }],
+    [0.3, 0.75, 0.45, 0.8, 180, 0.1, { curve: [0.1, 0.3], min_max: [1.1, 0.9] }],
   ],
   [
     "HB",
-    [0.3, 0.6, 0.3, 10, 170, 0.1, { curve: [0.15, 0.2], min_max: [1.1, 0.9] }],
+    [0.3, 0.6, 0.3, 0.7, 170, 0.1, { curve: [0.15, 0.2], min_max: [1.1, 0.9] }],
   ],
   [
     "2H",
-    [0.2, 0.6, 0.3, 4, 120, 0.1, { curve: [0.15, 0.2], min_max: [1.1, 0.9] }],
+    [0.2, 0.6, 0.3, 0.75, 120, 0.1, { curve: [0.15, 0.2], min_max: [1.1, 0.9] }],
   ],
   [
     "cpencil",
-    [0.3, 0.55, 0.8, 7, 75, 0.1, { curve: [0.15, 0.2], min_max: [0.95, 1.2] }],
+    [0.35, 0.55, 0.8, 0.7, 75, 0.1, { curve: [0.15, 0.2], min_max: [0.95, 1.1] }],
   ],
   [
     "pastel",
     [
-      2.05 / 3,
-      13.4 / 3,
+      0.7,
+      5,
       0.91,
-      28,
-      35,
+      1,
+      30,
       0.085 / 3,
       { mode: "gaussian", curve: [0.4, 0.05], min_max: [1.09, 0.93] },
       "default",
@@ -843,12 +806,12 @@ const _standard_brushes = [
   [
     "crayon",
     [
-      0.9 / 3,
-      5.45 / 3,
+      0.33,
+      1.9,
       0.75,
-      250,
+      2,
       159,
-      0.23 / 3,
+      0.07,
       [1.1, 0.9],
       "default",
       undefined,
@@ -863,7 +826,7 @@ const _standard_brushes = [
       0.35,
       1.5,
       0.68,
-      500,
+      2,
       120,
       0.03,
       { curve: [0.15, 0.4], min_max: [1.1, 0.95] },
@@ -944,7 +907,7 @@ Plot.prototype.draw = function (x, y, scale) {
  * This section defines the functionality for managing the loading and processing of image tips.
  * Images are loaded from specified source URLs, converted to a white tint for visual effects,
  * and then stored for future use. It includes methods to add new images, convert their color
- * scheme, and integrate them into the p5.js graphics library.
+ * scheme, and integrate them into the active host image pipeline.
  */
 
 /**
@@ -964,7 +927,7 @@ const T = {
 
   /**
    * Converts image to white with inverted alpha for tint-based rendering.
-   * @param {object} image - The p5.Image to convert.
+   * @param {object} image - The host image object to convert.
    */
   imageToWhite(image) {
     image.loadPixels();
@@ -987,23 +950,8 @@ const T = {
     await Promise.all(
       entries.map(
         (src) =>
-          new Promise((resolve, reject) => {
-            const nativeImg = new window.Image();
-            nativeImg.onload = () => {
-              const factory = getBrushFactory();
-              const p5img = factory.createImage(
-                nativeImg.naturalWidth,
-                nativeImg.naturalHeight,
-              );
-              p5img.drawingContext.drawImage(nativeImg, 0, 0);
-              T.imageToWhite(p5img);
-              this.tips.set(src, p5img);
-              resolve();
-            };
-            nativeImg.onerror = () =>
-              reject(new Error(`Failed to load image tip: ${src}`));
-            nativeImg.crossOrigin = "anonymous";
-            nativeImg.src = src;
+          loadImageTip(src, T.imageToWhite).then((p5img) => {
+            this.tips.set(src, p5img);
           }),
       ),
     );

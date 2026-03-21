@@ -1,0 +1,485 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Fill Circle Explorer — Standalone</title>
+    <style>
+      :root {
+        --paper: #f3eee2;
+        --ink: #22313f;
+        --muted: #52616e;
+        --line: #d4c8b8;
+        --panel: rgba(255, 252, 245, 0.86);
+        --accent: #153e5c;
+      }
+
+      * { box-sizing: border-box; }
+
+      body {
+        margin: 0;
+        color: var(--ink);
+        background:
+          radial-gradient(circle at top left, rgba(21, 62, 92, 0.08), transparent 24%),
+          linear-gradient(180deg, #f7f2e7 0%, #ece3d3 100%);
+        font-family: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", Palatino, serif;
+      }
+
+      main {
+        width: min(920px, calc(100vw - 24px));
+        margin: 0 auto;
+        padding: 18px 0 24px;
+        display: grid;
+        justify-items: center;
+      }
+
+      main > * { width: 100%; }
+
+      .nav {
+        margin-bottom: 14px;
+        font: 11px/1.2 Menlo, Monaco, "Courier New", monospace;
+        display: flex;
+        gap: 12px;
+      }
+
+      .nav a { color: var(--accent); text-decoration: none; }
+      .nav a:hover { text-decoration: underline; }
+      .nav .sep { color: #8a9aa8; }
+
+      h1 {
+        margin: 0 0 8px;
+        font-size: clamp(24px, 3.6vw, 34px);
+        letter-spacing: -0.04em;
+      }
+
+      p {
+        margin: 0 0 8px;
+        max-width: 760px;
+        color: var(--muted);
+        line-height: 1.45;
+        font-size: 13px;
+      }
+
+      .panel {
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: var(--panel);
+      }
+
+      .workspace {
+        margin-top: 18px;
+        display: grid;
+        grid-template-columns: 260px minmax(0, 1fr);
+        gap: 18px;
+        align-items: start;
+      }
+
+      #controls {
+        padding: 14px 16px;
+        display: grid;
+        gap: 12px;
+        align-self: start;
+      }
+
+      .control-grid {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 10px;
+        font: 11px/1.4 Menlo, Monaco, "Courier New", monospace;
+      }
+
+      label { display: grid; gap: 6px; }
+
+      .slider-row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      input[type=range] { flex: 1; min-width: 0; }
+
+      .val { min-width: 34px; color: var(--accent); text-align: right; }
+
+      .perf { color: var(--accent); }
+
+      .top-row {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        flex-wrap: wrap;
+        justify-content: space-between;
+        font: 11px/1.4 Menlo, Monaco, "Courier New", monospace;
+      }
+
+      .seed { display: flex; align-items: center; gap: 8px; }
+      .seed strong { color: var(--accent); font-weight: 600; }
+
+      button {
+        border: 1px solid var(--line);
+        background: #fbf8f0;
+        color: var(--accent);
+        font: inherit;
+        padding: 6px 10px;
+        border-radius: 6px;
+        cursor: pointer;
+      }
+
+      button:hover { background: #f4eee2; }
+
+      .shape-btn.active {
+        background: var(--accent);
+        color: #fff;
+        border-color: var(--accent);
+      }
+
+      .swatches { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+
+      .swatch {
+        width: 22px;
+        height: 22px;
+        border-radius: 999px;
+        border: 1px solid rgba(32, 25, 15, 0.18);
+        cursor: pointer;
+        padding: 0;
+      }
+
+      .swatch.active {
+        outline: 2px solid var(--accent);
+        outline-offset: 2px;
+      }
+
+      #canvas-host {
+        padding: 10px;
+        display: grid;
+        justify-content: center;
+        width: 100%;
+        overflow: hidden;
+        min-width: 0;
+      }
+
+      #canvas-host canvas {
+        grid-area: 1 / 1;
+        display: block;
+        border-radius: 6px;
+        max-width: 100%;
+        max-height: min(78vh, 800px);
+        height: auto !important;
+      }
+
+      #label-canvas { pointer-events: none; }
+
+      @media (max-width: 820px) {
+        .workspace { grid-template-columns: 1fr; }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <div class="nav">
+        <a href="../index.html">All tests</a>
+        <span class="sep">·</span>
+        <a href="../p5/fill_circle_explorer.html">← p5 version</a>
+      </div>
+      <h1>Fill Circle Explorer <small style="font-size:0.55em;color:#8a9aa8;">standalone</small></h1>
+      <p>
+        Seeded standalone page for checking watercolor fill behavior on a single centered circle with a fine HB stroke.
+      </p>
+      <p>
+        Use the sliders and palette below to inspect bleed, opacity, texture, and border behavior without changing the seed unless you refresh it.
+      </p>
+
+      <div class="workspace">
+        <div id="controls" class="panel">
+          <div class="top-row">
+            <div class="seed">
+              <span>Seed</span>
+              <strong id="seedVal">000000</strong>
+            </div>
+<button id="refreshSeed" type="button">Refresh seed</button>
+          </div>
+
+          <div style="font: 11px/1.4 Menlo, Monaco, 'Courier New', monospace; display:grid; gap:6px;">
+            Shape
+            <div style="display:flex; gap:6px;">
+              <button type="button" class="shape-btn active" data-shape="circle">circle</button>
+              <button type="button" class="shape-btn" data-shape="rect">rect</button>
+              <button type="button" class="shape-btn" data-shape="blob">blob</button>
+              <button type="button" class="shape-btn" data-shape="grid">grid</button>
+            </div>
+          </div>
+
+          <div class="control-grid">
+            <label>
+              Bleed
+              <div class="slider-row">
+                <input type="range" id="bleed" min="0" max="1" step="0.01" value="0.3" />
+                <span class="val" id="bleedVal">0.3</span>
+              </div>
+            </label>
+            <label>
+              Opacity
+              <div class="slider-row">
+                <input type="range" id="opacity" min="0" max="255" step="1" value="92" />
+                <span class="val" id="opacityVal">92</span>
+              </div>
+            </label>
+            <label>
+              Texture
+              <div class="slider-row">
+                <input type="range" id="texture" min="0" max="1" step="0.01" value="0.5" />
+                <span class="val" id="textureVal">0.5</span>
+              </div>
+            </label>
+            <label>
+              Border
+              <div class="slider-row">
+                <input type="range" id="border" min="0" max="1" step="0.01" value="0.4" />
+                <span class="val" id="borderVal">0.4</span>
+              </div>
+            </label>
+          </div>
+
+          <label style="font: 11px/1.4 Menlo, Monaco, 'Courier New', monospace;">
+            Color
+            <div class="swatches" id="palette"></div>
+          </label>
+        </div>
+
+        <div id="canvas-host" class="panel"></div>
+      </div>
+    </main>
+
+    <script src="./standalone_profiler.js"></script>
+    <script type="module">
+      import * as brush from "../../dist/brush.esm.js";
+
+      const PALETTE = ["#002185", "#003c32", "#fcd300", "#ff2702", "#6b9404", "#000000", "#ffffff"];
+      const PAPER = "#fffceb";
+      const STROKE = "#111111";
+      const CW = 800, CH = 800;
+
+      const SHAPES = ["circle", "rect", "blob", "grid"];
+
+      const state = {
+        bleed:   0.3,
+        opacity: 92,
+        texture: 0.5,
+        border:  0.4,
+        color:   PALETTE[0],
+        seed:    100000 + Math.floor(Math.random() * 900000),
+        shape:   "circle",
+      };
+
+      const urlParams = new URLSearchParams(location.search);
+      const controls = {
+        bleed:      document.getElementById("bleed"),
+        opacity:    document.getElementById("opacity"),
+        texture:    document.getElementById("texture"),
+        border:     document.getElementById("border"),
+        bleedVal:   document.getElementById("bleedVal"),
+        opacityVal: document.getElementById("opacityVal"),
+        textureVal: document.getElementById("textureVal"),
+        borderVal:  document.getElementById("borderVal"),
+        seedVal:    document.getElementById("seedVal"),
+        refreshSeed: document.getElementById("refreshSeed"),
+        palette:    document.getElementById("palette"),
+      };
+
+      function fmt(v) {
+        return Number.isInteger(v) ? String(v) : v.toFixed(2).replace(/0$/, "").replace(/\.$/, "");
+      }
+
+      function readUrl(key, def, min, max, dec = null) {
+        if (!urlParams.has(key)) return def;
+        const v = Number(urlParams.get(key));
+        if (!Number.isFinite(v)) return def;
+        const c = Math.min(max, Math.max(min, v));
+        return dec === null ? c : Number(c.toFixed(dec));
+      }
+
+      state.bleed   = readUrl("bleed",   state.bleed,   0, 1, 2);
+      state.opacity = Math.round(readUrl("opacity", state.opacity, 0, 255));
+      state.texture = readUrl("texture", state.texture, 0, 1, 2);
+      state.border  = readUrl("border",  state.border,  0, 1, 2);
+      state.seed    = Math.round(readUrl("seed", state.seed, 100000, 999999));
+      if (urlParams.has("color") && PALETTE.includes(urlParams.get("color"))) {
+        state.color = urlParams.get("color");
+      }
+      if (urlParams.has("shape") && SHAPES.includes(urlParams.get("shape"))) {
+        state.shape = urlParams.get("shape");
+      }
+
+      controls.bleed.value   = state.bleed;
+      controls.opacity.value = state.opacity;
+      controls.texture.value = state.texture;
+      controls.border.value  = state.border;
+
+      function syncReadouts() {
+        controls.bleedVal.textContent   = fmt(state.bleed);
+        controls.opacityVal.textContent = fmt(state.opacity);
+        controls.textureVal.textContent = fmt(state.texture);
+        controls.borderVal.textContent  = fmt(state.border);
+        controls.seedVal.textContent = String(state.seed).padStart(6, "0");
+      }
+
+      function syncPalette() {
+        for (const btn of controls.palette.querySelectorAll(".swatch")) {
+          btn.classList.toggle("active", btn.dataset.color === state.color);
+        }
+      }
+
+      function syncUrl() {
+        const qs = new URLSearchParams({
+          bleed: state.bleed, opacity: state.opacity,
+          texture: state.texture, border: state.border,
+          color: state.color, seed: state.seed, shape: state.shape,
+        });
+        history.replaceState(null, "", `?${qs}`);
+      }
+
+      // Canvas setup
+      const pixelDensity = window.devicePixelRatio || 1;
+      brush.createCanvas(CW, CH, { id: "brush-canvas", parent: "#canvas-host", pixelDensity });
+      brush.angleMode(brush.DEGREES);
+
+      let renderQueued = false;
+      function queueRender() {
+        if (renderQueued) return;
+        renderQueued = true;
+        requestAnimationFrame(() => {
+          renderQueued = false;
+          renderScene();
+        });
+      }
+
+      function renderScene() {
+        brush.seed(state.seed);
+        brush.noiseSeed(state.seed);
+        syncReadouts();
+
+        brush.clear(PAPER);
+        brush.push();
+        brush.translate(-CW / 2, -CH / 2);
+
+        brush.noField();
+        brush.noHatch();
+        brush.set("HB", STROKE, 0.5);
+        if (state.shape === "grid") {
+          drawGrid(CW, CH);
+        } else {
+          brush.fill(state.color, state.opacity);
+          brush.fillBleed(state.bleed, "out");
+          brush.fillTexture(state.texture, state.border);
+          drawShape(CW, CH);
+          brush.noFill();
+        }
+
+        brush.pop();
+        brush.render();
+        window.reportStandaloneFirstFrame?.("fill_circle_explorer");
+      }
+
+      function drawGrid(w, h) {
+        const COLS = 2, ROWS = 5, PAD = 24, GAP = 12;
+        const cellW = (w - PAD * 2 - GAP * (COLS - 1)) / COLS;
+        const cellH = (h - PAD * 2 - GAP * (ROWS - 1)) / ROWS;
+        for (let row = 0; row < ROWS; row++) {
+          for (let col = 0; col < COLS; col++) {
+            const color = PALETTE[(row * COLS + col) % PALETTE.length];
+            const x = PAD + col * (cellW + GAP);
+            const y = PAD + row * (cellH + GAP);
+            brush.fill(color, state.opacity);
+            brush.fillBleed(state.bleed, "out");
+            brush.fillTexture(state.texture, state.border);
+            brush.rect(x, y, cellW, cellH);
+            brush.noFill();
+          }
+        }
+      }
+
+      function drawBlob(cx, cy, r) {
+        brush.beginShape(1);
+        const pts = [
+          [  0, -1.0],
+          [ 0.9, -0.3],
+          [-0.7,  0.7],
+          [ 0.7,  0.5],
+          [-0.9, -0.4],
+        ];
+        for (const [dx, dy] of pts) brush.vertex(cx + dx * r, cy + dy * r);
+        brush.endShape(true);
+      }
+
+      function drawShape(w, h) {
+        const cx = w * 0.5, cy = h * 0.5, r = w * 0.28;
+        if (state.shape === "circle") {
+          brush.circle(cx, cy, r);
+        } else if (state.shape === "rect") {
+          brush.rect(cx - r, cy - r, r * 2, r * 2);
+        } else {
+          drawBlob(cx, cy, r);
+        }
+      }
+
+      function syncShapeButtons() {
+        for (const btn of document.querySelectorAll(".shape-btn")) {
+          btn.classList.toggle("active", btn.dataset.shape === state.shape);
+        }
+      }
+
+      for (const btn of document.querySelectorAll(".shape-btn")) {
+        btn.addEventListener("click", () => {
+          state.shape = btn.dataset.shape;
+          syncShapeButtons();
+          syncUrl();
+          queueRender();
+        });
+      }
+
+      // Palette buttons
+      for (const color of PALETTE) {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "swatch";
+        btn.dataset.color = color;
+        btn.style.background = color;
+        btn.title = color;
+        btn.addEventListener("click", () => {
+          state.color = color;
+          syncPalette();
+          syncUrl();
+          queueRender();
+        });
+        controls.palette.appendChild(btn);
+      }
+
+      function bindSlider(key, input, readout) {
+        input.addEventListener("input", () => {
+          state[key] = Number(input.value);
+          readout.textContent = fmt(state[key]);
+          syncUrl();
+          queueRender();
+        });
+      }
+
+      bindSlider("bleed",   controls.bleed,   controls.bleedVal);
+      bindSlider("opacity", controls.opacity, controls.opacityVal);
+      bindSlider("texture", controls.texture, controls.textureVal);
+      bindSlider("border",  controls.border,  controls.borderVal);
+
+      controls.refreshSeed.addEventListener("click", () => {
+        state.seed = 100000 + Math.floor(Math.random() * 900000);
+        syncReadouts();
+        syncUrl();
+        queueRender();
+      });
+
+      syncPalette();
+      syncShapeButtons();
+      syncReadouts();
+      syncUrl();
+      renderScene();
+    </script>
+  <script src="../test-nav.js"></script>
+  </body>
+</html>

@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>p5.brush visual benchmark</title>
+</head>
+<body style="margin:0;padding:0;background:#000">
+  <div id="host" style="position:fixed;left:-9999px;top:-9999px;visibility:hidden"></div>
+  <script type="module">
+    import * as brush from '../dist/brush.esm.js';
+
+    const CW = 400, CH = 400;
+    brush.createCanvas(CW, CH, { parent: '#host', pixelDensity: 1 });
+    brush.scaleBrushes(1);
+
+    // GPU sync: blit one pixel of the main canvas to a 2D canvas then readback.
+    // This forces the browser to flush all pending GPU commands before returning.
+    const syncCanvas = document.createElement('canvas');
+    syncCanvas.width = 1; syncCanvas.height = 1;
+    const syncCtx = syncCanvas.getContext('2d');
+    const mainCanvas = document.querySelector('#host canvas');
+
+    function gpuSync() {
+      syncCtx.drawImage(mainCanvas, 0, 0, 1, 1, 0, 0, 1, 1);
+      syncCtx.getImageData(0, 0, 1, 1); // forces CPU-GPU sync
+    }
+
+    // Build a circular test polygon (24 points)
+    function circlePts(cx, cy, r, n = 24) {
+      const pts = [];
+      for (let i = 0; i < n; i++) {
+        const a = (i / n) * Math.PI * 2;
+        pts.push([cx + Math.cos(a) * r, cy + Math.sin(a) * r]);
+      }
+      return pts;
+    }
+
+    const POLY = circlePts(CW / 2, CH / 2, 90);
+
+    // wiggle() is always active — representative of real sketch usage.
+    // It is re-activated each run because brush.seed() may reset field state.
+    function setupFrame(seed) {
+      brush.seed(seed);
+      brush.clear('#fffceb');
+      brush.wiggle(); // always on
+    }
+
+    // Time RUNS iterations of fn(), returning the median ms/run.
+    function benchOp(runs, fn) {
+      const times = [];
+      for (let i = 0; i < runs; i++) {
+        setupFrame(42 + i);
+        const t0 = performance.now();
+        fn();
+        brush.render();
+        gpuSync();
+        times.push(performance.now() - t0);
+      }
+      times.sort((a, b) => a - b);
+      return times[Math.floor(times.length / 2)];
+    }
+
+    async function run() {
+      // Ensure module is fully initialised before timing
+      setupFrame(1); brush.render(); gpuSync();
+
+      const WARMUP = 5;
+      const RUNS   = 15;
+
+      // ── stroke ──────────────────────────────────────────────────────────────
+      // 8 circles with HB brush, wiggle active
+      for (let i = 0; i < WARMUP; i++) {
+        setupFrame(42 + i);
+        brush.set('HB', '#222222', 1);
+        for (let j = 0; j < 8; j++) brush.circle(CW / 2, CH / 2, 40 + j * 8);
+        brush.render(); gpuSync();
+      }
+      const stroke_ms = benchOp(RUNS, () => {
+        brush.set('HB', '#222222', 1);
+        for (let j = 0; j < 8; j++) brush.circle(CW / 2, CH / 2, 40 + j * 8);
+      });
+
+      // ── fill ─────────────────────────────────────────────────────────────────
+      // Watercolor fill on a 90-px circle polygon, wiggle active
+      for (let i = 0; i < WARMUP; i++) {
+        setupFrame(42 + i);
+        brush.fill(100, 50, 200, 180); brush.fillTexture(0.8, 0.5);
+        brush.polygon(POLY); brush.noFill();
+        brush.render(); gpuSync();
+      }
+      const fill_ms = benchOp(RUNS, () => {
+        brush.fill(100, 50, 200, 180); brush.fillTexture(0.8, 0.5);
+        brush.polygon(POLY); brush.noFill();
+      });
+
+      // ── hatch ────────────────────────────────────────────────────────────────
+      // HB hatch at 45° on the same polygon, wiggle active
+      for (let i = 0; i < WARMUP; i++) {
+        setupFrame(42 + i);
+        brush.set('HB', '#333333', 0.5);
+        brush.hatch(5, 45, { rand: 0.5, continuous: false });
+        brush.polygon(POLY); brush.noHatch();
+        brush.render(); gpuSync();
+      }
+      const hatch_ms = benchOp(RUNS, () => {
+        brush.set('HB', '#333333', 0.5);
+        brush.hatch(5, 45, { rand: 0.5, continuous: false });
+        brush.polygon(POLY); brush.noHatch();
+      });
+
+      // ── mass ─────────────────────────────────────────────────────────────────
+      // Mass pass using HB brush (same as hatch) so we isolate the mass
+      // overhead (arc conversion, 3 polygon layers, Plot creation) cleanly.
+      for (let i = 0; i < WARMUP; i++) {
+        setupFrame(42 + i);
+        brush.mass('HB', '#335588', { precision: 0.3, strength: 0.6, gradient: 0.1 });
+        brush.set('HB', '#000000', 0.5);
+        brush.circle(CW / 2, CH / 2, 90);
+        brush.noMass();
+        brush.render(); gpuSync();
+      }
+      const mass_ms = benchOp(RUNS, () => {
+        brush.mass('HB', '#335588', { precision: 0.3, strength: 0.6, gradient: 0.1 });
+        brush.set('HB', '#000000', 0.5);
+        brush.circle(CW / 2, CH / 2, 90);
+        brush.noMass();
+      });
+
+      // ── results ──────────────────────────────────────────────────────────────
+      const total_visual_ms = stroke_ms + fill_ms + hatch_ms + mass_ms;
+      const results = {
+        total_visual_ms,
+        v_stroke_ms: stroke_ms,
+        v_fill_ms:   fill_ms,
+        v_hatch_ms:  hatch_ms,
+        v_mass_ms:   mass_ms,
+      };
+
+      for (const [k, v] of Object.entries(results)) {
+        console.log(`METRIC ${k}=${v.toFixed(3)}`);
+      }
+
+      window.__benchDone = results;
+    }
+
+    run().catch(e => {
+      console.error('BENCH_ERROR:', e.message, e.stack);
+      window.__benchError = e.message;
+    });
+  </script>
+</body>
+</html>

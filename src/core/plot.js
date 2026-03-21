@@ -1,6 +1,6 @@
 import { Cwidth, Cheight } from "./target.js";
 import { State } from "./color.js";
-import { toDegrees, map, rr2 } from "./utils.js";
+import { toDegrees, rr2 } from "./utils.js";
 import { Position, isFieldReady } from "./flowfield.js";
 import { Polygon } from "./polygon.js";
 
@@ -24,7 +24,10 @@ export class Plot {
     this.pres = [];
     this.type = _type;
     this.dir = 0;
-    this.calcIndex(0);
+    this._cumLen = []; // cumulative start position of each segment
+    this.length = 0;
+    this.index = 0;
+    this.suma = 0;
     this.pol = false;
   }
 
@@ -40,8 +43,9 @@ export class Plot {
     _a = _degrees ? ((_a % 360) + 360) % 360 : toDegrees(_a); // Normalize angle
     this.angles.push(_a, _a); // Push angle twice for continuity
     this.pres.push(_pres);
+    this._cumLen.push(this.length); // cumulative start of this segment
     this.segments.push(_length);
-    this.length = this.segments.reduce((sum, len) => sum + len, 0); // Update total length
+    this.length += _length; // incremental update instead of O(n) reduce
   }
 
   /**
@@ -66,14 +70,18 @@ export class Plot {
 
   /**
    * Calculates the pressure at a given distance along the plot.
+   * Inlined for performance — pressure values never need angle wrap-around.
+   * NOTE: relies on this.index / this.suma being set by a prior angle() call.
    * @param {number} _d - The distance along the plot.
    * @returns {number} - The interpolated pressure.
    */
   pressure(_d) {
-    // If the distance exceeds the plot length, return the last pressure
     if (_d > this.length) return this.pres[this.pres.length - 1];
-    // Otherwise, calculate the pressure using the curving function
-    return this.curving(this.pres, _d);
+    const p0 = this.pres[this.index];
+    const p1 = this.pres[this.index + 1]; // always defined: pres.length = segments.length+1
+    const seg = this.segments[this.index];
+    // t ∈ [0,1) guaranteed by calcIndex; skip redundant bounds clamp
+    return seg === 0 ? p0 : p0 + (_d - this.suma) / seg * (p1 - p0);
   }
 
   /**
@@ -82,46 +90,46 @@ export class Plot {
    * @returns {number} - The calculated angle.
    */
   angle(_d) {
-    // If the distance exceeds the plot length, return the last angle
     if (_d > this.length) return this.angles[this.angles.length - 1];
-    // Calculate the index for the given distance
     this.calcIndex(_d);
-    // Return the angle, adjusted for the plot type and direction
-    return this.type === "curve"
-      ? this.curving(this.angles, _d) + this.dir
-      : this.angles[this.index] + this.dir;
-  }
-
-  /**
-   * Interpolates values between segments for smooth transitions.
-   * @param {Array<number>} array - The array to interpolate within.
-   * @param {number} _d - The distance along the plot.
-   * @returns {number} - The interpolated value.
-   */
-  curving(array, _d) {
-    let map0 = array[this.index];
-    let map1 = array[this.index + 1] ?? map0;
-    if (Math.abs(map1 - map0) > 180) {
-      if (map1 > map0) map1 = -(360 - map1);
-      else map0 = -(360 - map0);
+    if (this.type !== "curve") return this.angles[this.index] + this.dir;
+    let a0 = this.angles[this.index];
+    let a1 = this.angles[this.index + 1]; // always defined: angles.length = segments.length+1
+    if (Math.abs(a1 - a0) > 180) {
+      if (a1 > a0) a1 = -(360 - a1);
+      else a0 = -(360 - a0);
     }
-    return map(_d - this.suma, 0, this.segments[this.index], map0, map1, true);
+    const seg = this.segments[this.index];
+    const t = seg === 0 ? 0 : (_d - this.suma) / seg;
+    // t ∈ [0,1) guaranteed by calcIndex — clamp is unnecessary
+    return a0 + t * (a1 - a0) + this.dir;
   }
 
   /**
    * Calculates the current index of the plot based on the distance.
+   * Uses sequential forward scan from the cached index (O(1) amortized for
+   * monotone access patterns) with binary search fallback for backward jumps.
    * @param {number} _d - The distance along the plot.
    */
   calcIndex(_d) {
-    this.index = -1;
-    this.suma = 0;
-    let d = 0;
-    while (d <= _d) {
-      this.suma = d;
-      d += this.segments[this.index + 1];
-      this.index++;
+    const cum = this._cumLen;
+    const n = cum.length;
+    if (n === 0) { this.index = 0; this.suma = 0; return 0; }
+    let i = this.index < n ? this.index : n - 1;
+    // Forward scan: advance while next segment starts at or before _d
+    while (i + 1 < n && cum[i + 1] <= _d) i++;
+    // If current segment starts after _d, we went backward — use binary search
+    if (cum[i] > _d) {
+      let lo = 0, hi = i - 1;
+      while (lo < hi) {
+        const mid = (lo + hi + 1) >> 1;
+        if (cum[mid] <= _d) lo = mid; else hi = mid - 1;
+      }
+      i = lo;
     }
-    return this.index;
+    this.index = i;
+    this.suma = cum[i];
+    return i;
   }
 
   /**
@@ -143,7 +151,7 @@ export class Plot {
 
     for (let i = 0; i < numSteps; i++) {
       pos.plotTo(this, step, step);
-      const idx = this.calcIndex(pos.plotted);
+      const idx = this.index; // already set by angle() inside plotTo
       pside += step;
       let maxSize = _side <= 0 ? 8 : Math.max(this.segments[idx] * _side * rr2(0.7, 1.3), 20);
       if ((pside >= maxSize || idx >= prevIdx) && pos.x) {

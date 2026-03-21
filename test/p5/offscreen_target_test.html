@@ -1,0 +1,112 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>p5.brush - Offscreen Target Test</title>
+    <script src="https://cdn.jsdelivr.net/npm/p5@2.1.1/lib/p5.min.js"></script>
+    <script src="../../dist/p5.brush.js"></script>
+    <script src="./p5_first_frame_profiler.js"></script>
+    <style>
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        background:
+          radial-gradient(circle at top left, rgba(20, 48, 73, 0.08), transparent 24%),
+          linear-gradient(180deg, #f7f2e7 0%, #ece3d3 100%);
+        color: #22313f;
+        font-family: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", Palatino, serif;
+      }
+
+      main {
+        width: min(1240px, calc(100vw - 24px));
+        margin: 0 auto;
+        padding: 18px 0 24px;
+        display: grid;
+        justify-items: center;
+      }
+
+      main > * { width: 100%; }
+
+      .nav {
+        margin-bottom: 14px;
+        font: 11px/1.2 Menlo, Monaco, "Courier New", monospace;
+        display: flex;
+        gap: 12px;
+      }
+
+      .nav a {
+        color: #153e5c;
+        text-decoration: none;
+      }
+
+      .nav a:hover {
+        text-decoration: underline;
+      }
+
+      .nav .sep { color: #8a9aa8; }
+
+      h1 {
+        margin: 0 0 8px;
+        font-size: clamp(24px, 3.6vw, 34px);
+        letter-spacing: -0.04em;
+      }
+
+      p {
+        max-width: 860px;
+        margin: 0 0 8px;
+        color: #52616e;
+        line-height: 1.45;
+        font-size: 13px;
+      }
+
+      .legend {
+        font: 11px/1.4 Menlo, Monaco, "Courier New", monospace;
+        color: #405160;
+      }
+
+      #canvas-host {
+        margin-top: 18px;
+        padding: 8px;
+        display: grid;
+        justify-content: center;
+        width: 100%;
+        overflow: hidden;
+        border: 1px solid #d4c8b8;
+        border-radius: 8px;
+        background: rgba(255, 252, 245, 0.86);
+      }
+
+      canvas {
+        display: block;
+        border-radius: 6px;
+        max-width: 100%;
+        height: auto !important;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <div class="nav">
+        <a href="../index.html">All tests</a>
+        <span class="sep">·</span>
+        <span style="color:#8a9aa8;">p5 specific</span>
+      </div>
+      <h1>Offscreen Target Test</h1>
+      <p>
+        This page checks that p5.brush can target offscreen drawing surfaces and still composite them back correctly.
+        Each row first renders offscreen, then draws a fresh main-canvas reference after switching back with <b>brush.load()</b>.
+      </p>
+      <p class="legend">
+        Pass = the offscreen target produced a visible image and its changed-pixel count cleared the threshold.
+        Rows cover <b>createGraphics(WEBGL)</b> and a custom-sized main <b>createFramebuffer()</b>.
+      </p>
+      <div id="canvas-host"></div>
+      <script src="./offscreen_target_test.js"></script>
+    </main>
+  <script src="../test-nav.js"></script>
+  </body>
+</html>

@@ -1,26 +1,11 @@
-import { Cwidth, Cheight, Renderer } from "./target.js";
+import { Cwidth, Cheight } from "./target.js";
 import { isMixReady, State } from "./color.js";
-import { randInt2, noise2, rr2, sin, cos, map, toDegreesSigned } from "./utils.js";
+import { randInt2, noise2, rr2, sin, cos, cossin, map, toDegreesSigned } from "./utils.js";
+import { getAffineMatrix } from "./runtime.js";
 
 // =============================================================================
 // Section: Matrix transformations
 // =============================================================================
-
-/**
- * The `Matrix` object exposes the current 2D affine transform from p5's model matrix.
- * mat4 layout (column-major 4x4):
- *   [0]=a [1]=b [4]=c [5]=d [12]=tx [13]=ty
- * where the 2D transform of a point (x,y) is: (a*x + c*y + tx,  b*x + d*y + ty)
- */
-export const Matrix = {
-  x: () => Renderer._renderer.uModelMatrix.mat4[12],
-  y: () => Renderer._renderer.uModelMatrix.mat4[13],
-  a: () => Renderer._renderer.uModelMatrix.mat4[0],
-  b: () => Renderer._renderer.uModelMatrix.mat4[1],
-  c: () => Renderer._renderer.uModelMatrix.mat4[4],
-  d: () => Renderer._renderer.uModelMatrix.mat4[5],
-};
-
 
 // =============================================================================
 // Section: Field Initialization
@@ -57,6 +42,9 @@ export class Position {
    */
   constructor(x, y) {
     isFieldReady();
+    const m = getAffineMatrix();
+    this.mx = m.x;
+    this.my = m.y;
     this.update(x, y);
     this.plotted = 0; // Tracks the total distance plotted
   }
@@ -69,8 +57,10 @@ export class Position {
   update(x, y) {
     this.x = x;
     this.y = y;
-    this.colIdx = Position.getColIndex(x);
-    this.rowIdx = Position.getRowIndex(y);
+    if (State.field.isActive) {
+      this.colIdx = Math.round((x + this.mx - left_x) / resolution);
+      this.rowIdx = Math.round((y + this.my - top_y) / resolution);
+    }
   }
 
   /**
@@ -98,8 +88,8 @@ export class Position {
     const margin = 0.3;
     const w = Cwidth;
     const h = Cheight;
-    const x = this.x + Matrix.x();
-    const y = this.y + Matrix.y();
+    const x = this.x + this.mx;
+    const y = this.y + this.my;
     return (
       x >= -margin * w &&
       x <= (1 + margin) * w &&
@@ -121,19 +111,47 @@ export class Position {
 
   /**
    * Moves the position along the flow field by a certain length.
-   * @param {number} _dir - The direction of movement, interpreted using the current p5 angle mode.
+   * @param {number} _dir - The direction of movement, interpreted using the current runtime angle units.
    * @param {number} _length - The length to move along the field.
    * @param {number} _step_length - The length of each step.
    */
   moveTo(_dir, _length, _step_length = 1) {
-    this.movePos(toDegreesSigned(_dir), _length, _step_length);
+    const dir = toDegreesSigned(_dir);
+    if (State.field.isActive) {
+      this.movePos(dir, _length, _step_length);
+    } else {
+      this._moveConstant(dir, _length, _step_length);
+    }
   }
 
   /**
    * Internal variant of moveTo() that expects a degree value already normalized to the library's internal representation.
    */
   _moveToDegrees(_dir, _length, _step_length = 1) {
-    this.movePos(_dir, _length, _step_length);
+    if (State.field.isActive) {
+      this.movePos(_dir, _length, _step_length);
+    } else {
+      this._moveConstant(_dir, _length, _step_length);
+    }
+  }
+
+  /**
+   * Fast constant-direction movement (no field, no plot).
+   * Precomputes trig once and applies dx/dy directly.
+   */
+  _moveConstant(_dir, _length, _step) {
+    if (!this.isIn()) {
+      this.plotted += _step;
+      return;
+    }
+    const steps = _length / _step;
+    const _cs = cossin(-_dir);
+    const dx = _step * _cs[0], dy = _step * _cs[1];
+    for (let i = 0; i < steps; i++) {
+      this.x += dx;
+      this.y += dy;
+      this.plotted += _step;
+    }
   }
 
   /**
@@ -143,11 +161,11 @@ export class Position {
    * @param {number} _step_length - The length of each step.
    * @param {number} _scale - The scaling factor for the plotting path.
    */
-  plotTo(_plot, _length, _step_length, _scale = 1) {
-    this.movePos(_plot, _length, _step_length, _scale);
+  plotTo(_plot, _length, _step_length, _scale = 1, precomputedAngle = undefined) {
+    this.movePos(_plot, _length, _step_length, _scale, precomputedAngle);
   }
 
-  movePos(_dirPlot, _length, _step, _scale = false) {
+  movePos(_dirPlot, _length, _step, _scale = false, precomputedAngle = undefined) {
     const scaleFactor = _scale || 1;
     if (!this.isIn()) {
       this.plotted += _step / scaleFactor;
@@ -157,10 +175,13 @@ export class Position {
     const fieldActive = State.field.isActive;
     const usePlot = !!_scale;
     for (let i = 0; i < steps; i++) {
-      const angle =
-        (fieldActive ? this.angle(true) : 0) - (usePlot ? _dirPlot.angle(this.plotted) : _dirPlot);
-      // Calculate new position
-      this.update(this.x + _step * cos(angle), this.y + _step * sin(angle));
+      const plotAngle = (usePlot && precomputedAngle !== undefined && i === 0)
+        ? precomputedAngle
+        : (usePlot ? _dirPlot.angle(this.plotted) : _dirPlot);
+      const angle = (fieldActive ? this.angle(true) : 0) - plotAngle;
+      // Calculate new position — cossin() computes the index once for both cos and sin
+      const _cs = cossin(angle);
+      this.update(this.x + _step * _cs[0], this.y + _step * _cs[1]);
       this.plotted += _step / scaleFactor;
     }
   }
@@ -173,7 +194,7 @@ export class Position {
    * @returns {number} - The row index.
    */
   static getRowIndex(y, d = 1) {
-    const y_offset = y + Matrix.y() - top_y;
+    const y_offset = y + getAffineMatrix().y - top_y;
     return Math.round(y_offset / resolution / d);
   }
 
@@ -183,7 +204,7 @@ export class Position {
    * @returns {number} - The column index.
    */
   static getColIndex(x, d = 1) {
-    const x_offset = x + Matrix.x() - left_x;
+    const x_offset = x + getAffineMatrix().x - left_x;
     return Math.round(x_offset / resolution / d);
   }
 

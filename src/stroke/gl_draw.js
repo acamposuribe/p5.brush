@@ -13,8 +13,13 @@ import {
   isMixReady,
   State,
 } from "../core/color.js";
-import { Matrix } from "../core/flowfield.js";
 import { createProgram } from "../core/gl/utils.js";
+import {
+  beginDirectMaskDraw,
+  endDirectMaskDraw,
+  resetDirectShaderTracking,
+} from "../core/renderer_runtime.js";
+import { getAffineMatrix } from "../core/runtime.js";
 import vertSrc from "./shader.vert";
 import fragSrc from "./shader.frag";
 import imgVertSrc from "./image.vert";
@@ -34,7 +39,6 @@ let isLoaded = false,
 let loadedWidth = 0,
   loadedHeight = 0;
 let brushMaskTarget = null;
-let prevMaskTarget = null;
 const Attr = {},
   Frag = {};
 
@@ -51,15 +55,16 @@ let _ma = 1,
   _density = 1;
 
 /**
- * Snapshots the current p5 model matrix. Call once at the start of each stroke.
+ * Snapshots the current runtime affine transform. Call once at the start of each stroke.
  */
 export function snapshotMatrix() {
-  _ma = Matrix.a();
-  _mb = Matrix.b();
-  _mc = Matrix.c();
-  _md = Matrix.d();
-  _mx = Matrix.x();
-  _my = Matrix.y();
+  const m = getAffineMatrix();
+  _ma = m.a;
+  _mb = m.b;
+  _mc = m.c;
+  _md = m.d;
+  _mx = m.x;
+  _my = m.y;
   _halfW = Cwidth / 2;
   _halfH = Cheight / 2;
   _scale = Math.sqrt(_ma * _ma + _mb * _mb);
@@ -98,24 +103,6 @@ const texCache = new Map();
 // Static unit-quad corners for gl.TRIANGLE_STRIP in quad-local space.
 const QUAD_CORNERS = new Float32Array([-1, -1,  1, -1,  -1, 1,  1, 1]);
 
-function resetMaskShaderTracking() {
-  const renderer = Mix.glMask?.renderer;
-  if (!renderer) return;
-  renderer._curShader = null;
-  renderer._cachedBlendMode = null;
-  renderer._isBlending = null;
-  gl.activeTexture(gl.TEXTURE0);
-  gl.bindTexture(gl.TEXTURE_2D, null);
-  gl.blendEquation(gl.FUNC_ADD);
-  gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
-}
-
-function getFramebufferHandle(target) {
-  if (!target) return null;
-  if (typeof target._framebufferToBind === "function") return target._framebufferToBind();
-  return target.framebuffer ?? null;
-}
-
 function ensureBrushMaskTarget() {
   const rendererMask = Renderer?.glMask;
   if (!rendererMask) return null;
@@ -131,34 +118,11 @@ function getProjectionMatrix() {
 }
 
 function beginMaskTarget() {
-  const hadDepthTest = gl.isEnabled(gl.DEPTH_TEST);
-  beginMaskTarget._hadDepthTest = hadDepthTest;
-  if (hadDepthTest) gl.disable(gl.DEPTH_TEST);
-  prevMaskTarget = Renderer._renderer.activeFramebuffer?.() ?? null;
-  if (prevMaskTarget?._beforeEnd) prevMaskTarget._beforeEnd();
-  gl.bindFramebuffer(gl.FRAMEBUFFER, getFramebufferHandle(Mix.glMask));
-  gl.viewport(
-    0,
-    0,
-    Mix.glMask.width * Mix.glMask.density,
-    Mix.glMask.height * Mix.glMask.density,
-  );
+  return beginDirectMaskDraw(Renderer, gl, Mix.glMask);
 }
 
-function endMaskTarget() {
-  if (beginMaskTarget._hadDepthTest) gl.enable(gl.DEPTH_TEST);
-  beginMaskTarget._hadDepthTest = false;
-  if (prevMaskTarget?._beforeBegin) {
-    prevMaskTarget._beforeBegin();
-  } else {
-    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-    Renderer._renderer.viewport(
-      Renderer._renderer._origViewport.width,
-      Renderer._renderer._origViewport.height,
-    );
-    Renderer._renderer._applyStencilTestIfClipping?.();
-  }
-  prevMaskTarget = null;
+function endMaskTarget(state) {
+  endDirectMaskDraw(Renderer, gl, state);
 }
 
 function accumulateDirtyRect(currentRect, minX, minY, maxX, maxY) {
@@ -302,7 +266,7 @@ export function isReady() {
  * Queue a circle to be drawn with the specified parameters.
  * Data is written directly into a flat Float32Array to avoid object allocation.
  * Applies the full 2D affine transform (rotation + scale + translation) from
- * p5's current model matrix so that brush.rotate() and brush.scale() work correctly.
+ * the current runtime transform so that brush.rotate() and brush.scale() work correctly.
  */
 export function circle(x, y, diameter, alpha) {
   // Grow buffer if needed
@@ -393,16 +357,16 @@ export function stampImage(x, y, size, angle, alpha, extraPadding = 0) {
 
 /**
  * Flush all queued image stamps in a single instanced draw call.
- * @param {p5.Image} p5img - The preprocessed brush-tip image (from T.tips).
+ * @param {object} p5img - The preprocessed brush-tip image/canvas (from T.tips).
  * @param {string}   src   - The image src string, used as the texture cache key.
  */
 export function glDrawImages(p5img, src) {
   if (imgCount === 0) return;
 
   Mix.glMask.isDrawn = true;
-  beginMaskTarget();
+  const targetState = beginMaskTarget();
 
-  // Lazy-create the WebGL texture from the p5.Image canvas on first use
+  // Lazy-create the WebGL texture from the tip canvas on first use.
   let tex = texCache.get(src);
   if (!tex) {
     tex = gl.createTexture();
@@ -440,11 +404,10 @@ export function glDrawImages(p5img, src) {
   }
 
   gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, imgCount);
-  gl.flush();
 
   gl.bindVertexArray(null);
   gl.bindTexture(gl.TEXTURE_2D, null);
-  endMaskTarget();
+  endMaskTarget(targetState);
 
   if (imgDirtyRect) {
     Mix.markDirtyRect(Mix.glMask, imgDirtyRect);
@@ -453,8 +416,8 @@ export function glDrawImages(p5img, src) {
 
   imgCount = 0;
 
-  // Let p5 know we changed the active program
-  resetMaskShaderTracking();
+  // Let the host adapter know we changed the active program.
+  resetDirectShaderTracking(Renderer, gl);
 }
 
 /**
@@ -474,11 +437,11 @@ export function glDraw() {
   if (circleCount === 0) return;
 
   Mix.glMask.isDrawn = true;
-  beginMaskTarget();
+  const targetState = beginMaskTarget();
 
   const color = State.stroke.color._array;
 
-  // Re-activate our shader (p5 drawing may have switched programs)
+  // Re-activate our shader in case host drawing switched programs.
   gl.useProgram(program);
   gl.enable(gl.BLEND);
   gl.blendFunc(gl.ONE_MINUS_DST_ALPHA, gl.ONE);
@@ -500,10 +463,9 @@ export function glDraw() {
   gl.uniform4f(Frag.u_color, ...color);
   gl.uniformMatrix4fv(Frag.u_matrix, false, getProjectionMatrix());
   gl.drawArrays(gl.POINTS, 0, circleCount);
-  gl.flush();
 
   gl.bindVertexArray(null);
-  endMaskTarget();
+  endMaskTarget(targetState);
 
   if (circleDirtyRect) {
     Mix.markDirtyRect(Mix.glMask, circleDirtyRect);
@@ -513,9 +475,9 @@ export function glDraw() {
   // Reset queue (no deallocation)
   circleCount = 0;
 
-  // We called gl.useProgram() directly, bypassing p5's _curShader tracking.
-  // Reset it to null so p5 is forced to re-activate its own shader next time
-  // it draws — otherwise p5 skips gl.useProgram() and sets uniforms on the
+  // We called gl.useProgram() directly, bypassing host shader tracking.
+  // Reset it so the host is forced to re-activate its own shader next time
+  // it draws — otherwise it may skip gl.useProgram() and set uniforms on the
   // wrong active program, causing "location is not from the associated program".
-  resetMaskShaderTracking();
+  resetDirectShaderTracking(Renderer, gl);
 }

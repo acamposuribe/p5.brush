@@ -97,8 +97,8 @@ export function circle(x, y, radius, r = false) {
  * @param {number} x - Center x.
  * @param {number} y - Center y.
  * @param {number} radius - Radius.
- * @param {number} start - Start angle in the current p5 angle mode.
- * @param {number} end - End angle in the current p5 angle mode.
+ * @param {number} start - Start angle in the current runtime angle units.
+ * @param {number} end - End angle in the current runtime angle units.
  */
 export function arc(x, y, radius, start, end) {
   const startDeg = toDegreesSigned(start);

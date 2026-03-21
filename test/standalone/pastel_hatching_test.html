@@ -1,0 +1,325 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Pastel Hatching — Standalone</title>
+    <style>
+      :root {
+        --paper: #f3eee2;
+        --ink: #22313f;
+        --muted: #52616e;
+        --line: #d4c8b8;
+        --panel: rgba(255, 252, 245, 0.86);
+        --accent: #153e5c;
+      }
+
+      * { box-sizing: border-box; }
+
+      body {
+        margin: 0;
+        color: var(--ink);
+        background:
+          radial-gradient(circle at top left, rgba(21, 62, 92, 0.08), transparent 24%),
+          linear-gradient(180deg, #f7f2e7 0%, #ece3d3 100%);
+        font-family: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", Palatino, serif;
+      }
+
+      main {
+        width: min(920px, calc(100vw - 24px));
+        margin: 0 auto;
+        padding: 18px 0 24px;
+        display: grid;
+        justify-items: center;
+      }
+
+      main > * { width: 100%; }
+
+      .nav {
+        margin-bottom: 14px;
+        font: 11px/1.2 Menlo, Monaco, "Courier New", monospace;
+        display: flex;
+        gap: 12px;
+      }
+
+      .nav a { color: var(--accent); text-decoration: none; }
+      .nav a:hover { text-decoration: underline; }
+      .nav .sep { color: #8a9aa8; }
+
+      h1 { margin: 0 0 8px; font-size: clamp(24px, 3.6vw, 34px); letter-spacing: -0.04em; }
+
+      p { margin: 0 0 8px; max-width: 760px; color: var(--muted); line-height: 1.45; font-size: 13px; }
+
+      .workspace {
+        margin-top: 18px;
+        display: grid;
+        grid-template-columns: 260px minmax(0, 1fr);
+        gap: 18px;
+        align-items: start;
+      }
+
+      .panel { border: 1px solid var(--line); border-radius: 8px; background: var(--panel); }
+
+      #controls {
+        padding: 14px 16px;
+        display: grid;
+        gap: 12px;
+        align-self: start;
+      }
+
+      .top-row {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        flex-wrap: wrap;
+        justify-content: space-between;
+        font: 11px/1.4 Menlo, Monaco, "Courier New", monospace;
+      }
+
+      .seed { display: flex; align-items: center; gap: 8px; }
+      .seed strong { color: var(--accent); font-weight: 600; }
+
+      .control-grid { display: grid; gap: 10px; font: 11px/1.4 Menlo, Monaco, "Courier New", monospace; }
+
+      label { display: grid; gap: 6px; }
+
+      .slider-row { display: flex; align-items: center; gap: 8px; }
+      input[type=range] { flex: 1; min-width: 0; }
+      .val { min-width: 34px; color: var(--accent); text-align: right; }
+
+      select {
+        border: 1px solid var(--line); border-radius: 6px;
+        background: #fbf8f0; color: var(--ink); font: inherit; padding: 6px 8px;
+      }
+
+      button {
+        border: 1px solid var(--line); border-radius: 999px;
+        padding: 7px 12px; background: rgba(255,252,245,0.95);
+        color: var(--accent); font: 11px/1.2 Menlo, Monaco, "Courier New", monospace;
+        cursor: pointer;
+      }
+
+      button:hover { background: #fff; }
+
+      .checkbox-row { display: flex; align-items: center; gap: 8px; }
+
+      #canvas-host {
+        padding: 10px;
+        display: grid;
+        justify-content: center;
+        width: 100%;
+        overflow: hidden;
+      }
+
+      #canvas-host canvas {
+        display: block;
+        border-radius: 6px;
+        max-width: 100%;
+        max-height: min(78vh, 760px);
+        height: auto !important;
+      }
+
+      @media (max-width: 820px) {
+        .workspace { grid-template-columns: 1fr; }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <div class="nav">
+        <a href="../index.html">All tests</a>
+        <span class="sep">·</span>
+        <a href="../p5/pastel_hatching_test.html">← p5 version</a>
+      </div>
+      <h1>Pastel Hatching <small style="font-size:0.55em;color:#8a9aa8;">standalone</small></h1>
+      <p>
+        Three random circles drawn with brush.mass() from a fixed palette, reseeded on each render.
+        Controls adjust brush type, precision, strength, gradient, and outline.
+      </p>
+
+      <div class="workspace">
+        <div id="controls" class="panel">
+          <div class="top-row">
+            <div class="seed">
+              <span>Seed</span>
+              <strong id="seedVal">000000</strong>
+            </div>
+            <button id="refresh-seed" type="button">Refresh Seed</button>
+          </div>
+
+          <div class="control-grid">
+            <label>
+              Brush
+              <select id="brushType">
+                <option value="pastel">pastel</option>
+                <option value="crayon">crayon</option>
+                <option value="HB">HB</option>
+                <option value="pen">pen</option>
+              </select>
+            </label>
+
+            <label>
+              Precision
+              <div class="slider-row">
+                <input type="range" id="precision" min="0" max="1" step="0.01" value="0.3" />
+                <span class="val" id="precisionVal">0.3</span>
+              </div>
+            </label>
+
+            <label>
+              Strength
+              <div class="slider-row">
+                <input type="range" id="strength" min="0" max="1" step="0.01" value="0.6" />
+                <span class="val" id="strengthVal">0.6</span>
+              </div>
+            </label>
+
+            <label>
+              Gradient
+              <div class="slider-row">
+                <input type="range" id="gradient" min="0" max="1" step="0.01" value="0.1" />
+                <span class="val" id="gradientVal">0.1</span>
+              </div>
+            </label>
+
+            <label class="checkbox-row">
+              <input type="checkbox" id="outline" />
+              Outline
+            </label>
+          </div>
+        </div>
+
+        <div id="canvas-host" class="panel"></div>
+      </div>
+    </main>
+
+    <script src="./standalone_profiler.js"></script>
+    <script type="module">
+      import * as brush from "../../dist/brush.esm.js";
+
+      const PAPER = "#fffceb";
+      const PALETTE = ["#002185", "#003c32", "#fcd300", "#ff2702", "#6b9404"];
+      const CW = 600, CH = 600;
+
+      const pixelDensity = window.devicePixelRatio || 1;
+      brush.createCanvas(CW, CH, { id: "brush-canvas", parent: "#canvas-host", pixelDensity });
+      brush.scaleBrushes(3);
+
+      let currentSeed = Math.floor(Math.random() * 900000) + 100000;
+
+      const state = {
+        brushType: "pastel",
+        precision: 0.3,
+        strength:  0.6,
+        gradient:  0.1,
+        outline:   false,
+      };
+
+      const controls = {
+        seedVal:      document.getElementById("seedVal"),
+        refreshSeed:  document.getElementById("refresh-seed"),
+        brushType:    document.getElementById("brushType"),
+        precision:    document.getElementById("precision"),
+        precisionVal: document.getElementById("precisionVal"),
+        strength:     document.getElementById("strength"),
+        strengthVal:  document.getElementById("strengthVal"),
+        gradient:     document.getElementById("gradient"),
+        gradientVal:  document.getElementById("gradientVal"),
+        outline:      document.getElementById("outline"),
+      };
+
+      // Mulberry32 seeded PRNG — mirrors p5's randomSeed behavior
+      function mkRng(seed) {
+        let s = seed >>> 0;
+        return function () {
+          s += 0x6d2b79f5;
+          let t = Math.imul(s ^ (s >>> 15), 1 | s);
+          t ^= t + Math.imul(t ^ (t >>> 7), 61 | t);
+          return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+        };
+      }
+
+      function formatValue(v) {
+        return Number.isInteger(v) ? String(v) : v.toFixed(2).replace(/0$/, "").replace(/\.$/, "");
+      }
+
+      function syncReadouts() {
+        controls.seedVal.textContent = String(currentSeed).padStart(6, "0");
+        controls.precisionVal.textContent = formatValue(state.precision);
+        controls.strengthVal.textContent  = formatValue(state.strength);
+        controls.gradientVal.textContent  = formatValue(state.gradient);
+      }
+
+      let renderQueued = false;
+      function queueRender() {
+        if (renderQueued) return;
+        renderQueued = true;
+        requestAnimationFrame(() => { renderQueued = false; renderScene(); });
+      }
+
+      function renderScene() {
+        syncReadouts();
+
+        const rng = mkRng(currentSeed);
+        brush.seed(currentSeed);
+        brush.noiseSeed(currentSeed);
+
+        brush.clear(PAPER);
+        brush.push();
+        brush.translate(-CW / 2, -CH / 2);
+        brush.wiggle();
+
+        for (let i = 0; i < 3; i++) {
+          const color = PALETTE[Math.floor(rng() * PALETTE.length)];
+          const x = rng() * CW;
+          const y = rng() * CH;
+          const r = CW * (0.2 + rng() * 0.2);
+
+          brush.mass(state.brushType, color, {
+            precision: state.precision,
+            strength:  state.strength,
+            gradient:  state.gradient,
+            outline:   state.outline,
+          });
+          brush.set("pen", "black", 1);
+          brush.circle(x, y, r);
+          brush.noMass();
+        }
+
+        brush.pop();
+        brush.render();
+        window.reportStandaloneFirstFrame?.("pastel_hatching_test");
+      }
+
+      function bindSlider(id, key) {
+        document.getElementById(id).addEventListener("input", (e) => {
+          state[key] = Number(e.target.value);
+          syncReadouts();
+          queueRender();
+        });
+      }
+
+      bindSlider("precision", "precision");
+      bindSlider("strength",  "strength");
+      bindSlider("gradient",  "gradient");
+
+      controls.brushType.addEventListener("change", () => {
+        state.brushType = controls.brushType.value;
+        queueRender();
+      });
+
+      controls.outline.addEventListener("change", () => {
+        state.outline = controls.outline.checked;
+        queueRender();
+      });
+
+      controls.refreshSeed.addEventListener("click", () => {
+        currentSeed = Math.floor(Math.random() * 900000) + 100000;
+        queueRender();
+      });
+
+      renderScene();
+    </script>
+  <script src="../test-nav.js"></script>
+  </body>
+</html>

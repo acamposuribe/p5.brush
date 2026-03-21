@@ -15,6 +15,25 @@ p5.brush.js adds natural drawing tools to p5.js — pencils, charcoal, markers, 
 > ▶️ **[Check the teaser live →](https://editor.p5js.org/acamposuribe/sketches/bkb_CyJyi)**
 > Live on the p5.js Web Editor, where you can read and edit code.
 
+## Two builds
+
+p5.brush ships in two flavors:
+
+| | p5 build | Standalone build |
+|---|---|---|
+| **File** | `dist/p5.brush.js` | `dist/brush.js` |
+| **Requires** | p5.js 2.x + WEBGL canvas | Nothing — WebGL2 browser only |
+| **Canvas setup** | `createCanvas(w, h, WEBGL)` | `brush.createCanvas(w, h)` |
+| **Transforms** | p5's `push/pop`, `translate`, `rotate`, `scale` | `brush.push/pop`, `brush.translate`, etc. |
+| **Angle mode** | Follows p5's `angleMode()` | `brush.angleMode(brush.DEGREES \| brush.RADIANS)` |
+| **Seeding** | `randomSeed()` / `noiseSeed()` | `brush.seed()` / `brush.noiseSeed()` |
+| **Frame flush** | Automatic | `brush.render()` at end of each frame |
+| **Clear** | p5's `background()` | `brush.clear(color?)` |
+
+This README covers the **p5 build**. For the standalone build see **[docs/standalone.md](docs/standalone.md)**.
+
+---
+
 ## Table of Contents
 - [Installation](#installation)
 - [Features](#features)
@@ -45,21 +64,25 @@ Alternatively, you can link to a `p5.brush.js` file hosted online. All versions 
 
 ```html
 <!-- Online version of p5.brush -->
-<script src="https://cdn.jsdelivr.net/npm/p5.brush@2.1.0-beta"></script>
+<script src="https://cdn.jsdelivr.net/npm/p5.brush@latest"></script>
 ```
 
 ### Install with NPM and other modular-based apps
 
-Install the npm package. p5.brush requires p5.js as a peer dependency.
+Install the npm package. p5.brush requires p5.js as a peer dependency for the p5 build.
 
 ```
 npm install p5.brush --save
 ```
 
-After that, import p5.brush functions to your sketch:
+The package exposes two subpaths — pick the one that matches your build:
 
-```
+```js
+// p5 build (default) — requires p5.js 2.x
 import * as brush from 'p5.brush'
+
+// Standalone build — no p5.js required
+import * as brush from 'p5.brush/standalone'
 ```
 
 If you are using p5 and p5.brush as modules, you will need to use instance mode. Read below.
@@ -288,7 +311,6 @@ Functions for managing brush behaviors and properties.
 ---
 
 - `brush.add(name, params)` — **[Design your brush visually with the Brush Maker ↗](https://acamposuribe.github.io/p5.brush/tools/brush-maker.html)**
-- `brush.addField(name, generatorFunction, options)` — **[Design your field visually with the Flow Field Generator ↗](https://acamposuribe.github.io/p5.brush/tools/flowfield-maker.html)**
   - **Description**: Creates a new brush with your own settings. Once added, you use it just like any built-in brush with `brush.set("myBrush", color, size)`.
   - **Parameters**:
     - `name` (String): A name for your brush — pick anything you like.
@@ -297,7 +319,7 @@ Functions for managing brush behaviors and properties.
       - `weight`: How thick the brush is, in canvas units.
       - `scatter`: How much the stroke wobbles sideways. Higher = more spread. (in canvas units)
       - `sharpness`: A number from 0 to 1. Lower = softer/fuzzier edge. Only matters for `"default"` type.
-      - `grain`: Controls how dense the texture is. Higher = smoother, more continuous line. Only matters for `"default"` type.
+      - `grain`: Controls how dense the texture is. Higher = smoother, more continuous line. Only matters for `"default"` and `"spray"` types.
       - `opacity`: How opaque each mark is, from 0 to 255. Pressure also affects this.
       - `spacing`: Gap between brush tip stamps along the stroke. `1` means no overlap, lower values create denser strokes.
       - `pressure`: Controls how the brush size changes from start to end of a stroke. Use a simple array — the easiest way:
@@ -307,11 +329,11 @@ Functions for managing brush behaviors and properties.
          - These simple/custom pressure modes include a subtle amount of per-stroke variation automatically, so repeated strokes feel less mechanical.
          - Advanced option for power users: use the library's built-in Gaussian pressure profile explicitly with an object like `{ mode: "gaussian", curve: [0.15, 0.2], min_max: [1.1, 0.9] }`.
            `curve` adjusts the wobble and asymmetry of the pressure envelope, while `min_max` sets the mapped pressure range. This is the same family of pressure logic used by the built-in brushes.
-      - `tip`: Only for `"custom"` type. A function where you draw the tip shape using p5.js commands inside a small graphics buffer `_m`.
+      - `tip`: Only for `"custom"` type. A function that draws the tip shape — see **Custom tip brushes** note below.
       - `image`: Only for `"image"` type. An object with a `src` property pointing to your image file: `{ src: "./tip.jpg" }`.
       - `rotate`: How the tip rotates as it moves. `"none"` keeps it fixed, `"natural"` follows the stroke direction, `"random"` spins randomly.
       - `markerTip`: Only for `"marker"`, `"custom"`, and `"image"` types. Set to `false` to disable the extra soft tip buildup those brushes add at the start and end of each stroke. Defaults to `true`.
-      - `noise`: Multiplies the subtle line-noise variation used along the stroke. `1` keeps the default behavior, `0` disables it, and higher values make the line wobble more.
+      - `noise`: Controls per-stroke opacity variation. Each time a stroke is drawn, the brush samples a Gaussian to randomly shift the whole stroke slightly lighter or darker than its base alpha — giving repeated strokes an organic, non-mechanical feel. `0` disables the variation (every stroke is identical in opacity). `1` is the maximum variation. Defaults to `0.3`.
   - **Usage**:
     ```javascript
     // Image brush — use a photo as the brush tip.
@@ -338,23 +360,6 @@ Functions for managing brush behaviors and properties.
         brush.line(100, 100, 400, 100);
     }
 
-    // Custom tip brush — no await needed, just call brush.add() normally
-    brush.add("diamond", {
-        type: "custom",
-        weight: 5,
-        scatter: 0.08,
-        opacity: 23,
-        spacing: 0.6,
-        pressure: [0.5, 1.5, 0.5],   // thin → thick → thin
-        tip: (_m) => {
-            // Draw inside _m using normal p5.js drawing commands
-            _m.rotate(45);
-            _m.rect(-1.5, -1.5, 3, 3);
-        },
-        rotate: "natural",
-        markerTip: false,
-    });
-
     // Advanced: explicitly use the built-in Gaussian pressure mode
     brush.add("soft-pencil", {
         type: "default",
@@ -373,6 +378,25 @@ Functions for managing brush behaviors and properties.
     });
     ```
     **Image brushes only**: `brush.add()` returns a Promise when `type` is `"image"` — you must `await` it so the image finishes loading before you start drawing. For this to work, your `setup()` function must be declared `async`. For all other brush types, no `await` is needed.
+
+    **Custom tip brushes**: The `tip` function receives `_m`, a `p5.Graphics` buffer. You draw inside it using normal p5 commands. The coordinate space is **100×100 units with the origin at the centre**, so shapes are drawn around `(0, 0)` and edges fall around ±50 units. The library converts the result to a mask: **dark fills become opaque, light or white becomes transparent** — so you define the shape in dark tones, and the color from `brush.set()` or `brush.stroke()` is applied at render time. Any p5 drawing command works: `rect`, `circle`, `ellipse`, `line`, `triangle`, `beginShape`/`vertex`/`endShape`, `push`/`pop`, `translate`, `rotate`, `scale`, and so on.
+    ```javascript
+    brush.add("diamond", {
+        type: "custom",
+        weight: 5,
+        scatter: 0.08,
+        opacity: 23,
+        spacing: 0.6,
+        pressure: [0.5, 1.5, 0.5],   // thin → thick → thin
+        tip: (_m) => {
+            _m.rotate(45);            // degrees, follows p5 angleMode
+            _m.rect(-1.5, -1.5, 3, 3);
+        },
+        rotate: "natural",
+        markerTip: false,
+    });
+    ```
+    **Using the standalone build?** The `tip` function works differently there — `_m` is not a `p5.Graphics`. See [docs/standalone.md → Custom tip brushes](docs/standalone.md#custom-tip-brushes).
 
 ---
 

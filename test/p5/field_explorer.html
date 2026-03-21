@@ -1,0 +1,297 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Flow Field Explorer</title>
+    <script src="https://cdn.jsdelivr.net/npm/p5@2.1.1/lib/p5.min.js"></script>
+    <script src="../../dist/p5.brush.js"></script>
+    <script src="./p5_first_frame_profiler.js"></script>
+    <style>
+      :root {
+        --paper: #f3eee2;
+        --ink: #22313f;
+        --muted: #52616e;
+        --line: #d4c8b8;
+        --panel: rgba(255, 252, 245, 0.86);
+        --accent: #153e5c;
+      }
+
+      * { box-sizing: border-box; }
+
+      body {
+        margin: 0;
+        color: var(--ink);
+        background:
+          radial-gradient(circle at top left, rgba(21, 62, 92, 0.08), transparent 24%),
+          linear-gradient(180deg, #f7f2e7 0%, #ece3d3 100%);
+        font-family: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", Palatino, serif;
+      }
+
+      main {
+        width: min(920px, calc(100vw - 24px));
+        margin: 0 auto;
+        padding: 18px 0 24px;
+        display: grid;
+        justify-items: center;
+      }
+
+      main > * { width: 100%; }
+
+      .nav {
+        margin-bottom: 14px;
+        font: 11px/1.2 Menlo, Monaco, "Courier New", monospace;
+        display: flex;
+        gap: 12px;
+      }
+
+      .nav a {
+        color: var(--accent);
+        text-decoration: none;
+      }
+
+      .nav a:hover { text-decoration: underline; }
+      .nav .sep { color: #8a9aa8; }
+
+      h1 {
+        margin: 0 0 8px;
+        font-size: clamp(24px, 3.6vw, 34px);
+        letter-spacing: -0.04em;
+      }
+
+      p {
+        margin: 0 0 8px;
+        max-width: 760px;
+        color: var(--muted);
+        line-height: 1.45;
+        font-size: 13px;
+      }
+
+      .panel {
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: var(--panel);
+      }
+
+      #controls {
+        margin-top: 18px;
+        padding: 14px 16px;
+        display: flex;
+        align-items: center;
+        gap: 18px;
+        flex-wrap: wrap;
+        font: 11px/1.4 Menlo, Monaco, "Courier New", monospace;
+      }
+
+      label { display: flex; align-items: center; gap: 8px; }
+
+      select,
+      input[type=range] {
+        font: inherit;
+      }
+
+      select { padding: 5px 8px; }
+      input[type=range] { width: 120px; }
+      span.val { width: 28px; display: inline-block; color: var(--accent); }
+
+      button {
+        border: 1px solid var(--line);
+        background: #fbf8f0;
+        color: var(--accent);
+        font: inherit;
+        padding: 6px 10px;
+        border-radius: 6px;
+        cursor: pointer;
+      }
+
+      button:hover { background: #f4eee2; }
+
+      #canvas-host {
+        margin-top: 18px;
+        padding: 10px;
+        display: grid;
+        justify-content: center;
+        width: 100%;
+        overflow: hidden;
+      }
+
+      canvas {
+        display: block;
+        border-radius: 6px;
+        max-width: 100%;
+        height: auto !important;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <div class="nav">
+        <a href="../index.html">All tests</a>
+        <span class="sep">·</span>
+        <a href="../standalone/field_explorer.html">Standalone →</a>
+      </div>
+      <h1>Flow Field Explorer</h1>
+      <p>
+        Interactive browser page for comparing built-in vector fields with adjustable density and flow-line length.
+      </p>
+      <p>
+        Controls update the field live. The current seed stays in the URL so the same view remains reproducible.
+      </p>
+
+      <div id="controls" class="panel">
+        <label>
+          Field:
+          <select id="fieldSel"></select>
+        </label>
+        <label>
+          Density:
+          <input type="range" id="density" min="6" max="30" value="18">
+          <span class="val" id="densityVal">18</span>
+        </label>
+        <label>
+          Line length:
+          <input type="range" id="lineLen" min="20" max="150" value="55">
+          <span class="val" id="lineLenVal">55</span>
+        </label>
+        <label>
+          Seed:
+          <span class="val" id="seedVal" style="width:auto; min-width:56px;">42</span>
+        </label>
+        <button id="refreshSeed" type="button">Refresh seed</button>
+      </div>
+
+      <div id="canvas-host" class="panel"></div>
+
+      <script>
+      const FIELDS = ["curved", "zigzag", "waves", "seabed", "spiral", "columns", "hand"];
+
+      // Read current params
+      const params = new URLSearchParams(location.search);
+      let currentField   = params.get("field")   || "curved";
+      let currentDensity = parseInt(params.get("density") || "18");
+      let currentLen     = parseInt(params.get("len")     || "55");
+      let currentSeed    = params.has("seed")
+        ? parseInt(params.get("seed"), 10)
+        : Math.floor(Math.random() * 1000000);
+
+      // Populate select
+      const sel = document.getElementById("fieldSel");
+      FIELDS.forEach((f) => {
+        const opt = document.createElement("option");
+        opt.value = f;
+        opt.textContent = f;
+        if (f === currentField) opt.selected = true;
+        sel.appendChild(opt);
+      });
+
+      // Sync slider displays
+      const densityEl  = document.getElementById("density");
+      const densityVal = document.getElementById("densityVal");
+      const lineLenEl  = document.getElementById("lineLen");
+      const lineLenVal = document.getElementById("lineLenVal");
+      const seedVal    = document.getElementById("seedVal");
+      const refreshSeedBtn = document.getElementById("refreshSeed");
+
+      densityEl.value  = currentDensity;
+      densityVal.textContent = currentDensity;
+      lineLenEl.value  = currentLen;
+      lineLenVal.textContent = currentLen;
+      seedVal.textContent = currentSeed;
+
+      function syncUrl() {
+        const qs = new URLSearchParams({
+          field: currentField,
+          density: String(currentDensity),
+          len: String(currentLen),
+          seed: String(currentSeed),
+        });
+        history.replaceState(null, "", `?${qs.toString()}`);
+      }
+      syncUrl();
+
+      let needsRender = true;
+      let renderQueued = false;
+      function queueRender() {
+        needsRender = true;
+        if (renderQueued) return;
+        renderQueued = true;
+        requestAnimationFrame(() => {
+          renderQueued = false;
+          redraw();
+        });
+      }
+
+      function handleControlInput() {
+        currentField = sel.value;
+        currentDensity = parseInt(densityEl.value);
+        currentLen = parseInt(lineLenEl.value);
+        densityVal.textContent = currentDensity;
+        lineLenVal.textContent = currentLen;
+        syncUrl();
+        queueRender();
+      }
+
+      densityEl.addEventListener("input", handleControlInput);
+      lineLenEl.addEventListener("input", handleControlInput);
+      sel.addEventListener("input", handleControlInput);
+      sel.addEventListener("change", handleControlInput);
+
+      refreshSeedBtn.addEventListener("click", () => {
+        currentSeed = Math.floor(Math.random() * 1000000);
+        seedVal.textContent = currentSeed;
+        syncUrl();
+        queueRender();
+      });
+
+      // ---- p5 sketch ----
+      function setup() {
+        const canvas = createCanvas(800, 800, WEBGL);
+        canvas.parent("canvas-host");
+        brush.load();
+        brush.scaleBrushes(3);
+        noLoop();
+      }
+
+      function renderExplorer() {
+        randomSeed(currentSeed);
+        noiseSeed(currentSeed);
+        seedVal.textContent = currentSeed;
+
+        background(245);
+        push();
+        translate(-width / 2, -height / 2);
+
+        if (currentField === "hand") {
+          brush.wiggle(5);
+        } else {
+          brush.field(currentField);
+        }
+        brush.refreshField(0);
+        brush.set("HB", "#1a2a5a", 1);
+
+        const n = currentDensity;
+        for (let r = 0; r < n; r++) {
+          for (let c = 0; c < n; c++) {
+            const x = 40 + (c / (n - 1)) * 720;
+            const y = 40 + (r / (n - 1)) * 720;
+            brush.flowLine(x, y, currentLen, 0);
+          }
+        }
+
+        brush.noField();
+        pop();
+      }
+
+      function draw() {
+        if (!needsRender) return;
+        needsRender = false;
+        noLoop();
+        renderExplorer();
+        window.reportP5FirstFrame?.("field_explorer");
+        window.reportP5FirstFrame?.("field_explorer");
+      }
+      </script>
+    </main>
+  <script src="../test-nav.js"></script>
+  </body>
+</html>

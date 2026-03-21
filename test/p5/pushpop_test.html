@@ -1,0 +1,219 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>p5.brush - Push/Pop Test</title>
+    <script src="https://cdn.jsdelivr.net/npm/p5@2.1.1/lib/p5.min.js"></script>
+    <script src="../../dist/p5.brush.js"></script>
+    <script src="./p5_first_frame_profiler.js"></script>
+    <style>
+      * { box-sizing: border-box; }
+
+      body {
+        margin: 0;
+        color: #22313f;
+        background:
+          radial-gradient(circle at top left, rgba(20, 48, 73, 0.08), transparent 24%),
+          linear-gradient(180deg, #f7f2e7 0%, #ece3d3 100%);
+        font-family: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", Palatino, serif;
+      }
+
+      main {
+        width: min(920px, calc(100vw - 24px));
+        margin: 0 auto;
+        padding: 18px 0 24px;
+        display: grid;
+        justify-items: center;
+      }
+
+      main > * { width: 100%; }
+
+      .nav {
+        margin-bottom: 14px;
+        font: 11px/1.2 Menlo, Monaco, "Courier New", monospace;
+        display: flex;
+        gap: 12px;
+      }
+
+      .nav a { color: #153e5c; text-decoration: none; }
+      .nav a:hover { text-decoration: underline; }
+      .nav .sep { color: #8a9aa8; }
+
+      h1 {
+        margin: 0 0 8px;
+        font-size: clamp(24px, 3.6vw, 34px);
+        letter-spacing: -0.04em;
+      }
+
+      p {
+        max-width: 760px;
+        margin: 0 0 8px;
+        color: #52616e;
+        line-height: 1.45;
+        font-size: 13px;
+      }
+
+      #canvas-host {
+        margin-top: 18px;
+        display: grid;
+        justify-content: center;
+        width: 100%;
+        overflow: hidden;
+      }
+
+      canvas {
+        display: block;
+        max-width: 100%;
+        height: auto !important;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <div class="nav">
+        <a href="../index.html">All tests</a>
+        <span class="sep">·</span>
+        <a href="../standalone/pushpop_test.html">Standalone →</a>
+      </div>
+      <h1>Push / Pop State Test</h1>
+      <p>
+        Each column proves that p5’s <b>push()</b> and <b>pop()</b> automatically save and restore brush state.
+      </p>
+      <p>
+        Column 1 checks stroke color, column 2 checks stroke weight and brush type, and column 3 checks fill color and opacity. The “after pop” row should match the “before” row exactly.
+      </p>
+      <div id="canvas-host"></div>
+
+      <script>
+      const CW = 760,
+        CH = 500;
+      const COLS = 3;
+      const CellW = CW / COLS;
+      const cx = (c) => c * CellW + CellW / 2;
+
+      // Row y positions
+      const Y_BEFORE = 100,
+        Y_INSIDE = 250,
+        Y_AFTER = 400;
+
+      function setup() {
+        const canvas = createCanvas(CW, CH, WEBGL);
+        canvas.parent("canvas-host");
+        brush.load();
+        brush.scaleBrushes(1.5);
+        noLoop();
+      }
+
+      function draw() {
+        translate(-CW / 2, -CH / 2);
+        background(248, 246, 238);
+
+        // Grid dividers
+        stroke(190);
+        strokeWeight(1);
+        noFill();
+        for (let c = 1; c < COLS; c++) line(c * CellW, 0, c * CellW, CH);
+
+        // Row labels (native p5 lines as separators)
+        stroke(200);
+        strokeWeight(0.5);
+        line(0, Y_BEFORE - 50, CW, Y_BEFORE - 50);
+        line(0, Y_INSIDE - 50, CW, Y_INSIDE - 50);
+        line(0, Y_AFTER - 50, CW, Y_AFTER - 50);
+
+        // ================================================================
+        // COL 0 — stroke COLOR saved/restored
+        // ================================================================
+        // Set outer state: blue marker
+        brush.pick("marker");
+        brush.stroke("#1a3a6a");
+        brush.strokeWeight(3);
+
+        // BEFORE
+        push();
+        translate(cx(0), Y_BEFORE);
+        brush.line(-60, 0, 60, 0);
+        brush.line(0, -30, 0, 30);
+        pop();
+
+        // INSIDE push — change to red
+        push();
+        translate(cx(0), Y_INSIDE);
+        brush.stroke("#c0392b");
+        brush.line(-60, 0, 60, 0);
+        brush.line(0, -30, 0, 30);
+        pop();
+
+        // AFTER pop — must be blue again
+        push();
+        translate(cx(0), Y_AFTER);
+        brush.line(-60, 0, 60, 0);
+        brush.line(0, -30, 0, 30);
+        pop();
+
+        // ================================================================
+        // COL 1 — stroke WEIGHT + brush TYPE saved/restored
+        // ================================================================
+        brush.pick("HB");
+        brush.stroke("#1a3a6a");
+        brush.strokeWeight(1);
+        brush.noFill();
+
+        // BEFORE
+        push();
+        translate(cx(1), Y_BEFORE);
+        brush.line(-60, 0, 60, 0);
+        brush.line(0, -30, 0, 30);
+        pop();
+
+        // INSIDE push — heavy weight, different brush
+        push();
+        translate(cx(1), Y_INSIDE);
+        brush.pick("charcoal");
+        brush.stroke("#c0392b");
+        brush.strokeWeight(6);
+        brush.line(-60, 0, 60, 0);
+        brush.line(0, -30, 0, 30);
+        pop();
+
+        // AFTER pop — must be HB thin blue again
+        push();
+        translate(cx(1), Y_AFTER);
+        brush.line(-60, 0, 60, 0);
+        brush.line(0, -30, 0, 30);
+        pop();
+
+        // ================================================================
+        // COL 2 — FILL color + opacity saved/restored
+        // ================================================================
+        brush.noStroke();
+        brush.fill("#1a3a6a", 70);
+        brush.fillBleed(0.2);
+        brush.fillTexture(0.4, 0.3);
+
+        // BEFORE
+        push();
+        translate(cx(2), Y_BEFORE);
+        brush.rect(-55, -35, 110, 70, "corner");
+        pop();
+
+        // INSIDE push — red fill, high opacity
+        push();
+        translate(cx(2), Y_INSIDE);
+        brush.fill("#c0392b", 120);
+        brush.rect(-55, -35, 110, 70, "corner");
+        pop();
+
+        // AFTER pop — must be blue 70 again
+        push();
+        translate(cx(2), Y_AFTER);
+        brush.rect(-55, -35, 110, 70, "corner");
+        pop();
+        window.reportP5FirstFrame?.("pushpop_test");
+      }
+      </script>
+    </main>
+  <script src="../test-nav.js"></script>
+  </body>
+</html>

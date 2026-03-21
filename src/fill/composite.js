@@ -1,4 +1,8 @@
 import * as Color from "../core/color.js";
+import {
+  createFramebuffer,
+  create2DCanvas,
+} from "../core/compositor_runtime.js";
 
 // Small staging canvas used to upload only the dirty fill sub-rect into the
 // framebuffer-backed mask mirror consumed by the blend shader.
@@ -12,7 +16,7 @@ const DIRTY_FILL_PADDING = 4;
 /**
  * Returns whether the CPU-side 2D fill mask must be recreated.
  *
- * @param {object} Renderer - Active p5 renderer/sketch.
+ * @param {object} Renderer - Active host renderer.
  * @param {number} maskWidth - Mask width in physical pixels.
  * @param {number} maskHeight - Mask height in physical pixels.
  * @returns {boolean} True when the 2D fill mask needs reallocation.
@@ -28,7 +32,7 @@ function needsFillMaskCanvas(Renderer, maskWidth, maskHeight) {
 /**
  * Returns whether the framebuffer-backed fill mask mirror must be recreated.
  *
- * @param {object} Renderer - Active p5 renderer/sketch.
+ * @param {object} Renderer - Active host renderer.
  * @param {number} Cwidth - Target width in sketch units.
  * @param {number} Cheight - Target height in sketch units.
  * @param {number} Density - Active pixel density.
@@ -54,7 +58,7 @@ function needsFillMaskFramebuffer(Renderer, Cwidth, Cheight, Density) {
  * dirty-rect by dirty-rect, into a framebuffer-backed mirror used by the final
  * blend shader pass.
  *
- * @param {object} Renderer - Active p5 renderer/sketch.
+ * @param {object} Renderer - Active host renderer.
  * @param {number} Cwidth - Target width in sketch units.
  * @param {number} Cheight - Target height in sketch units.
  * @param {number} Density - Active pixel density.
@@ -72,15 +76,14 @@ export function ensureFillCompositeResources(
   const maskHeight = Math.max(1, Math.round(Cheight * Density));
 
   if (needsFillMaskCanvas(Renderer, maskWidth, maskHeight)) {
-    Renderer.mask = new OffscreenCanvas(maskWidth, maskHeight);
-    Renderer.mask.drawingContext = Renderer.mask.getContext("2d");
+    Renderer.mask = create2DCanvas(maskWidth, maskHeight);
   }
 
   if (needsFillMaskFramebuffer(Renderer, Cwidth, Cheight, Density)) {
     if (Renderer.fillMaskFramebuffer?.remove) {
       Renderer.fillMaskFramebuffer.remove();
     }
-    Renderer.fillMaskFramebuffer = Renderer.createFramebuffer({
+    Renderer.fillMaskFramebuffer = createFramebuffer(Renderer, {
       width: Cwidth,
       height: Cheight,
       density: Density,
@@ -94,7 +97,6 @@ export function ensureFillCompositeResources(
   Renderer.mask.dirtyRect ??= null;
   Renderer.mask.isDrawn ??= false;
   Renderer.mask.drawingContext.imageSmoothingEnabled = false;
-
   return {
     mask: Renderer.mask,
     ctx: Renderer.mask.drawingContext,
@@ -152,7 +154,7 @@ export function getFillCompositeRect(
  * Uploads only the dirty portion of the CPU-side 2D fill mask into the
  * framebuffer-backed fill mask mirror used by the shader compositor.
  *
- * @param {object} Renderer - Active p5 renderer/sketch.
+ * @param {object} Renderer - Active host renderer.
  * @param {object} mask - CPU-side 2D fill mask canvas.
  * @param {{minX:number,minY:number,maxX:number,maxY:number}|null} dirtyRect - Dirty rect to upload.
  * @param {Function} normalizeDirtyRect - Clamps a rect to target bounds.
@@ -164,13 +166,12 @@ export function getFillShaderMask(
   Renderer,
   mask,
   dirtyRect,
-  normalizeDirtyRect,
   getFullDirtyRect,
   clearTarget,
 ) {
   const target = Renderer.fillMaskFramebuffer;
   const gl = Renderer.drawingContext;
-  const uploadRect = normalizeDirtyRect(dirtyRect) ?? getFullDirtyRect();
+  const uploadRect = dirtyRect ?? getFullDirtyRect();
   const uploadWidth = uploadRect.maxX - uploadRect.minX;
   const uploadHeight = uploadRect.maxY - uploadRect.minY;
 
@@ -179,8 +180,7 @@ export function getFillShaderMask(
     FillMaskUploadCanvas.width !== uploadWidth ||
     FillMaskUploadCanvas.height !== uploadHeight
   ) {
-    FillMaskUploadCanvas = new OffscreenCanvas(uploadWidth, uploadHeight);
-    FillMaskUploadCanvas.drawingContext = FillMaskUploadCanvas.getContext("2d");
+    FillMaskUploadCanvas = create2DCanvas(uploadWidth, uploadHeight);
   }
 
   const uploadContext = FillMaskUploadCanvas.drawingContext;
@@ -208,7 +208,6 @@ export function getFillShaderMask(
     gl.UNSIGNED_BYTE,
     FillMaskUploadCanvas,
   );
-
   return target;
 }
 

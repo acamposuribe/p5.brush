@@ -1,0 +1,226 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Transform Alignment — Standalone</title>
+    <style>
+      * { box-sizing: border-box; }
+
+      body {
+        margin: 0;
+        color: #22313f;
+        background:
+          radial-gradient(circle at top left, rgba(20, 48, 73, 0.08), transparent 24%),
+          linear-gradient(180deg, #f7f2e7 0%, #ece3d3 100%);
+        font-family: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", Palatino, serif;
+      }
+
+      main {
+        width: min(920px, calc(100vw - 24px));
+        margin: 0 auto;
+        padding: 18px 0 24px;
+        display: grid;
+        justify-items: center;
+      }
+
+      main > * { width: 100%; }
+
+      .nav {
+        margin-bottom: 14px;
+        font: 11px/1.2 Menlo, Monaco, "Courier New", monospace;
+        display: flex;
+        gap: 12px;
+      }
+
+      .nav a { color: #153e5c; text-decoration: none; }
+      .nav a:hover { text-decoration: underline; }
+      .nav .sep { color: #8a9aa8; }
+
+      h1 {
+        margin: 0 0 8px;
+        font-size: clamp(24px, 3.6vw, 34px);
+        letter-spacing: -0.04em;
+      }
+
+      p {
+        max-width: 760px;
+        margin: 0 0 8px;
+        color: #52616e;
+        line-height: 1.45;
+        font-size: 13px;
+      }
+
+      #canvas-host {
+        margin-top: 18px;
+        display: grid;
+        justify-content: center;
+        width: 100%;
+        overflow: hidden;
+      }
+
+      #canvas-host canvas {
+        grid-area: 1 / 1;
+        display: block;
+        max-width: 100%;
+        height: auto !important;
+      }
+
+      #ref-canvas { pointer-events: none; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <div class="nav">
+        <a href="../index.html">All tests</a>
+        <span class="sep">·</span>
+        <a href="../p5/transform_test.html">← p5 version</a>
+      </div>
+      <h1>Transform Alignment <small style="font-size:0.55em;color:#8a9aa8;">standalone</small></h1>
+      <p>
+        Red canvas2D references are drawn at the same coordinates as standalone brush marks using matching transforms.
+      </p>
+      <p>
+        Columns cover <b>translate(+80, -40)</b>, <b>rotate(PI/5)</b>, and <b>scale(1.8)</b>. Row 1 checks strokes and row 2 checks fills.
+      </p>
+      <div id="canvas-host"></div>
+    </main>
+
+    <script src="./standalone_profiler.js"></script>
+    <script type="module">
+      import * as brush from "../../dist/brush.esm.js";
+
+      const CW = 760, CH = 600;
+      const COLS = 3, ROWS = 2;
+      const CellW = CW / COLS, CellH = CH / ROWS;
+      const cx = (c) => c * CellW + CellW / 2;
+      const cy = (r) => r * CellH + CellH / 2;
+
+      const BLUE = "#1a3a6a";
+      const RED  = "#c0392b";
+      const OLIVE = "#4a6a1a";
+      const SEED = 12345;
+
+      const pixelDensity = window.devicePixelRatio || 1;
+      brush.createCanvas(CW, CH, { id: "brush-canvas", parent: "#canvas-host", pixelDensity });
+      brush.scaleBrushes(2);
+      brush.seed(SEED);
+      brush.noiseSeed(SEED);
+
+      // Reference canvas (2D, overlaid)
+      const refCanvas = document.createElement("canvas");
+      refCanvas.id = "ref-canvas";
+      refCanvas.width  = Math.round(CW * pixelDensity);
+      refCanvas.height = Math.round(CH * pixelDensity);
+      refCanvas.style.width  = CW + "px";
+      refCanvas.style.height = CH + "px";
+      document.getElementById("canvas-host").appendChild(refCanvas);
+      const rc = refCanvas.getContext("2d");
+      rc.setTransform(pixelDensity, 0, 0, pixelDensity, 0, 0);
+
+      // ---- Reference helpers ----
+
+      function rcLines() {
+        rc.strokeStyle = "rgba(220,30,30,0.7)";
+        rc.lineWidth = 0.5;
+        rc.beginPath();
+        rc.moveTo(-60, 0); rc.lineTo(60, 0);
+        rc.moveTo(0, -40); rc.lineTo(0, 40);
+        rc.moveTo(-50, -20); rc.lineTo(50, 20);
+        rc.stroke();
+      }
+
+      function rcRect(hex) {
+        const [r, g, b] = hexToRgb(hex);
+        rc.fillStyle = `rgba(${r},${g},${b},0.31)`;
+        rc.strokeStyle = "rgba(220,30,30,0.8)";
+        rc.lineWidth = 2;
+        rc.fillRect(-55, -40, 110, 80);
+        rc.strokeRect(-55, -40, 110, 80);
+      }
+
+      function hexToRgb(hex) {
+        const r = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+        return r ? [parseInt(r[1],16), parseInt(r[2],16), parseInt(r[3],16)] : [0,0,0];
+      }
+
+      // ---- Grid lines on ref canvas ----
+      rc.strokeStyle = "rgba(190,190,190,0.6)";
+      rc.lineWidth = 1;
+      for (let c = 1; c < COLS; c++) { rc.beginPath(); rc.moveTo(c * CellW, 0); rc.lineTo(c * CellW, CH); rc.stroke(); }
+      rc.beginPath(); rc.moveTo(0, CellH); rc.lineTo(CW, CellH); rc.stroke();
+
+      // ---- Dash pattern helper ----
+      function rcDashes(x, y, w, h) {
+        rc.strokeStyle = "rgba(180,180,180,0.5)";
+        rc.lineWidth = 0.5;
+        const dash = 3, gap = 4, unit = dash + gap;
+        rc.beginPath();
+        for (let d = x - 70; d < x + 70; d += unit) { rc.moveTo(d, y); rc.lineTo(Math.min(d + dash, x + 70), y); }
+        for (let d = y - 60; d < y + 60; d += unit) { rc.moveTo(x, d); rc.lineTo(x, Math.min(d + dash, y + 60)); }
+        rc.stroke();
+      }
+
+      // ================================================================
+      // Brush setup
+      // ================================================================
+
+      brush.clear("#f8f6ee");
+      brush.push();
+      brush.translate(-CW / 2, -CH / 2);
+
+      function brushLines(color) {
+        brush.set("HB", color, 1.2);
+        brush.line(-60, 0, 60, 0);
+        brush.line(0, -40, 0, 40);
+        brush.set("2B", color, 0.8);
+        brush.line(-50, -20, 50, 20);
+      }
+
+      function brushFill(color) {
+        brush.noStroke();
+        brush.fill(color, 200);
+        brush.fillBleed(0.3);
+        brush.fillTexture(0.5, 0.4);
+        brush.rect(-55, -40, 110, 80, "corner");
+        brush.noFill();
+      }
+
+      // ---- ROW 0 — Strokes ----
+
+      // Col 0 — translate
+      rcDashes(cx(0), cy(0), CellW, CellH);
+      rc.save(); rc.translate(cx(0), cy(0)); rc.translate(80, -40); rcLines(); rc.restore();
+      brush.push(); brush.translate(cx(0), cy(0)); brush.push(); brush.translate(80, -40); brushLines(BLUE); brush.pop(); brush.pop();
+
+      // Col 1 — rotate
+      rcDashes(cx(1), cy(0), CellW, CellH);
+      rc.save(); rc.translate(cx(1), cy(0)); rc.rotate(Math.PI / 5); rcLines(); rc.restore();
+      brush.push(); brush.translate(cx(1), cy(0)); brush.push(); brush.rotate(Math.PI / 5); brushLines(RED); brush.pop(); brush.pop();
+
+      // Col 2 — scale
+      rcDashes(cx(2), cy(0), CellW, CellH);
+      rc.save(); rc.translate(cx(2), cy(0)); rc.scale(1.8, 1.8); rcLines(); rc.restore();
+      brush.push(); brush.translate(cx(2), cy(0)); brush.push(); brush.scale(1.8); brushLines(OLIVE); brush.pop(); brush.pop();
+
+      // ---- ROW 1 — Fills ----
+
+      // Col 0 — translate
+      rc.save(); rc.translate(cx(0), cy(1)); rc.translate(80, -40); rcRect(BLUE); rc.restore();
+      brush.push(); brush.translate(cx(0), cy(1)); brush.push(); brush.translate(80, -40); brushFill(BLUE); brush.pop(); brush.pop();
+
+      // Col 1 — rotate
+      rc.save(); rc.translate(cx(1), cy(1)); rc.rotate(Math.PI / 5); rcRect(RED); rc.restore();
+      brush.push(); brush.translate(cx(1), cy(1)); brush.push(); brush.rotate(Math.PI / 5); brushFill(RED); brush.pop(); brush.pop();
+
+      // Col 2 — scale
+      rc.save(); rc.translate(cx(2), cy(1)); rc.scale(1.8, 1.8); rcRect(OLIVE); rc.restore();
+      brush.push(); brush.translate(cx(2), cy(1)); brush.push(); brush.scale(1.8); brushFill(OLIVE); brush.pop(); brush.pop();
+
+      brush.pop();
+      brush.render();
+      window.reportStandaloneFirstFrame?.("transform_test");
+    </script>
+  <script src="../test-nav.js"></script>
+  </body>
+</html>
