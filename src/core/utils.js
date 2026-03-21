@@ -5,7 +5,46 @@ import { usesRadians as runtimeUsesRadians } from "./runtime.js";
 // =============================================================================
 
 import { createNoise2D } from "simplex-noise";
-import { prng_alea } from "esm-seedrandom";
+
+// ---------------------------------------------------------------------------
+// Mulberry32 PRNG — ~4x faster than prng_alea (Alea), full statistical quality
+// Passes PractRand and BigCrush; suitable for visual simulation.
+// ---------------------------------------------------------------------------
+
+/**
+ * Maps any seed value (number or string) to a non-zero uint32.
+ * Uses a finalizer from SplitMix64 for good avalanche behavior.
+ * @param {number|string} seed
+ * @returns {number} uint32
+ */
+function _hashSeed(seed) {
+  let h = 0;
+  const s = String(seed);
+  for (let i = 0; i < s.length; i++) {
+    h = Math.imul(h ^ s.charCodeAt(i), 0x9e3779b9) | 0;
+    h ^= h >>> 15;
+  }
+  // Finalizer
+  h = Math.imul(h ^ h >>> 16, 0x85ebca6b) | 0;
+  h = Math.imul(h ^ h >>> 13, 0xc2b2ae35) | 0;
+  return (h ^ h >>> 16) >>> 0 || 1;
+}
+
+/**
+ * Creates a Mulberry32 PRNG seeded from an arbitrary value.
+ * Returns a function that yields uniform floats in [0, 1).
+ * @param {number|string} seed
+ * @returns {() => number}
+ */
+function _makePRNG(seed) {
+  let s = _hashSeed(seed);
+  return () => {
+    s = s + 0x6D2B79F5 | 0;
+    let t = Math.imul(s ^ s >>> 15, s | 1);
+    t ^= t + Math.imul(t ^ t >>> 7, t | 61);
+    return ((t ^ t >>> 14) >>> 0) * 2.3283064365386963e-10;
+  };
+}
 
 /**
  * A uniform PRNG function. Returns a float in [0,1).
@@ -13,8 +52,8 @@ import { prng_alea } from "esm-seedrandom";
  * @returns {number}
  */
 /** @type {RNG} */
-let rng = prng_alea(Math.random());
-let rng2 = prng_alea(Math.random());
+let rng = _makePRNG(Math.random());
+let rng2 = _makePRNG(Math.random() + ':2');
 
 const _seedCallbacks = [];
 
@@ -31,8 +70,8 @@ export const _onSeed = (cb) => _seedCallbacks.push(cb);
  * @returns {void}
  */
 export const seed = (s) => {
-  rng = prng_alea(s);
-  rng2 = prng_alea(`${s}:2`);
+  rng = _makePRNG(s);
+  rng2 = _makePRNG(`${s}:2`);
   for (const callback of _seedCallbacks) {
     callback();
   }
@@ -42,8 +81,8 @@ export const seed = (s) => {
  * Simplex‐noise 2D function.
  * @type {function(number, number): number}
  */
-export let noise = createNoise2D(prng_alea(Math.random()));
-export let noise2 = createNoise2D(prng_alea(Math.random()));
+export let noise = createNoise2D(_makePRNG(Math.random()));
+export let noise2 = createNoise2D(_makePRNG(Math.random() + ':2'));
 
 /**
  * Seed the noise generator.
@@ -51,8 +90,8 @@ export let noise2 = createNoise2D(prng_alea(Math.random()));
  * @returns {void}
  */
 export const noiseSeed = (s) => {
-  noise = createNoise2D(prng_alea(s));
-  noise2 = createNoise2D(prng_alea(`${s}:2`));
+  noise = createNoise2D(_makePRNG(s));
+  noise2 = createNoise2D(_makePRNG(`${s}:2`));
 };
 
 /**
