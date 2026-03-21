@@ -375,21 +375,7 @@ Functions for managing brush behaviors and properties.
     ```
     **Image brushes only**: `brush.add()` returns a Promise when `type` is `"image"` — you must `await` it so the image finishes loading before you start drawing. For this to work, your `setup()` function must be declared `async`. For all other brush types, no `await` is needed.
 
-    **Custom tips in the standalone build**: `_m` is a native 2D canvas surface, not a `p5.Graphics`. Use native-compatible drawing calls — the method names are the same (`rect`, `circle`, `fill`, `rotate`, …), but colors must be a grayscale number or a CSS string (no `p5.Color`), and `rotate()` always takes radians. The example below works in both builds:
-    ```javascript
-    brush.add("diamond", {
-        type: "custom",
-        weight: 5, scatter: 0.08, opacity: 23, spacing: 0.6,
-        pressure: [0.5, 1.5, 0.5],
-        tip: (_m) => {
-            _m.rotate(Math.PI / 4); // radians — safe in both builds
-            _m.rect(-1.5, -1.5, 3, 3);
-        },
-        rotate: "natural",
-        markerTip: false,
-    });
-    ```
-    For the full list of available methods and constraints see [docs/standalone.md](docs/standalone.md#custom-tip-brushes).
+    **Using the standalone build?** The `tip` function works differently there — `_m` is not a `p5.Graphics`. See [docs/standalone.md → Custom tip brushes](docs/standalone.md#custom-tip-brushes).
 
 ---
 
