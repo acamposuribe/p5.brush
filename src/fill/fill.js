@@ -141,31 +141,28 @@ _onSeed(_fillGaussianPools);
  * @returns {Object} The center point {x, y}.
  */
 function _center(pts) {
-  if (pts.length === 0) {
+  const n = pts.length;
+  if (n === 0) {
     return { x: 0, y: 0 };
   }
 
-  if (pts.length < 8) {
+  if (n < 8) {
     // Simple average for small polygons
     let sumX = 0, sumY = 0;
-    for (const pt of pts) { sumX += pt.x; sumY += pt.y; }
-    return { x: sumX / pts.length, y: sumY / pts.length };
+    for (let i = 0; i < n; i++) { sumX += pts[i].x; sumY += pts[i].y; }
+    return { x: sumX / n, y: sumY / n };
   }
 
-  // Close polygon if needed
-  const v = [...pts];
-  if (v[0].x !== v[v.length - 1].x || v[0].y !== v[v.length - 1].y)
-    v.push(v[0]);
-
-  // Calculate using shoelace formula (more efficient implementation)
-  let area = 0,
-    cx = 0,
-    cy = 0;
-  for (let i = 0; i < v.length - 1; i++) {
-    const cross = v[i].x * v[i + 1].y - v[i + 1].x * v[i].y;
+  // Shoelace formula with implicit polygon closing (no array copy needed)
+  let area = 0, cx = 0, cy = 0;
+  for (let i = 0; i < n; i++) {
+    const j = i + 1 < n ? i + 1 : 0; // wrap around for closing edge
+    const xi = pts[i].x, yi = pts[i].y;
+    const xj = pts[j].x, yj = pts[j].y;
+    const cross = xi * yj - xj * yi;
     area += cross;
-    cx += (v[i].x + v[i + 1].x) * cross;
-    cy += (v[i].y + v[i + 1].y) * cross;
+    cx += (xi + xj) * cross;
+    cy += (yi + yj) * cross;
   }
 
   area *= 0.5;
