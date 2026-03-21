@@ -25,6 +25,7 @@ import {
 
 import vertSrc from "./gl/shader.vert";
 import fragSrc from "./gl/shader.frag";
+import { notifyDraw } from "./runtime.js";
 
 // =============================================================================
 // Module: Configure and Initiate
@@ -269,6 +270,7 @@ export const Mix = {
     if (!this.isBlending && nextColor) {
       this.isBlending = true;
       this.cachedColor = nextColor;
+      notifyDraw();
       // Reset the brush mask fully at the start of each blend cycle so stale
       // dirty-rect bookkeeping cannot leak an old stroke into the next color.
       this.clearMask(this.glMask);

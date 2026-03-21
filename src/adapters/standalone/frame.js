@@ -4,7 +4,31 @@
 
 import { Renderer, isCanvasReady } from "../../core/target.js";
 import { Mix, flushActiveComposite } from "../../core/color.js";
-import { createColor } from "../../core/runtime.js";
+import { createColor, setRuntime } from "../../core/runtime.js";
+
+// ---- render() reminder ----
+// If drawing calls are made but render() is never called, nothing appears on
+// screen. We detect this via the notifyDraw hook and warn once per cycle.
+
+let _hasPendingDraw = false;
+let _warnScheduled = false;
+
+function onDraw() {
+  if (_warnScheduled) return;
+  _warnScheduled = true;
+  _hasPendingDraw = true;
+  requestAnimationFrame(() => {
+    _warnScheduled = false;
+    if (_hasPendingDraw) {
+      console.warn(
+        "[p5.brush] Drawing calls were made but brush.render() was never called. " +
+        "Call brush.render() after your drawing code to flush to the canvas.",
+      );
+    }
+  });
+}
+
+setRuntime({ notifyDraw: onDraw });
 
 function resetCompositeState() {
   if (Mix.glMask) Mix.clearMask(Mix.glMask);
@@ -21,6 +45,7 @@ function resetCompositeState() {
  * Standalone users should call this at the end of a drawing pass or frame.
  */
 export function render() {
+  _hasPendingDraw = false;
   flushActiveComposite();
 }
 

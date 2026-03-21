@@ -17,6 +17,7 @@ export let createColor = () => {
   throw new Error("No runtime color adapter registered.");
 };
 export let getAffineMatrix = () => identityMatrix;
+export let notifyDraw = () => {};
 
 /**
  * Registers or updates host-runtime hooks used by core modules.
@@ -28,4 +29,5 @@ export function setRuntime(hooks) {
   if (hooks.fromDegrees) fromDegrees = hooks.fromDegrees;
   if (hooks.createColor) createColor = hooks.createColor;
   if (hooks.getAffineMatrix) getAffineMatrix = hooks.getAffineMatrix;
+  if (hooks.notifyDraw) notifyDraw = hooks.notifyDraw;
 }
