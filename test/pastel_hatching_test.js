@@ -104,7 +104,7 @@ function draw() {
       gradient: state.gradient,
       outline: state.outline,
     });
-    brush.set("pen", "black", 1)
+    brush.set("pen", "black", 3)
     brush.circle(
       random(CANVAS_W),
       random(CANVAS_H),

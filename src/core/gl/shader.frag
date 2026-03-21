@@ -148,7 +148,7 @@ vec3 spectral_reflectance_to_xyz(float R[SPECTRAL_SIZE]) {
 
 float KS(float R) {
 	// Prevent division by zero for very dark colors
-	float safeR = max(R, 0.001);
+	float safeR = !u_isBrush ? max(R, 0.00001) : R;
 	return pow(1.0 - safeR, 2.0) / (2.0 * safeR);
 }
 
