@@ -627,7 +627,7 @@ function drawImageTip(pressure, alpha = current.alpha) {
  * @param {number} pressure - Current pressure.
  */
 function drawDefault(pressure) {
-  if (rr(0, current.p.grain * pressure) < 1) return;
+  if (rr(0, 1) >= current.p.grain * pressure) return;
   const vibration =
     State.stroke.weight *
     current.p.scatter *
@@ -764,36 +764,36 @@ const _vals = [
 const _standard_brushes = [
   [
     "pen",
-    [0.3, 0.15, 0.9, 2, 150, 0.1, { curve: [0.15, 0.2], min_max: [1.2, 1] }],
+    [0.3, 0.15, 0.9, 0.7, 150, 0.1, { curve: [0.15, 0.2], min_max: [1.2, 1] }],
   ],
   [
     "rotring",
-    [0.15, 0.05, 0.7, 15, 210, 0.1, { curve: [0.35, 0.2], min_max: [1.3, 1] }],
+    [0.15, 0.05, 0.7, 0.9, 210, 0.1, { curve: [0.35, 0.2], min_max: [1.3, 1] }],
   ],
   [
     "2B",
-    [0.3, 0.75, 0.45, 15, 180, 0.1, { curve: [0.1, 0.3], min_max: [1.1, 0.9] }],
+    [0.3, 0.75, 0.45, 0.8, 180, 0.1, { curve: [0.1, 0.3], min_max: [1.1, 0.9] }],
   ],
   [
     "HB",
-    [0.3, 0.6, 0.3, 10, 170, 0.1, { curve: [0.15, 0.2], min_max: [1.1, 0.9] }],
+    [0.3, 0.6, 0.3, 0.7, 170, 0.1, { curve: [0.15, 0.2], min_max: [1.1, 0.9] }],
   ],
   [
     "2H",
-    [0.2, 0.6, 0.3, 4, 120, 0.1, { curve: [0.15, 0.2], min_max: [1.1, 0.9] }],
+    [0.2, 0.6, 0.3, 0.75, 120, 0.1, { curve: [0.15, 0.2], min_max: [1.1, 0.9] }],
   ],
   [
     "cpencil",
-    [0.3, 0.55, 0.8, 7, 75, 0.1, { curve: [0.15, 0.2], min_max: [0.95, 1.2] }],
+    [0.35, 0.55, 0.8, 0.7, 75, 0.1, { curve: [0.15, 0.2], min_max: [0.95, 1.1] }],
   ],
   [
     "pastel",
     [
-      2.05 / 3,
-      13.4 / 3,
+      0.7,
+      5,
       0.91,
-      28,
-      35,
+      1,
+      30,
       0.085 / 3,
       { mode: "gaussian", curve: [0.4, 0.05], min_max: [1.09, 0.93] },
       "default",
@@ -806,12 +806,12 @@ const _standard_brushes = [
   [
     "crayon",
     [
-      0.9 / 3,
-      5.45 / 3,
+      0.33,
+      1.9,
       0.75,
-      250,
+      2,
       159,
-      0.23 / 3,
+      0.07,
       [1.1, 0.9],
       "default",
       undefined,
@@ -826,7 +826,7 @@ const _standard_brushes = [
       0.35,
       1.5,
       0.68,
-      500,
+      2,
       120,
       0.03,
       { curve: [0.15, 0.4], min_max: [1.1, 0.95] },
