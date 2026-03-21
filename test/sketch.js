@@ -516,7 +516,7 @@ async function setup() {
   function fillRow(label, color, opacity, bleed, dir, texture, border) {
     brush.noStroke();
     brush.fill(color, opacity);
-    brush.fillBleed(bleed, dir);
+    brush.fillBleed(bleed);
     brush.fillTexture(texture, border);
     rowLabel(label);
     const ry = currentY + (FILL_ROW_H - FRECT_H) / 2;
