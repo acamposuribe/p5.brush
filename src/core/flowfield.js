@@ -116,14 +116,42 @@ export class Position {
    * @param {number} _step_length - The length of each step.
    */
   moveTo(_dir, _length, _step_length = 1) {
-    this.movePos(toDegreesSigned(_dir), _length, _step_length);
+    const dir = toDegreesSigned(_dir);
+    if (State.field.isActive) {
+      this.movePos(dir, _length, _step_length);
+    } else {
+      this._moveConstant(dir, _length, _step_length);
+    }
   }
 
   /**
    * Internal variant of moveTo() that expects a degree value already normalized to the library's internal representation.
    */
   _moveToDegrees(_dir, _length, _step_length = 1) {
-    this.movePos(_dir, _length, _step_length);
+    if (State.field.isActive) {
+      this.movePos(_dir, _length, _step_length);
+    } else {
+      this._moveConstant(_dir, _length, _step_length);
+    }
+  }
+
+  /**
+   * Fast constant-direction movement (no field, no plot).
+   * Precomputes trig once and applies dx/dy directly.
+   */
+  _moveConstant(_dir, _length, _step) {
+    if (!this.isIn()) {
+      this.plotted += _step;
+      return;
+    }
+    const steps = _length / _step;
+    const _cs = cossin(-_dir);
+    const dx = _step * _cs[0], dy = _step * _cs[1];
+    for (let i = 0; i < steps; i++) {
+      this.x += dx;
+      this.y += dy;
+      this.plotted += _step;
+    }
   }
 
   /**
