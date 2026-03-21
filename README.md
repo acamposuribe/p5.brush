@@ -330,7 +330,7 @@ Functions for managing brush behaviors and properties.
       - `image`: Only for `"image"` type. An object with a `src` property pointing to your image file: `{ src: "./tip.jpg" }`.
       - `rotate`: How the tip rotates as it moves. `"none"` keeps it fixed, `"natural"` follows the stroke direction, `"random"` spins randomly.
       - `markerTip`: Only for `"marker"`, `"custom"`, and `"image"` types. Set to `false` to disable the extra soft tip buildup those brushes add at the start and end of each stroke. Defaults to `true`.
-      - `noise`: Multiplies the subtle line-noise variation used along the stroke. `1` keeps the default behavior, `0` disables it, and higher values make the line wobble more.
+      - `noise`: Controls per-stroke opacity variation. Each time a stroke is drawn, the brush samples a Gaussian to randomly shift the whole stroke slightly lighter or darker than its base alpha — giving repeated strokes an organic, non-mechanical feel. `0` disables the variation (every stroke is identical in opacity). `1` is the maximum variation. Defaults to `0.3`.
   - **Usage**:
     ```javascript
     // Image brush — use a photo as the brush tip.
