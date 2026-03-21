@@ -1,6 +1,6 @@
 import { Cwidth, Cheight } from "./target.js";
 import { State } from "./color.js";
-import { toDegrees, map, rr2 } from "./utils.js";
+import { toDegrees, rr2 } from "./utils.js";
 import { Position, isFieldReady } from "./flowfield.js";
 import { Polygon } from "./polygon.js";
 
@@ -92,25 +92,6 @@ export class Plot {
    */
   angle(_d) {
     if (_d > this.length) return this.angles[this.angles.length - 1];
-
-    // Fast path: single-segment plot (common case for arc strokes in mass.js).
-    // index is always 0 and suma is always 0, so calcIndex() can be skipped entirely.
-    if (this.segments.length === 1) {
-      this.index = 0;
-      this.suma = 0;
-      if (this.type !== "curve") return this.angles[0] + this.dir;
-      let a0 = this.angles[0];
-      let a1 = this.angles[1];
-      if (a1 === undefined) return a0 + this.dir;
-      if (Math.abs(a1 - a0) > 180) {
-        if (a1 > a0) a1 = -(360 - a1);
-        else a0 = -(360 - a0);
-      }
-      const t = this.segments[0] === 0 ? 0 : _d / this.segments[0];
-      const r = a0 + t * (a1 - a0);
-      return (t <= 0 ? a0 : t >= 1 ? a1 : r) + this.dir;
-    }
-
     this.calcIndex(_d);
     if (this.type !== "curve") return this.angles[this.index] + this.dir;
     let a0 = this.angles[this.index];
@@ -124,23 +105,6 @@ export class Plot {
     const t = seg === 0 ? 0 : (_d - this.suma) / seg;
     const r = a0 + t * (a1 - a0);
     return (t <= 0 ? a0 : t >= 1 ? a1 : r) + this.dir;
-  }
-
-  /**
-   * Interpolates values between segments for smooth transitions.
-   * Used externally — angle() and pressure() have inlined equivalents.
-   * @param {Array<number>} array - The array to interpolate within.
-   * @param {number} _d - The distance along the plot.
-   * @returns {number} - The interpolated value.
-   */
-  curving(array, _d) {
-    let map0 = array[this.index];
-    let map1 = array[this.index + 1] ?? map0;
-    if (Math.abs(map1 - map0) > 180) {
-      if (map1 > map0) map1 = -(360 - map1);
-      else map0 = -(360 - map0);
-    }
-    return map(_d - this.suma, 0, this.segments[this.index], map0, map1, true);
   }
 
   /**
