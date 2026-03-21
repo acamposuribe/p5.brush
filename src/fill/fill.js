@@ -441,6 +441,40 @@ class FillPoly {
     let insertedIdx = 0;
     let mod = f === 999 ? rr(0.6, 0.8) : State.fill.bleed_strength;
 
+    // Pre-compute GROW_CAP step — if even step (step=2,4,...), all odd-indexed inserted
+    // vertices will be discarded by downsampling. Skip cossin+rotation, preserve RNG sequence.
+    const preStep = GROW_CAP && len * 2 > GROW_CAP ? Math.ceil(len * 2 / GROW_CAP) : 1;
+    const skipInserted = preStep >= 2 && (preStep & 1) === 0;
+
+    if (skipInserted) {
+      // Fast path: inserted vertices will be discarded — skip cossin/rotation.
+      // RNG calls preserved to maintain sequence; midpoint used as placeholder.
+      for (let i = 0; i < len; i++) {
+        const cv = tr_v[i];
+        const nv = tr_v[i + 1 < len ? i + 1 : 0];
+        const mi = tr_m[i];
+        const di = tr_dir[i];
+        if (f < 997) mod = mi;
+        newMods[idx] = mi;
+        newDirs[idx] = di;
+        idx++;
+        if (mod < 0.05) {
+          insertedX[insertedIdx] = (cv.x + nv.x) * 0.5;
+          insertedY[insertedIdx] = (cv.y + nv.y) * 0.5;
+          newMods[idx] = mi;
+        } else {
+          rr(-1, 1); // consume rotDeg jitter RNG
+          gPool[~~(rr(0, 1) * gPoolLen)]; rr(0.65, 1.35); // consume displacement RNG
+          const nextMod = mi + g2Pool[~~(rr(0, 1) * g2PoolLen)];
+          insertedX[insertedIdx] = (cv.x + nv.x) * 0.5;
+          insertedY[insertedIdx] = (cv.y + nv.y) * 0.5;
+          newMods[idx] = nextMod;
+        }
+        newDirs[idx] = di;
+        idx++;
+        insertedIdx++;
+      }
+    } else {
     for (let i = 0; i < len; i++) {
       const cv = tr_v[i];
       const nv = tr_v[i + 1 < len ? i + 1 : 0];
@@ -485,6 +519,7 @@ class FillPoly {
       newDirs[idx] = di;
       idx++;
       insertedIdx++;
+    }
     }
 
     let fv,
