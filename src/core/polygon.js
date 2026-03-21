@@ -39,8 +39,10 @@ export class Polygon {
       return this._intersectionCache[cacheKey];
     }
     const points = [];
-    for (const [start, end] of this.sides) {
-      const intersection = intersectLines(line.point1, line.point2, start, end);
+    const sides = this.sides;
+    const n = sides.length;
+    for (let k = 0; k < n; k++) {
+      const intersection = intersectLines(line.point1, line.point2, sides[k][0], sides[k][1]);
       if (intersection) points.push(intersection);
     }
     this._intersectionCache[cacheKey] = points; // Cache the result
