@@ -126,6 +126,12 @@
 
       button:hover { background: #f4eee2; }
 
+      .shape-btn.active {
+        background: var(--accent);
+        color: #fff;
+        border-color: var(--accent);
+      }
+
       .swatches { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 
       .swatch {
@@ -192,6 +198,16 @@
 <button id="refreshSeed" type="button">Refresh seed</button>
           </div>
 
+          <div style="font: 11px/1.4 Menlo, Monaco, 'Courier New', monospace; display:grid; gap:6px;">
+            Shape
+            <div style="display:flex; gap:6px;">
+              <button type="button" class="shape-btn active" data-shape="circle">circle</button>
+              <button type="button" class="shape-btn" data-shape="rect">rect</button>
+              <button type="button" class="shape-btn" data-shape="blob">blob</button>
+              <button type="button" class="shape-btn" data-shape="grid">grid</button>
+            </div>
+          </div>
+
           <div class="control-grid">
             <label>
               Bleed
@@ -242,6 +258,8 @@
       const STROKE = "#111111";
       const CW = 800, CH = 800;
 
+      const SHAPES = ["circle", "rect", "blob", "grid"];
+
       const state = {
         bleed:   0.3,
         opacity: 92,
@@ -249,6 +267,7 @@
         border:  0.4,
         color:   PALETTE[0],
         seed:    100000 + Math.floor(Math.random() * 900000),
+        shape:   "circle",
       };
 
       const urlParams = new URLSearchParams(location.search);
@@ -286,6 +305,9 @@
       if (urlParams.has("color") && PALETTE.includes(urlParams.get("color"))) {
         state.color = urlParams.get("color");
       }
+      if (urlParams.has("shape") && SHAPES.includes(urlParams.get("shape"))) {
+        state.shape = urlParams.get("shape");
+      }
 
       controls.bleed.value   = state.bleed;
       controls.opacity.value = state.opacity;
@@ -310,7 +332,7 @@
         const qs = new URLSearchParams({
           bleed: state.bleed, opacity: state.opacity,
           texture: state.texture, border: state.border,
-          color: state.color, seed: state.seed,
+          color: state.color, seed: state.seed, shape: state.shape,
         });
         history.replaceState(null, "", `?${qs}`);
       }
@@ -341,16 +363,77 @@
 
         brush.noField();
         brush.noHatch();
-        brush.fill(state.color, state.opacity);
-        brush.fillBleed(state.bleed, "out");
-        brush.fillTexture(state.texture, state.border);
         brush.set("HB", STROKE, 0.5);
-        brush.circle(CW * 0.5, CH * 0.5, CW * 0.25);
-        brush.noFill();
+        if (state.shape === "grid") {
+          drawGrid(CW, CH);
+        } else {
+          brush.fill(state.color, state.opacity);
+          brush.fillBleed(state.bleed, "out");
+          brush.fillTexture(state.texture, state.border);
+          drawShape(CW, CH);
+          brush.noFill();
+        }
 
         brush.pop();
         brush.render();
         window.reportStandaloneFirstFrame?.("fill_circle_explorer");
+      }
+
+      function drawGrid(w, h) {
+        const COLS = 2, ROWS = 5, PAD = 24, GAP = 12;
+        const cellW = (w - PAD * 2 - GAP * (COLS - 1)) / COLS;
+        const cellH = (h - PAD * 2 - GAP * (ROWS - 1)) / ROWS;
+        for (let row = 0; row < ROWS; row++) {
+          for (let col = 0; col < COLS; col++) {
+            const color = PALETTE[(row * COLS + col) % PALETTE.length];
+            const x = PAD + col * (cellW + GAP);
+            const y = PAD + row * (cellH + GAP);
+            brush.fill(color, state.opacity);
+            brush.fillBleed(state.bleed, "out");
+            brush.fillTexture(state.texture, state.border);
+            brush.rect(x, y, cellW, cellH);
+            brush.noFill();
+          }
+        }
+      }
+
+      function drawBlob(cx, cy, r) {
+        brush.beginShape(1);
+        const pts = [
+          [  0, -1.0],
+          [ 0.9, -0.3],
+          [-0.7,  0.7],
+          [ 0.7,  0.5],
+          [-0.9, -0.4],
+        ];
+        for (const [dx, dy] of pts) brush.vertex(cx + dx * r, cy + dy * r);
+        brush.endShape(true);
+      }
+
+      function drawShape(w, h) {
+        const cx = w * 0.5, cy = h * 0.5, r = w * 0.28;
+        if (state.shape === "circle") {
+          brush.circle(cx, cy, r);
+        } else if (state.shape === "rect") {
+          brush.rect(cx - r, cy - r, r * 2, r * 2);
+        } else {
+          drawBlob(cx, cy, r);
+        }
+      }
+
+      function syncShapeButtons() {
+        for (const btn of document.querySelectorAll(".shape-btn")) {
+          btn.classList.toggle("active", btn.dataset.shape === state.shape);
+        }
+      }
+
+      for (const btn of document.querySelectorAll(".shape-btn")) {
+        btn.addEventListener("click", () => {
+          state.shape = btn.dataset.shape;
+          syncShapeButtons();
+          syncUrl();
+          queueRender();
+        });
       }
 
       // Palette buttons
@@ -392,6 +475,7 @@
       });
 
       syncPalette();
+      syncShapeButtons();
       syncReadouts();
       syncUrl();
       renderScene();

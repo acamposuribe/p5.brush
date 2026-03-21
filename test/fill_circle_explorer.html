@@ -175,6 +175,12 @@
         outline-offset: 2px;
       }
 
+      .shape-btn.active {
+        background: var(--accent);
+        color: #fff;
+        border-color: var(--accent);
+      }
+
       #canvas-host {
         padding: 10px;
         display: grid;
@@ -222,6 +228,16 @@
               <strong id="seedVal">000000</strong>
             </div>
 <button id="refreshSeed" type="button">Refresh seed</button>
+          </div>
+
+          <div style="font: 11px/1.4 Menlo, Monaco, 'Courier New', monospace; display:grid; gap:6px;">
+            Shape
+            <div style="display:flex; gap:6px;">
+              <button type="button" class="shape-btn active" data-shape="circle">circle</button>
+              <button type="button" class="shape-btn" data-shape="rect">rect</button>
+              <button type="button" class="shape-btn" data-shape="blob">blob</button>
+              <button type="button" class="shape-btn" data-shape="grid">grid</button>
+            </div>
           </div>
 
           <div class="control-grid">

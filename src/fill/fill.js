@@ -548,7 +548,7 @@ class FillPoly {
     );
 
     const fillColorBase = `rgb(255 0 0 / `;
-    Mix.ctx.strokeStyle = fillColorBase + (0.005 * State.fill.border_strength) + ")";
+    Mix.ctx.strokeStyle = fillColorBase + (State.fill.border_strength * 0.025) + ")";
     Mix.ctx.lineCap = "round";
 
     GROW_CAP = GROW_MAX_VERTS * Math.max(0.1, 2 * State.fill.bleed_strength);
@@ -600,7 +600,7 @@ class FillPoly {
    * @param {number} i - The layer index.
    */
   layer(i, size, int, colorBase, matrix = null) {
-    Mix.ctx.lineWidth = map(i, 0, 24, size / 25, size / 30, true);
+    Mix.ctx.lineWidth = map(i, 0, 24, size / 25, size / 30, true) * State.fill.border_strength;
 
     Mix.ctx.fillStyle = "rgb(255 0 0 / " + int + "%)";
 

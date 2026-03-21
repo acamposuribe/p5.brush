@@ -166,8 +166,11 @@ vec3 spectral_mix(vec3 color1, float tintingStrength1, float factor1, vec3 color
   spectral_linear_to_reflectance(lrgb1, R1);
   spectral_linear_to_reflectance(lrgb2, R2);
 
-  float luminance1 = spectral_reflectance_to_xyz(R1)[1];
-  float luminance2 = spectral_reflectance_to_xyz(R2)[1];
+  // Clamp to a small positive floor so very dark colours (especially pure black,
+  // whose reflectance is ~SPECTRAL_EPSILON at all wavelengths) still contribute
+  // a non-zero concentration and are not silently discarded from the mix.
+  float luminance1 = max(spectral_reflectance_to_xyz(R1)[1], 0.001);
+  float luminance2 = max(spectral_reflectance_to_xyz(R2)[1], 0.001);
 
   float R[SPECTRAL_SIZE];
 
