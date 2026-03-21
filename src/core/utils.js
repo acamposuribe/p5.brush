@@ -229,6 +229,7 @@ const angleToIdx = (angle) => {
   }
   if (angle < 360) return ~~(angle * 4);
   if (angle < 720) return ~~((angle - 360) * 4);
+  if (angle < 1080) return ~~((angle - 720) * 4);
   angle = angle % 360;
   return ~~((angle < 0 ? angle + 360 : angle) * 4);
 };
