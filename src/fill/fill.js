@@ -378,11 +378,8 @@ class FillPoly {
   scatter(ratio = 0.3) {
     const L = this.v.length;
     const keep = Math.max(3, ~~(L * ratio));
-    const indices = [];
     const step = L / keep;
-    for (let i = 0; i < keep; i++) {
-      indices.push(~~(i * step + rr(0, step * 0.8)));
-    }
+    const stepRand = step * 0.8;
 
     const sv = [],
       sm = [],
@@ -390,8 +387,8 @@ class FillPoly {
     const mid = this.midP;
     const sides = _polygon.sides;
 
-    for (const idx of indices) {
-      const j = idx % L;
+    for (let i = 0; i < keep; i++) {
+      const j = ~~(i * step + rr(0, stepRand)) % L;
       let p = this.v[j];
       let outside = false;
       // Bounding box reject — vertex outside AABB is definitely outside polygon
