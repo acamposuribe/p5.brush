@@ -81,9 +81,8 @@ export class Plot {
     const p1 = this.pres[this.index + 1];
     if (p1 === undefined) return p0;
     const seg = this.segments[this.index];
-    if (seg === 0) return p0;
-    const t = (_d - this.suma) / seg;
-    return t <= 0 ? p0 : t >= 1 ? p1 : p0 + t * (p1 - p0);
+    // t ∈ [0,1) guaranteed by calcIndex; skip redundant bounds clamp
+    return seg === 0 ? p0 : p0 + (_d - this.suma) / seg * (p1 - p0);
   }
 
   /**
