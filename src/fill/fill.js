@@ -321,46 +321,36 @@ class FillPoly {
       return { v: this.v, m: this.m, dir: this.dir };
     }
 
-    // Trim from middle for balance
-    const n = ~~((1 - f) * this.v.length);
-    const s = ~~(this.v.length / 2 - n / 2);
+    const totalN = this.v.length;
+    const nTrim = ~~((1 - f) * totalN);
+    const s = ~~(totalN / 2 - nTrim / 2);
+    const finalLen = totalN - nTrim + 2; // +2 for inserted edge vertices
 
-    // Copy only the kept ranges instead of cloning the full arrays and splicing.
-    const keep = this.v.length - n;
-    const v = new Array(keep);
-    const m = new Array(keep);
-    const dir = new Array(keep);
+    // Pre-allocate with final size — avoids splice() and element shifting
+    const v = new Array(finalLen);
+    const m = new Array(finalLen);
+    const dir = new Array(finalLen);
     let dst = 0;
 
     for (let i = 0; i < s; i++, dst++) {
-      v[dst] = this.v[i];
-      m[dst] = this.m[i];
-      dir[dst] = this.dir[i];
+      v[dst] = this.v[i]; m[dst] = this.m[i]; dir[dst] = this.dir[i];
     }
 
-    for (let i = s + n; i < this.v.length; i++, dst++) {
-      v[dst] = this.v[i];
-      m[dst] = this.m[i];
-      dir[dst] = this.dir[i];
+    // Insert 2 vertices along the trimmed edge (no splice needed)
+    const trimStart = s, trimEnd = s + nTrim;
+    const eStart = this.v[(trimStart - 1 + totalN) % totalN];
+    const eEnd = this.v[trimEnd % totalN];
+    const evx = eEnd.x - eStart.x, evy = eEnd.y - eStart.y;
+    const dirBase = this.dir[trimStart % this.dir.length];
+    for (let k = 0; k < 2; k++, dst++) {
+      const t = rr(0.25, 0.75);
+      v[dst] = { x: eStart.x + evx * t, y: eStart.y + evy * t };
+      m[dst] = rr(0.4, 0.7);
+      dir[dst] = dirBase;
     }
 
-
-    // We want to add at least two vertices to divide the new edge that appears after trimming, at random distances along its path
-    const trimStart = s;
-    const trimEnd = s + n;
-    const edgeStart = this.v[(trimStart - 1 + this.v.length) % this.v.length];
-    const edgeEnd = this.v[trimEnd % this.v.length];
-    const edgeVec = { x: edgeEnd.x - edgeStart.x, y: edgeEnd.y - edgeStart.y };
-    
-    // Insert two new vertices at random positions along the new edge
-    const insertCount = 2;
-    for (let i = 0; i < insertCount; i++) {
-      const t = rr(0.25, 0.75); // Random position between 25% and 75% along the edge
-      const newVertex = { x: edgeStart.x + edgeVec.x * t, y: edgeStart.y + edgeVec.y * t };
-      const insertIdx = s + i;
-      v.splice(insertIdx, 0, newVertex);
-      m.splice(insertIdx, 0, rr(0.4, 0.7));
-      dir.splice(insertIdx, 0, this.dir[trimStart % this.dir.length]);
+    for (let i = trimEnd; i < totalN; i++, dst++) {
+      v[dst] = this.v[i]; m[dst] = this.m[i]; dir[dst] = this.dir[i];
     }
 
     return { v, m, dir };
