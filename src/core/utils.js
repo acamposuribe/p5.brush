@@ -72,6 +72,7 @@ export const _onSeed = (cb) => _seedCallbacks.push(cb);
 export const seed = (s) => {
   rng = _makePRNG(s);
   rng2 = _makePRNG(`${s}:2`);
+  _gaussCached = false; // reset cached gaussian on reseed
   for (const callback of _seedCallbacks) {
     callback();
   }
@@ -125,11 +126,21 @@ export const randInt2 = (e, r) => ~~rr2(e, r);
  * @param {number} [stdev=1]
  * @returns {number}
  */
+// Box-Muller with cached second value — halves Math.sqrt/Math.log calls.
+let _gaussCached = false;
+let _gaussZ1 = 0;
 export const gaussian = (mean = 0, stdev = 1) => {
+  if (_gaussCached) {
+    _gaussCached = false;
+    return _gaussZ1 * stdev + mean;
+  }
   const u = 1 - rng();
   const v = rng();
-  const z = Math.sqrt(-2.0 * Math.log(u)) * cos(360 * v);
-  return z * stdev + mean;
+  const r = Math.sqrt(-2.0 * Math.log(u));
+  const angle = 360 * v;
+  _gaussZ1 = r * sin(angle);
+  _gaussCached = true;
+  return r * cos(angle) * stdev + mean;
 };
 
 /**
