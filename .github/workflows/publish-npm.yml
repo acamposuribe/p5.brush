@@ -8,11 +8,12 @@ on:
 
 permissions:
   contents: read
-  id-token: write
+  id-token: write  # required for OIDC trusted publisher authentication
 
 jobs:
   publish:
     runs-on: ubuntu-latest
+    environment: npm-publish  # must match the environment name set in npmjs.com trusted publishers
 
     steps:
       - uses: actions/checkout@v4
@@ -41,6 +42,5 @@ jobs:
         run: npx rollup --config
 
       - name: Publish package
-        run: npm publish --provenance
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: npm publish --provenance --access public
+        # No NODE_AUTH_TOKEN needed — npm authenticates via OIDC trusted publisher
