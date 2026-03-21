@@ -281,36 +281,18 @@ export const intersectLines = (
   s2b,
   includeSegmentExtension = false
 ) => {
-  // Extract coordinates from points
-  let x1 = s1a.x,
-    y1 = s1a.y;
-  let x2 = s1b.x,
-    y2 = s1b.y;
-  let x3 = s2a.x,
-    y3 = s2a.y;
-  let x4 = s2b.x,
-    y4 = s2b.y;
-  // Early return if line segments are points or if the lines are parallel
-  if ((x1 === x2 && y1 === y2) || (x3 === x4 && y3 === y4)) {
-    return false; // Segments are points
-  }
-  let deltaX1 = x2 - x1,
-    deltaY1 = y2 - y1;
-  let deltaX2 = x4 - x3,
-    deltaY2 = y4 - y3;
-  let denominator = deltaY2 * deltaX1 - deltaX2 * deltaY1;
-  if (denominator === 0) {
-    return false; // Lines are parallel
-  }
-  // Calculate the intersection point
-  let ua = (deltaX2 * (y1 - y3) - deltaY2 * (x1 - x3)) / denominator;
-  let ub = (deltaX1 * (y1 - y3) - deltaY1 * (x1 - x3)) / denominator;
-  // Check if the intersection is within the bounds of the line segments
-  if (!includeSegmentExtension && (ub < 0 || ub > 1)) {
-    return false;
-  }
-  // Calculate the intersection coordinates
-  let x = x1 + ua * deltaX1;
-  let y = y1 + ua * deltaY1;
-  return { x: x, y: y };
+  const x1 = s1a.x, y1 = s1a.y;
+  const x2 = s1b.x, y2 = s1b.y;
+  const x3 = s2a.x, y3 = s2a.y;
+  const x4 = s2b.x, y4 = s2b.y;
+  const dx1 = x2 - x1, dy1 = y2 - y1;
+  const dx2 = x4 - x3, dy2 = y4 - y3;
+  // Handles parallel lines AND zero-length segments (denominator = 0 in both cases)
+  const denom = dy2 * dx1 - dx2 * dy1;
+  if (denom === 0) return false;
+  const dy13 = y1 - y3, dx13 = x1 - x3;
+  const ua = (dx2 * dy13 - dy2 * dx13) / denom;
+  const ub = (dx1 * dy13 - dy1 * dx13) / denom;
+  if (!includeSegmentExtension && (ub < 0 || ub > 1)) return false;
+  return { x: x1 + ua * dx1, y: y1 + ua * dy1 };
 };
