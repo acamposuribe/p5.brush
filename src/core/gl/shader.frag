@@ -147,9 +147,7 @@ vec3 spectral_reflectance_to_xyz(float R[SPECTRAL_SIZE]) {
 }
 
 float KS(float R) {
-	// Prevent division by zero for very dark colors
-	float safeR = !u_isBrush ? max(R, 0.00001) : R;
-	return pow(1.0 - safeR, 2.0) / (2.0 * safeR);
+	return pow(1.0 - R, 2.0) / (2.0 * R);
 }
 
 float KM(float KS) {
@@ -166,11 +164,8 @@ vec3 spectral_mix(vec3 color1, float tintingStrength1, float factor1, vec3 color
   spectral_linear_to_reflectance(lrgb1, R1);
   spectral_linear_to_reflectance(lrgb2, R2);
 
-  // Clamp to a small positive floor so very dark colours (especially pure black,
-  // whose reflectance is ~SPECTRAL_EPSILON at all wavelengths) still contribute
-  // a non-zero concentration and are not silently discarded from the mix.
-  float luminance1 = max(spectral_reflectance_to_xyz(R1)[1], 0.001);
-  float luminance2 = max(spectral_reflectance_to_xyz(R2)[1], 0.001);
+  float luminance1 = spectral_reflectance_to_xyz(R1)[1];
+  float luminance2 = spectral_reflectance_to_xyz(R2)[1];
 
   float R[SPECTRAL_SIZE];
 
@@ -220,7 +215,7 @@ void main(void) {
     }
     
     vec4 pigment = vec4(u_color.xyz, 1.0);
-    if (u_isBrush && (maskColor.a > DARKEN_THRESHOLD)) {
+    if (maskColor.a > DARKEN_THRESHOLD) {
         float blacken = 0.5 * (min(maskColor.a, 1.0) - DARKEN_THRESHOLD);
         pigment = pigment * (1.0 - blacken) - vec4(0.5) * blacken;
         pigment.rgb = max(pigment.rgb, vec3(0.0));
