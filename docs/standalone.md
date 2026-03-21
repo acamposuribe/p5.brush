@@ -29,7 +29,14 @@ Download `dist/brush.js` from this repository and include it in your HTML. It ex
 <script src="path_to/brush.js"></script>
 ```
 
-### ESM module
+### ESM module via npm
+
+```js
+// After: npm install p5.brush
+import * as brush from 'p5.brush/standalone';
+```
+
+### ESM module via local file
 
 ```js
 import * as brush from './dist/brush.esm.js';

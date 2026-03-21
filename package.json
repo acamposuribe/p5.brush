@@ -2,9 +2,19 @@
   "name": "p5.brush",
   "version": "2.1.1-beta",
   "description": "Unlock custom brushes, natural fill effects and intuitive hatching in p5.js",
-  "main": "src/index.p5.js",
-  "module": "src/index.p5.js",
+  "main": "dist/p5.brush.js",
+  "module": "dist/p5.brush.esm.js",
   "browser": "dist/p5.brush.js",
+  "exports": {
+    ".": {
+      "import": "./dist/p5.brush.esm.js",
+      "require": "./dist/p5.brush.js"
+    },
+    "./standalone": {
+      "import": "./dist/brush.esm.js",
+      "require": "./dist/brush.js"
+    }
+  },
   "scripts": {
     "test": "vitest run",
     "test:watch": "vitest",

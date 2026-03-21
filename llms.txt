@@ -34,8 +34,11 @@ p5.brush ships in **two completely different builds**. Before generating any cod
 ```
 
 ```js
-// ESM
+// ESM — p5 build (default)
 import * as brush from 'p5.brush'
+
+// ESM — standalone build (no p5.js required)
+import * as brush from 'p5.brush/standalone'
 ```
 
 ### Setup
@@ -114,7 +117,10 @@ image(fb, 20, 240)
 ```
 
 ```js
-// ESM
+// ESM — via npm
+import * as brush from 'p5.brush/standalone'
+
+// ESM — local file
 import * as brush from './dist/brush.esm.js'
 ```
 

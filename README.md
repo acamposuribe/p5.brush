@@ -69,16 +69,20 @@ Alternatively, you can link to a `p5.brush.js` file hosted online. All versions 
 
 ### Install with NPM and other modular-based apps
 
-Install the npm package. p5.brush requires p5.js as a peer dependency.
+Install the npm package. p5.brush requires p5.js as a peer dependency for the p5 build.
 
 ```
 npm install p5.brush --save
 ```
 
-After that, import p5.brush functions to your sketch:
+The package exposes two subpaths — pick the one that matches your build:
 
-```
+```js
+// p5 build (default) — requires p5.js 2.x
 import * as brush from 'p5.brush'
+
+// Standalone build — no p5.js required
+import * as brush from 'p5.brush/standalone'
 ```
 
 If you are using p5 and p5.brush as modules, you will need to use instance mode. Read below.
