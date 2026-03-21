@@ -24,7 +24,10 @@ export class Plot {
     this.pres = [];
     this.type = _type;
     this.dir = 0;
-    this.calcIndex(0);
+    this._cumLen = []; // cumulative start position of each segment
+    this.length = 0;
+    this.index = 0;
+    this.suma = 0;
     this.pol = false;
   }
 
@@ -40,8 +43,9 @@ export class Plot {
     _a = _degrees ? ((_a % 360) + 360) % 360 : toDegrees(_a); // Normalize angle
     this.angles.push(_a, _a); // Push angle twice for continuity
     this.pres.push(_pres);
+    this._cumLen.push(this.length); // cumulative start of this segment
     this.segments.push(_length);
-    this.length = this.segments.reduce((sum, len) => sum + len, 0); // Update total length
+    this.length += _length; // incremental update instead of O(n) reduce
   }
 
   /**
@@ -110,18 +114,23 @@ export class Plot {
 
   /**
    * Calculates the current index of the plot based on the distance.
+   * Uses binary search on the pre-built cumulative-length array for O(log n) performance.
    * @param {number} _d - The distance along the plot.
    */
   calcIndex(_d) {
-    this.index = -1;
-    this.suma = 0;
-    let d = 0;
-    while (d <= _d) {
-      this.suma = d;
-      d += this.segments[this.index + 1];
-      this.index++;
+    const cum = this._cumLen;
+    const n = cum.length;
+    if (n === 0) { this.index = 0; this.suma = 0; return 0; }
+    // Binary search: find largest i where cum[i] <= _d
+    let lo = 0, hi = n - 1;
+    while (lo < hi) {
+      const mid = (lo + hi + 1) >> 1;
+      if (cum[mid] <= _d) lo = mid;
+      else hi = mid - 1;
     }
-    return this.index;
+    this.index = lo;
+    this.suma = cum[lo];
+    return lo;
   }
 
   /**

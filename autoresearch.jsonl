@@ -1,1 +1,2 @@
 {"type":"config","name":"p5.brush Core Performance Optimization","metricName":"total_ms","metricUnit":"ms","bestDirection":"lower"}
+{"run":1,"commit":"391e95c","metric":30.345,"metrics":{"trig_ms":6.322,"gauss_ms":2.855,"plot_ms":10.734,"hatch_ms":4.673,"intersect_ms":3.605,"intersect_lines_ms":2.156},"status":"keep","description":"Baseline: total_ms=30.3ms. plot_ms dominates at ~35%. Tests pass.","timestamp":1774083901249,"segment":0,"confidence":null}
