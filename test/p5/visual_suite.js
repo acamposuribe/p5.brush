@@ -193,7 +193,7 @@ async function setup() {
     spacing: 1.5,
     pressure: [0.8, 1.2],
     rotate: "random",
-    image: { src: "../example/brush_tips/brush.jpg" },
+    image: { src: "../../example/brush_tips/brush.jpg" },
   });
 
   // ---- Add custom tip brush ----

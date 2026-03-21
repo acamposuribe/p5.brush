@@ -3,9 +3,9 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>p5.brush - Angle Mode Test</title>
+    <title>p5.brush - Instance Mode Test</title>
     <script src="https://cdn.jsdelivr.net/npm/p5@2.1.1/lib/p5.min.js"></script>
-    <script src="../dist/p5.brush.js"></script>
+    <script src="../../dist/p5.brush.js"></script>
     <script src="./p5_first_frame_profiler.js"></script>
     <style>
       * {
@@ -68,21 +68,16 @@
         color: #405160;
       }
 
-      #canvas-host {
+      #instance-mode-app {
+        width: 100%;
         margin-top: 18px;
-        padding: 8px;
         display: grid;
         justify-content: center;
-        width: 100%;
         overflow: hidden;
-        border: 1px solid #d4c8b8;
-        border-radius: 8px;
-        background: rgba(255, 252, 245, 0.86);
       }
 
       canvas {
         display: block;
-        border-radius: 6px;
         max-width: 100%;
         height: auto !important;
       }
@@ -91,21 +86,23 @@
   <body>
     <main>
       <div class="nav">
-        <a href="./index.html">All tests</a>
+        <a href="../index.html">All tests</a>
         <span class="sep">·</span>
-        <a href="./standalone/angle_mode_test.html">Standalone →</a>
+        <span style="color:#8a9aa8;">p5 specific</span>
       </div>
-      <h1>Angle Mode Test</h1>
+      <h1>Instance Mode Test</h1>
       <p>
-        Each row compares equivalent degree and radian inputs across public APIs.
-        Matching panels should produce the same direction, curvature, and hatch orientation.
+        This page is rendered entirely by a <b>new p5((p) =&gt; {})</b> sketch and checks that
+        <b>brush.instance(p)</b> and <b>brush.load()</b> behave correctly in instance mode.
       </p>
-      <p>
-        Red guides are mathematical references. The hatch row intentionally changes <b>angleMode()</b> after <b>brush.hatch()</b> and should still match.
+      <p class="legend">
+        The three rows cover direct drawing on the instance canvas, drawing into an instance-owned
+        <b>p5.Graphics</b> target, and drawing into an instance-owned main <b>p5.Framebuffer</b>.
+        All three should show the same scene with the same textures.
       </p>
-      <div id="canvas-host"></div>
-      <script src="./angle_mode_test.js"></script>
+      <div id="instance-mode-app"></div>
+      <script src="./instance_mode_test.js"></script>
     </main>
-  <script src="./test-nav.js"></script>
+  <script src="../test-nav.js"></script>
   </body>
 </html>

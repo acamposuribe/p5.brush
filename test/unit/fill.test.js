@@ -21,7 +21,7 @@ const { blend, mockCtx, mockState } = vi.hoisted(() => ({
   mockState: {},
 }));
 
-vi.mock("../src/core/color.js", () => ({
+vi.mock("../../src/core/color.js", () => ({
   Mix: {
     blend,
     ctx: mockCtx,
@@ -32,7 +32,7 @@ vi.mock("../src/core/color.js", () => ({
   registerFillComposite: () => {},
 }));
 
-vi.mock("../src/core/target.js", () => ({
+vi.mock("../../src/core/target.js", () => ({
   Renderer: {
     color: () => ({
       _getBlue: () => 64,
@@ -45,12 +45,12 @@ vi.mock("../src/core/target.js", () => ({
   Density: 1,
 }));
 
-vi.mock("../src/fill/mask.js", () => ({
+vi.mock("../../src/fill/mask.js", () => ({
   circle: vi.fn(),
   drawPolygon: vi.fn(),
 }));
 
-vi.mock("../src/core/flowfield.js", () => ({
+vi.mock("../../src/core/flowfield.js", () => ({
   Matrix: {
     a: () => 1,
     b: () => 0,
@@ -62,15 +62,15 @@ vi.mock("../src/core/flowfield.js", () => ({
   isFieldReady: () => {},
 }));
 
-vi.mock("../src/core/polygon.js", () => ({
+vi.mock("../../src/core/polygon.js", () => ({
   Polygon: class Polygon {},
 }));
 
-vi.mock("../src/core/plot.js", () => ({
+vi.mock("../../src/core/plot.js", () => ({
   Plot: class Plot {},
 }));
 
-vi.mock("../src/core/runtime.js", () => ({
+vi.mock("../../src/core/runtime.js", () => ({
   createColor: (r, g, b) => ({
     r: typeof r === 'string' ? 255 : r,
     g: g ?? r ?? 0,
@@ -84,7 +84,7 @@ vi.mock("../src/core/runtime.js", () => ({
   }),
 }));
 
-import { createFill, fill } from "../src/fill/fill.js";
+import { createFill, fill } from "../../src/fill/fill.js";
 
 describe("createFill()", () => {
   beforeEach(() => {

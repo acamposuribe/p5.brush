@@ -15,6 +15,25 @@ p5.brush.js adds natural drawing tools to p5.js — pencils, charcoal, markers, 
 > ▶️ **[Check the teaser live →](https://editor.p5js.org/acamposuribe/sketches/bkb_CyJyi)**
 > Live on the p5.js Web Editor, where you can read and edit code.
 
+## Two builds
+
+p5.brush ships in two flavors:
+
+| | p5 build | Standalone build |
+|---|---|---|
+| **File** | `dist/p5.brush.js` | `dist/brush.js` |
+| **Requires** | p5.js 2.x + WEBGL canvas | Nothing — WebGL2 browser only |
+| **Canvas setup** | `createCanvas(w, h, WEBGL)` | `brush.createCanvas(w, h)` |
+| **Transforms** | p5's `push/pop`, `translate`, `rotate`, `scale` | `brush.push/pop`, `brush.translate`, etc. |
+| **Angle mode** | Follows p5's `angleMode()` | `brush.angleMode(brush.DEGREES \| brush.RADIANS)` |
+| **Seeding** | `randomSeed()` / `noiseSeed()` | `brush.seed()` / `brush.noiseSeed()` |
+| **Frame flush** | Automatic | `brush.render()` at end of each frame |
+| **Clear** | p5's `background()` | `brush.clear(color?)` |
+
+This README covers the **p5 build**. For the standalone build see **[docs/standalone.md](docs/standalone.md)**.
+
+---
+
 ## Table of Contents
 - [Installation](#installation)
 - [Features](#features)

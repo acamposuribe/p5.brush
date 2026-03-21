@@ -3,9 +3,9 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Pastel Hatching Test</title>
+    <title>Fill Circle Explorer</title>
     <script src="https://cdn.jsdelivr.net/npm/p5@2.1.1/lib/p5.min.js"></script>
-    <script src="../dist/p5.brush.js"></script>
+    <script src="../../dist/p5.brush.js"></script>
     <script src="./p5_first_frame_profiler.js"></script>
     <style>
       :root {
@@ -67,6 +67,12 @@
         font-size: 13px;
       }
 
+      .panel {
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: var(--panel);
+      }
+
       .workspace {
         margin-top: 18px;
         display: grid;
@@ -75,51 +81,11 @@
         align-items: start;
       }
 
-      button {
-        border: 1px solid var(--line);
-        border-radius: 999px;
-        padding: 7px 12px;
-        background: rgba(255, 252, 245, 0.95);
-        color: var(--accent);
-        font: 11px/1.2 Menlo, Monaco, "Courier New", monospace;
-        cursor: pointer;
-      }
-
-      button:hover {
-        background: #fff;
-      }
-
-      .panel {
-        border: 1px solid var(--line);
-        border-radius: 8px;
-        background: var(--panel);
-      }
-
       #controls {
         padding: 14px 16px;
         display: grid;
         gap: 12px;
         align-self: start;
-      }
-
-      .top-row {
-        display: flex;
-        align-items: center;
-        gap: 12px;
-        flex-wrap: wrap;
-        justify-content: space-between;
-        font: 11px/1.4 Menlo, Monaco, "Courier New", monospace;
-      }
-
-      .seed {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-      }
-
-      .seed strong {
-        color: var(--accent);
-        font-weight: 600;
       }
 
       .control-grid {
@@ -141,7 +107,7 @@
         gap: 8px;
       }
 
-      input[type="range"] {
+      input[type=range] {
         flex: 1;
         min-width: 0;
       }
@@ -152,19 +118,67 @@
         text-align: right;
       }
 
-      select {
-        border: 1px solid var(--line);
-        border-radius: 6px;
-        background: #fbf8f0;
-        color: var(--ink);
-        font: inherit;
-        padding: 6px 8px;
+      .top-row {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        flex-wrap: wrap;
+        justify-content: space-between;
+        font: 11px/1.4 Menlo, Monaco, "Courier New", monospace;
       }
 
-      .checkbox-row {
+      .perf {
+        color: var(--accent);
+      }
+
+      .seed {
         display: flex;
         align-items: center;
         gap: 8px;
+      }
+
+      .seed strong {
+        color: var(--accent);
+        font-weight: 600;
+      }
+
+      button {
+        border: 1px solid var(--line);
+        background: #fbf8f0;
+        color: var(--accent);
+        font: inherit;
+        padding: 6px 10px;
+        border-radius: 6px;
+        cursor: pointer;
+      }
+
+      button:hover { background: #f4eee2; }
+
+      .swatches {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+
+      .swatch {
+        width: 22px;
+        height: 22px;
+        border-radius: 999px;
+        border: 1px solid rgba(32, 25, 15, 0.18);
+        cursor: pointer;
+        padding: 0;
+      }
+
+      .swatch.active {
+        outline: 2px solid var(--accent);
+        outline-offset: 2px;
+      }
+
+      .shape-btn.active {
+        background: var(--accent);
+        color: #fff;
+        border-color: var(--accent);
       }
 
       #canvas-host {
@@ -173,13 +187,14 @@
         justify-content: center;
         width: 100%;
         overflow: hidden;
+        min-width: 0;
       }
 
       canvas {
         display: block;
         border-radius: 6px;
         max-width: 100%;
-        max-height: min(78vh, 760px);
+        max-height: min(78vh, 800px);
         height: auto !important;
       }
 
@@ -193,14 +208,18 @@
   <body>
     <main>
       <div class="nav">
-        <a href="./index.html">All tests</a>
+        <a href="../index.html">All tests</a>
         <span class="sep">·</span>
-        <a href="./standalone/pastel_hatching_test.html">Standalone →</a>
+        <a href="../standalone/fill_circle_explorer.html">Standalone →</a>
       </div>
-      <h1>Pastel Hatching Test</h1>
+      <h1>Fill Circle Explorer</h1>
       <p>
-        Minimal global-mode sketch with a custom crayon brush, scaled built-in brushes, and a single centered rectangle for trying pastel hatching ideas.
+        Seeded browser page for checking watercolor fill behavior on a single centered circle with a fine HB stroke.
       </p>
+      <p>
+        Use the sliders and palette below to inspect bleed, opacity, texture, and border behavior without changing the seed unless you refresh it.
+      </p>
+
       <div class="workspace">
         <div id="controls" class="panel">
           <div class="top-row">
@@ -208,55 +227,64 @@
               <span>Seed</span>
               <strong id="seedVal">000000</strong>
             </div>
-            <button id="refresh-seed" type="button">Refresh Seed</button>
+<button id="refreshSeed" type="button">Refresh seed</button>
+          </div>
+
+          <div style="font: 11px/1.4 Menlo, Monaco, 'Courier New', monospace; display:grid; gap:6px;">
+            Shape
+            <div style="display:flex; gap:6px;">
+              <button type="button" class="shape-btn active" data-shape="circle">circle</button>
+              <button type="button" class="shape-btn" data-shape="rect">rect</button>
+              <button type="button" class="shape-btn" data-shape="blob">blob</button>
+              <button type="button" class="shape-btn" data-shape="grid">grid</button>
+            </div>
           </div>
 
           <div class="control-grid">
             <label>
-              Brush
-              <select id="brushType">
-                <option value="pastel">pastel</option>
-                <option value="crayon">crayon</option>
-                <option value="HB">HB</option>
-                <option value="pen">pen</option>
-              </select>
-            </label>
-
-            <label>
-              Precision
+              Bleed
               <div class="slider-row">
-                <input type="range" id="precision" min="0" max="1" step="0.01" value="0.3" />
-                <span class="val" id="precisionVal">0.3</span>
+                <input type="range" id="bleed" min="0" max="1" step="0.01" value="0.3" />
+                <span class="val" id="bleedVal">0.3</span>
               </div>
             </label>
 
             <label>
-              Strength
+              Opacity
               <div class="slider-row">
-                <input type="range" id="strength" min="0" max="1" step="0.01" value="0.6" />
-                <span class="val" id="strengthVal">0.6</span>
+                <input type="range" id="opacity" min="0" max="255" step="1" value="92" />
+                <span class="val" id="opacityVal">92</span>
               </div>
             </label>
 
             <label>
-              Gradient
+              Texture
               <div class="slider-row">
-                <input type="range" id="gradient" min="0" max="1" step="0.01" value="0.1" />
-                <span class="val" id="gradientVal">0.1</span>
+                <input type="range" id="texture" min="0" max="1" step="0.01" value="0.5" />
+                <span class="val" id="textureVal">0.5</span>
               </div>
             </label>
 
-            <label class="checkbox-row">
-              <input type="checkbox" id="outline" />
-              Outline
+            <label>
+              Border
+              <div class="slider-row">
+                <input type="range" id="border" min="0" max="1" step="0.01" value="0.4" />
+                <span class="val" id="borderVal">0.4</span>
+              </div>
             </label>
           </div>
+
+          <label style="font: 11px/1.4 Menlo, Monaco, 'Courier New', monospace;">
+            Color
+            <div class="swatches" id="palette"></div>
+          </label>
         </div>
 
         <div id="canvas-host" class="panel"></div>
       </div>
+
+      <script src="./fill_circle_explorer.js"></script>
     </main>
-    <script src="./pastel_hatching_test.js"></script>
-  <script src="./test-nav.js"></script>
+  <script src="../test-nav.js"></script>
   </body>
 </html>

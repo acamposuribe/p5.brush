@@ -1,20 +1,20 @@
 import { describe, it, expect, vi } from "vitest";
 
-vi.mock("../src/core/color.js", () => ({
+vi.mock("../../src/core/color.js", () => ({
   Mix: {},
   State: {},
   isCanvasReady: () => {},
   registerStrokeComposite: () => {},
 }));
 
-vi.mock("../src/core/target.js", () => ({
+vi.mock("../../src/core/target.js", () => ({
   Cwidth: 800,
   Cheight: 600,
   Renderer: {},
   Instance: null,
 }));
 
-vi.mock("../src/core/utils.js", () => ({
+vi.mock("../../src/core/utils.js", () => ({
   rr: () => 0,
   map: (value, start1, stop1, start2, stop2) =>
     start2 + ((value - start1) / (stop1 - start1 || 1)) * (stop2 - start2),
@@ -28,7 +28,7 @@ vi.mock("../src/core/utils.js", () => ({
   _onSeed: () => {},
 }));
 
-vi.mock("../src/core/flowfield.js", () => ({
+vi.mock("../../src/core/flowfield.js", () => ({
   Position: class Position {},
   Matrix: {
     a: () => 1,
@@ -41,15 +41,15 @@ vi.mock("../src/core/flowfield.js", () => ({
   isFieldReady: () => {},
 }));
 
-vi.mock("../src/core/polygon.js", () => ({
+vi.mock("../../src/core/polygon.js", () => ({
   Polygon: class Polygon {},
 }));
 
-vi.mock("../src/core/plot.js", () => ({
+vi.mock("../../src/core/plot.js", () => ({
   Plot: class Plot {},
 }));
 
-vi.mock("../src/stroke/gl_draw.js", () => ({
+vi.mock("../../src/stroke/gl_draw.js", () => ({
   isReady: () => {},
   glDraw: () => {},
   glDrawImages: () => {},
@@ -59,7 +59,7 @@ vi.mock("../src/stroke/gl_draw.js", () => ({
   snapshotMatrix: () => {},
 }));
 
-import { add, box, normalizePressure } from "../src/stroke/stroke.js";
+import { add, box, normalizePressure } from "../../src/stroke/stroke.js";
 
 describe("normalizePressure()", () => {
   it("keeps function pressure in explicit custom mode", () => {

@@ -14,7 +14,7 @@ const { currentAngleMode, mockState, plotInstances } = vi.hoisted(() => ({
 }));
 
 // Mock color.js (pulls in GLSL shaders and WebGL — not available in Node)
-vi.mock("../src/core/color.js", () => ({
+vi.mock("../../src/core/color.js", () => ({
   Mix: {},
   State: mockState,
   isCanvasReady: () => {},
@@ -22,7 +22,7 @@ vi.mock("../src/core/color.js", () => ({
 }));
 
 // Mock runtime.js to properly handle angle mode
-vi.mock("../src/core/runtime.js", () => ({
+vi.mock("../../src/core/runtime.js", () => ({
   usesRadians: () => currentAngleMode.value === "radians",
   fromDegrees: (angle) => currentAngleMode.value === "radians" ? (angle * Math.PI) / 180 : angle,
   createColor: () => ({}),
@@ -30,7 +30,7 @@ vi.mock("../src/core/runtime.js", () => ({
   setRuntime: () => {},
 }));
 
-vi.mock("../src/core/target.js", () => ({
+vi.mock("../../src/core/target.js", () => ({
   Renderer: {
     angleMode: () => currentAngleMode.value,
     RADIANS: "radians",
@@ -45,18 +45,18 @@ vi.mock("../src/core/target.js", () => ({
   Cheight: 600,
 }));
 
-vi.mock("../src/stroke/stroke.js", () => ({
+vi.mock("../../src/stroke/stroke.js", () => ({
   BrushState: () => ({}),
   BrushSetState: () => {},
   set: () => {},
   line: () => {},
 }));
 
-vi.mock("../src/core/polygon.js", () => ({
+vi.mock("../../src/core/polygon.js", () => ({
   Polygon: class Polygon {},
 }));
 
-vi.mock("../src/core/plot.js", () => ({
+vi.mock("../../src/core/plot.js", () => ({
   Plot: class Plot {
     constructor(type) {
       this.type = type;
@@ -81,10 +81,10 @@ import {
   seed,
   weightedRand,
   toDegreesSigned,
-} from "../src/core/utils.js";
-import { arc } from "../src/core/primitives.js";
-import { Position, addField, field as activateField, noField } from "../src/core/flowfield.js";
-import { hatch } from "../src/hatch/hatch.js";
+} from "../../src/core/utils.js";
+import { arc } from "../../src/core/primitives.js";
+import { Position, addField, field as activateField, noField } from "../../src/core/flowfield.js";
+import { hatch } from "../../src/hatch/hatch.js";
 
 beforeEach(() => {
   currentAngleMode.value = "radians";

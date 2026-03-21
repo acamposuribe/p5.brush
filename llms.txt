@@ -57,7 +57,6 @@ Exception: `brush.addField(name, fn, { angleMode })` lets custom field generator
 - `brush.load(buffer?)` — Use this when targeting a **secondary** canvas. Pass a `p5.Graphics` buffer or an active `p5.Framebuffer` to redirect brush drawing there. Call `brush.load()` with no args to return to the main canvas. For `p5.Graphics`, create the buffer in `WEBGL`, call `brush.load(pg)`, draw, then call `brush.load()` again before presenting it with `image(pg, ...)`. For framebuffers, call `brush.load(framebuffer)` only while that framebuffer is active inside `begin()` / `end()` or `draw()`, then call `brush.load()` again after leaving that scope. `brush.load(...)` only changes p5.brush's target; native p5 drawing calls still need to be directed at the same target explicitly. Framebuffers created from `p5.Graphics` are not supported.
 - `brush.scaleBrushes(scale)` — Scale all currently registered brushes by `scale`. In practice this is usually necessary to adapt brushes to the canvas size, not just optional polish. For a `600x600` canvas, `brush.scaleBrushes(3)` is a good starting point, but it should still be confirmed visually. Call once in setup; if you only want the built-ins scaled, call it before adding custom brushes.
 - `brush.instance(p)` — Use when p5 is in instance mode. Call before setup/draw.
-- `brush.preload()` — Compatibility helper for preloading image tips. Usually unnecessary in v2 if you `await brush.add(...)` for image brushes.
 
 ---
 
