@@ -155,25 +155,39 @@ function scanlineHatch(polygon, angle, dist, gradient) {
   let Y = minY + dist * 0.5,
     step = dist;
   const useGradient = gradient !== 1;
+  const YcosA = cosA, YsinA = sinA; // hoisted rotation constants
   while (Y < maxY) {
     cx.length = 0;
     for (let i = 0; i < eLen; i++) {
-      const y1 = _eY1[i],
-        y2 = _eY2[i];
-      if ((y1 <= Y && Y < y2) || (y2 <= Y && Y < y1))
+      const y1 = _eY1[i], y2 = _eY2[i];
+      // Simplified scanline crossing test: (y1<=Y) XOR (y2<=Y)
+      if ((y1 <= Y) !== (y2 <= Y))
         cx.push(_eX1[i] + ((Y - y1) / (y2 - y1)) * (_eX2[i] - _eX1[i]));
     }
-    cx.sort((a, b) => a - b);
-    for (let i = 0; i < cx.length - 1; i += 2) {
-      const xi = cx[i], xj = cx[i + 1];
-      // Back-rotate: cosB = cosA, sinB = -sinA
+    // Fast path for the common case of exactly 2 crossings (convex polygon)
+    const cxLen = cx.length;
+    if (cxLen === 2) {
+      let xi = cx[0], xj = cx[1];
+      if (xi > xj) { const t = xi; xi = xj; xj = t; }
       segments.push({
         scanY: Y,
-        x1: xi * cosA + Y * sinA,
-        y1: -xi * sinA + Y * cosA,
-        x2: xj * cosA + Y * sinA,
-        y2: -xj * sinA + Y * cosA,
+        x1: xi * YcosA + Y * YsinA,
+        y1: -xi * YsinA + Y * YcosA,
+        x2: xj * YcosA + Y * YsinA,
+        y2: -xj * YsinA + Y * YcosA,
       });
+    } else if (cxLen > 2) {
+      cx.sort((a, b) => a - b);
+      for (let i = 0; i < cxLen - 1; i += 2) {
+        const xi = cx[i], xj = cx[i + 1];
+        segments.push({
+          scanY: Y,
+          x1: xi * YcosA + Y * YsinA,
+          y1: -xi * YsinA + Y * YcosA,
+          x2: xj * YcosA + Y * YsinA,
+          y2: -xj * YsinA + Y * YcosA,
+        });
+      }
     }
     Y += step;
     if (useGradient) step *= gradient;
