@@ -13,7 +13,7 @@
  */
 
 // Core imports
-import { Renderer, Cwidth, Cheight, Density } from "../core/target.js";
+import { Cwidth, Cheight, Density } from "../core/target.js";
 import {
   Mix,
   State,
@@ -133,11 +133,6 @@ function _fillGaussianPools() {
   }
 }
 _onSeed(_fillGaussianPools);
-
-// Helper for direction checking - extracted to reduce duplication
-function _isLeft(a, b, c) {
-  return (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x) > 0.01;
-}
 
 /**
  * Calculates the centroid of a polygon from its vertices.
@@ -567,7 +562,7 @@ class FillPoly {
       Density * (m.y + Cheight / 2),
     );
 
-    const fillColorBase = `rgb(${color._getRed()} ${color._getGreen()} ${color._getBlue()} / `;
+    const fillColorBase = `rgb(255 0 0 / `;
     Mix.ctx.strokeStyle = fillColorBase + (0.005 * State.fill.border_strength) + ")";
     Mix.ctx.lineCap = "round";
 
@@ -595,13 +590,13 @@ class FillPoly {
 
       for (const p of pols) {
         const grown = p.grow(999).grow(997);
-        grown.layer(i, size, int, fillColorBase, fillMatrix);
+        grown.layer(i, size, int, fillMatrix);
       }
       const sparseLayer = sparse.grow(999).flipDirs().grow(997);
-      sparseLayer.layer(i, size, int * texture, fillColorBase, fillMatrix);
+      sparseLayer.layer(i, size, int * texture, fillMatrix);
       if (i % 2 === 0) {
         const darkerLayer = pol.grow(darker).grow(999);
-        darkerLayer.layer(i, size, int * 2, fillColorBase, fillMatrix);
+        darkerLayer.layer(i, size, int * 2, fillMatrix);
       }
 
       if (i % 8 === 0 || i === numLayers - 1) {
@@ -622,7 +617,7 @@ class FillPoly {
   layer(i, size, int, colorBase, matrix = null) {
     Mix.ctx.lineWidth = map(i, 0, 24, size / 25, size / 30, true);
 
-    Mix.ctx.fillStyle = colorBase + int + "%)";
+    Mix.ctx.fillStyle = "rgb(255 0 0 / " + int + "%)";
 
     drawPolygon(this.v, matrix);
     Mix.ctx.fill();

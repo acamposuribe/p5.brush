@@ -147,7 +147,9 @@ vec3 spectral_reflectance_to_xyz(float R[SPECTRAL_SIZE]) {
 }
 
 float KS(float R) {
-	return pow(1.0 - R, 2.0) / (2.0 * R);
+	// Prevent division by zero for very dark colors
+	float safeR = max(R, 0.001);
+	return pow(1.0 - safeR, 2.0) / (2.0 * safeR);
 }
 
 float KM(float KS) {
@@ -215,7 +217,7 @@ void main(void) {
     }
     
     vec4 pigment = vec4(u_color.xyz, 1.0);
-    if (maskColor.a > DARKEN_THRESHOLD) {
+    if (u_isBrush && (maskColor.a > DARKEN_THRESHOLD)) {
         float blacken = 0.5 * (min(maskColor.a, 1.0) - DARKEN_THRESHOLD);
         pigment = pigment * (1.0 - blacken) - vec4(0.5) * blacken;
         pigment.rgb = max(pigment.rgb, vec3(0.0));

@@ -3,44 +3,18 @@
 // =============================================================================
 /**
  * Minimal stateful API for the `wash()` fill modifier.
+ * 
+ * Wash provides a simpler, solid-color fill that uses the existing 2D canvas
+ * pipeline instead of direct WebGL rendering, avoiding the need for polygon
+ * triangulation.
  */
 
-import earcut from "earcut";
-import { Renderer, Cwidth, Cheight, isCanvasReady } from "../core/target.js";
-import { State, flushActiveComposite } from "../core/color.js";
+import { Cwidth, Cheight, Density, isCanvasReady } from "../core/target.js";
+import { Mix, State } from "../core/color.js";
+import { drawPolygon } from "./mask.js";
 import { Polygon } from "../core/polygon.js";
 import { Plot } from "../core/plot.js";
-import { getAffineMatrix } from "../core/runtime.js";
-import { createProgram } from "../core/gl/utils.js";
-import { createColor } from "../core/runtime.js";
-import { resetDirectShaderTracking } from "../core/renderer_runtime.js";
-
-let gl = null;
-let washProgram = null;
-let washVao = null;
-let washBuffer = null;
-let washProjection = null;
-let loadedWidth = 0;
-let loadedHeight = 0;
-let washGpuBufferSize = 0;
-
-const WashAttr = {};
-const WashUniform = {};
-
-const washVertSrc = `#version 300 es
-in vec2 a_position;
-uniform mat4 u_matrix;
-void main() {
-  gl_Position = u_matrix * vec4(a_position, 0.0, 1.0);
-}`;
-
-const washFragSrc = `#version 300 es
-precision highp float;
-uniform vec4 u_color;
-out vec4 outColor;
-void main() {
-  outColor = vec4(u_color.rgb * u_color.a, u_color.a);
-}`;
+import { createColor, getAffineMatrix } from "../core/runtime.js";
 
 State.wash = {
   color: null,
@@ -75,148 +49,55 @@ export function noWash() {
 }
 
 // =============================================================================
-// GL helpers
+// Drawing Implementation
 // =============================================================================
 
 /**
- * Lazily creates the reusable program/buffer state for solid wash drawing and
- * refreshes the orthographic projection when the active target size changes.
- */
-function ensureWashReady() {
-  const nextGl = Renderer.drawingContext;
-  const sizeChanged = loadedWidth !== Cwidth || loadedHeight !== Cheight;
-
-  if (!washProjection || sizeChanged) {
-    loadedWidth = Cwidth;
-    loadedHeight = Cheight;
-    washProjection = new Float32Array([
-      2 / loadedWidth,
-      0,
-      0,
-      0,
-      0,
-      -2 / loadedHeight,
-      0,
-      0,
-      0,
-      0,
-      1,
-      0,
-      -1,
-      1,
-      0,
-      1,
-    ]);
-  }
-
-  if (gl === nextGl && washProgram && washVao && washBuffer) return;
-
-  gl = nextGl;
-  washProgram = createProgram(gl, washVertSrc, washFragSrc);
-  WashAttr.a_position = gl.getAttribLocation(washProgram, "a_position");
-  WashUniform.u_matrix = gl.getUniformLocation(washProgram, "u_matrix");
-  WashUniform.u_color = gl.getUniformLocation(washProgram, "u_color");
-
-  washVao = gl.createVertexArray();
-  gl.bindVertexArray(washVao);
-
-  washBuffer = gl.createBuffer();
-  gl.bindBuffer(gl.ARRAY_BUFFER, washBuffer);
-  gl.bufferData(gl.ARRAY_BUFFER, 0, gl.DYNAMIC_DRAW);
-  washGpuBufferSize = 0;
-
-  gl.enableVertexAttribArray(WashAttr.a_position);
-  gl.vertexAttribPointer(WashAttr.a_position, 2, gl.FLOAT, false, 8, 0);
-
-  gl.bindVertexArray(null);
-  gl.bindBuffer(gl.ARRAY_BUFFER, null);
-}
-
-/**
- * Applies the current runtime affine transform and converts the result into
- * the screen-space coordinates used by the direct GL wash pipeline.
- *
- * @param {number} x - The source x-coordinate in brush drawing space.
- * @param {number} y - The source y-coordinate in brush drawing space.
- * @returns {[number, number]} The transformed screen-space position.
- */
-function transformVertexToScreen(x, y) {
-  const m = getAffineMatrix();
-  return [
-    m.a * x + m.c * y + m.x + loadedWidth / 2,
-    m.b * x + m.d * y + m.y + loadedHeight / 2,
-  ];
-}
-
-/**
- * Triangulates a polygon in local space and returns the transformed triangle
- * vertex buffer ready for upload to the GPU.
- *
- * @param {Polygon} polygon - The polygon to triangulate.
- * @returns {{ triangles: Float32Array, vertexCount: number }} Screen-space
- * triangle vertices plus the number of vertices to draw.
- */
-function buildTriangleBuffer(polygon) {
-  const flat = new Float32Array(polygon.vertices.length * 2);
-  for (let i = 0; i < polygon.vertices.length; i++) {
-    const vertex = polygon.vertices[i];
-    flat[i * 2] = vertex.x;
-    flat[i * 2 + 1] = vertex.y;
-  }
-
-  const indices = earcut(flat);
-  const triangles = new Float32Array(indices.length * 2);
-  for (let i = 0; i < indices.length; i++) {
-    const idx = indices[i];
-    const [screenX, screenY] = transformVertexToScreen(flat[idx * 2], flat[idx * 2 + 1]);
-    triangles[i * 2] = screenX;
-    triangles[i * 2 + 1] = screenY;
-  }
-
-  return {
-    triangles,
-    vertexCount: indices.length,
-  };
-}
-
-/**
- * Draws a triangulated solid wash directly to the current GL target.
+ * Draws a solid wash fill to the polygon using the 2D canvas pipeline.
+ * Follows the same pattern as fill() for consistency with the color caching system.
  *
  * @param {Polygon} polygon - The polygon to fill with the current wash state.
  */
 function drawWashPolygon(polygon) {
   if (!State.wash?.isActive || !State.wash.color || polygon.vertices.length < 3) return;
 
-  flushActiveComposite();
-  ensureWashReady();
-  const { triangles, vertexCount } = buildTriangleBuffer(polygon);
-  const byteCount = triangles.byteLength;
-  gl.useProgram(washProgram);
-  gl.enable(gl.BLEND);
-  gl.blendEquation(gl.FUNC_ADD);
-  gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
-  gl.bindVertexArray(washVao);
-  gl.bindBuffer(gl.ARRAY_BUFFER, washBuffer);
-  if (byteCount > washGpuBufferSize) {
-    gl.bufferData(gl.ARRAY_BUFFER, triangles, gl.DYNAMIC_DRAW);
-    washGpuBufferSize = byteCount;
-  } else {
-    gl.bufferSubData(gl.ARRAY_BUFFER, 0, triangles);
-  }
-  const color = State.wash.color._array;
-  gl.uniformMatrix4fv(WashUniform.u_matrix, false, washProjection);
-  gl.uniform4f(
-    WashUniform.u_color,
-    color[0],
-    color[1],
-    color[2],
-    State.wash.opacity / 255,
-  );
+  // Track if we're switching from brush to fill mode
+  const switchingToWash = Mix.isBrush !== false;
+  Mix.isBrush = false;
+  if (switchingToWash) Mix.justChanged = true;
 
-  gl.drawArrays(gl.TRIANGLES, 0, vertexCount);
-  gl.bindVertexArray(null);
-  gl.bindBuffer(gl.ARRAY_BUFFER, null);
-  resetDirectShaderTracking(Renderer, gl);
+  // CRITICAL: Call Mix.blend() BEFORE drawing!
+  // This checks if color changed and composites previous mask if needed.
+  // Our drawing will go to the mask and composite on the next draw call.
+  Mix.blend(State.wash.color);
+
+  // Get the user's affine transform matrix
+  const m = getAffineMatrix();
+  
+  // Apply transform with Density and centering (exactly like fill does)
+  Mix.ctx.save();
+  Mix.ctx.setTransform(
+    Density * m.a,
+    Density * m.b,
+    Density * m.c,
+    Density * m.d,
+    Density * (m.x + Cwidth / 2),
+    Density * (m.y + Cheight / 2),
+  );
+  
+  // Draw the polygon path to the 2D canvas mask
+  // This will update dirty rects automatically
+  drawPolygon(polygon.vertices);
+  
+  // Set up fill and stroke with wash color (exactly like fill does)
+  const alpha = State.wash.opacity / 255;
+  const washColorBase = `rgb(255 0 0 / `;
+  Mix.ctx.fillStyle = washColorBase + alpha + ")";
+  
+  Mix.ctx.fill();
+  
+  // Restore the context transform
+  Mix.ctx.restore();
 }
 
 // =============================================================================
@@ -224,7 +105,7 @@ function drawWashPolygon(polygon) {
 // =============================================================================
 
 /**
- * Applies a direct GL wash fill to the polygon using the current wash state.
+ * Applies a wash fill to the polygon using the current wash state.
  *
  * @param {Color|string|false} [_color] - Optional override color for this call.
  * @param {number} [_opacity] - Optional override opacity for this call.

@@ -1,4 +1,4 @@
-const PALETTE = ["#002185", "#003c32", "#fcd300", "#ff2702", "#6b9404"];
+const PALETTE = ["#002185", "#003c32", "#fcd300", "#ff2702", "#6b9404", "#000000", "#ffffff"];
 const PAPER = "#fffceb";
 const STROKE = "#111111";
 
