@@ -95,65 +95,88 @@ export function noHatch() {
  * @param {number} gradient Multiplicative spacing growth per scanline.
  * @returns {{scanY:number, x1:number, y1:number, x2:number, y2:number}[]}
  */
+// Reusable buffers for scanlineHatch to avoid per-call allocations
+let _sRotX = new Float64Array(256);
+let _sRotY = new Float64Array(256);
+let _eX1 = new Float64Array(512);
+let _eY1 = new Float64Array(512);
+let _eX2 = new Float64Array(512);
+let _eY2 = new Float64Array(512);
+
 function scanlineHatch(polygon, angle, dist, gradient) {
   const rad = (angle * Math.PI) / 180;
   const cosA = Math.cos(rad),
     sinA = Math.sin(rad);
-  const cosB = Math.cos(-rad),
-    sinB = Math.sin(-rad);
+  // cos(-rad) = cosA, sin(-rad) = -sinA — no extra trig needed
+  const sinB = -sinA;
 
   const verts = polygon.a,
     n = verts.length;
 
-  // Rotate vertices; track Y extent
-  const rotated = new Array(n);
+  // Grow reusable vertex buffers if needed
+  if (_sRotX.length < n) {
+    _sRotX = new Float64Array(n * 2);
+    _sRotY = new Float64Array(n * 2);
+  }
+
+  // Rotate vertices into scan space; track Y extent
   let minY = Infinity,
     maxY = -Infinity;
   for (let i = 0; i < n; i++) {
     const x = verts[i][0],
       y = verts[i][1];
-    const r = [x * cosA - y * sinA, x * sinA + y * cosA];
-    rotated[i] = r;
-    if (r[1] < minY) minY = r[1];
-    if (r[1] > maxY) maxY = r[1];
+    _sRotX[i] = x * cosA - y * sinA;
+    _sRotY[i] = x * sinA + y * cosA;
+    if (_sRotY[i] < minY) minY = _sRotY[i];
+    if (_sRotY[i] > maxY) maxY = _sRotY[i];
   }
 
-  // Build edge list (skip horizontal edges)
-  const edges = [];
-  for (let i = 0; i < n; i++) {
-    const a = rotated[i],
-      b = rotated[(i + 1) % n];
-    if (a[1] !== b[1]) edges.push(a, b);
+  // Build flat edge list (skip horizontal edges) into reusable buffers
+  let eLen = 0;
+  if (_eX1.length < n) {
+    _eX1 = new Float64Array(n * 2);
+    _eY1 = new Float64Array(n * 2);
+    _eX2 = new Float64Array(n * 2);
+    _eY2 = new Float64Array(n * 2);
   }
-  const eLen = edges.length;
+  for (let i = 0; i < n; i++) {
+    const j = i + 1 < n ? i + 1 : 0;
+    const ay = _sRotY[i], by = _sRotY[j];
+    if (ay !== by) {
+      _eX1[eLen] = _sRotX[i]; _eY1[eLen] = ay;
+      _eX2[eLen] = _sRotX[j]; _eY2[eLen] = by;
+      eLen++;
+    }
+  }
 
   // Scan, find crossings, rotate back
   const segments = [];
   const cx = [];
   let Y = minY + dist * 0.5,
     step = dist;
+  const useGradient = gradient !== 1;
   while (Y < maxY) {
     cx.length = 0;
-    for (let i = 0; i < eLen; i += 2) {
-      const y1 = edges[i][1],
-        y2 = edges[i + 1][1];
+    for (let i = 0; i < eLen; i++) {
+      const y1 = _eY1[i],
+        y2 = _eY2[i];
       if ((y1 <= Y && Y < y2) || (y2 <= Y && Y < y1))
-        cx.push(
-          edges[i][0] + ((Y - y1) / (y2 - y1)) * (edges[i + 1][0] - edges[i][0])
-        );
+        cx.push(_eX1[i] + ((Y - y1) / (y2 - y1)) * (_eX2[i] - _eX1[i]));
     }
     cx.sort((a, b) => a - b);
     for (let i = 0; i < cx.length - 1; i += 2) {
+      const xi = cx[i], xj = cx[i + 1];
+      // Back-rotate: cosB = cosA, sinB = -sinA
       segments.push({
         scanY: Y,
-        x1: cx[i] * cosB - Y * sinB,
-        y1: cx[i] * sinB + Y * cosB,
-        x2: cx[i + 1] * cosB - Y * sinB,
-        y2: cx[i + 1] * sinB + Y * cosB,
+        x1: xi * cosA + Y * sinA,
+        y1: -xi * sinA + Y * cosA,
+        x2: xj * cosA + Y * sinA,
+        y2: -xj * sinA + Y * cosA,
       });
     }
     Y += step;
-    step *= gradient;
+    if (useGradient) step *= gradient;
   }
   return segments;
 }
