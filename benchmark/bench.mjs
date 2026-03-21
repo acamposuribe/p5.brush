@@ -9,17 +9,21 @@
  */
 
 import { performance } from "perf_hooks";
-import { setTargetState } from "../src/core/target.js";
+import { setTargetState, setTargetRuntime } from "../src/core/target.js";
 import {
   cos, sin, gaussian, map, rr, randInt, constrain, dist, rotate, intersectLines, seed,
 } from "../src/core/utils.js";
 import { Plot } from "../src/core/plot.js";
 import { Polygon } from "../src/core/polygon.js";
 import { hatch, getHatchLines } from "../src/hatch/hatch.js";
+import { isFieldReady, Position, noField } from "../src/core/flowfield.js";
 
 // Setup minimal environment
-setTargetState({ Cwidth: 800, Cheight: 600, Density: 1 });
+setTargetState({ Cwidth: 800, Cheight: 600, Density: 1, Renderer: { loaded: true } });
+setTargetRuntime({ isCanvasReady: () => {}, syncDensity: () => 1 });
 seed(42);
+isFieldReady();
+noField();
 
 // ============================================================
 // BENCHMARK RUNNER
@@ -121,7 +125,31 @@ function benchIntersect() {
 const intersectMs = medianOf(Array.from({ length: RUNS }, () => bench(benchIntersect, 500)));
 
 // ============================================================
-// 6. INTERSECT LINES: raw intersectLines() from utils.js
+// 6. POSITION.movePos() — core stroke rendering loop
+// ============================================================
+const movePlot = new Plot("curve");
+for (let i = 0; i < 10; i++) movePlot.addSegment(i * 36, 100, 0.8);
+movePlot.endPlot(0, 1.0);
+
+function benchMovePos() {
+  // Simulate a brush stroke: moveTo (direction-based) + plotTo (plot-based)
+  let total = 0;
+  for (let i = 0; i < 5; i++) {
+    const pos = new Position(400, 300);
+    pos.moveTo(45 + i * 30, 200, 1);
+    total += pos.x;
+  }
+  for (let i = 0; i < 5; i++) {
+    const pos = new Position(400, 300);
+    pos.plotTo(movePlot, 500, 1, 1);
+    total += pos.x;
+  }
+  return total;
+}
+const movePosMs = medianOf(Array.from({ length: RUNS }, () => bench(benchMovePos, 200)));
+
+// ============================================================
+// 7. INTERSECT LINES: raw intersectLines() from utils.js
 // ============================================================
 function benchIntersectLines() {
   let count = 0;
@@ -138,7 +166,7 @@ const intersectLinesMs = medianOf(Array.from({ length: RUNS }, () => bench(bench
 // ============================================================
 // TOTAL (primary metric)
 // ============================================================
-const total_ms = trigMs + gaussMs + plotMs + hatchMs + intersectMs + intersectLinesMs;
+const total_ms = trigMs + gaussMs + plotMs + hatchMs + intersectMs + intersectLinesMs + movePosMs;
 
 console.log(`METRIC total_ms=${total_ms.toFixed(3)}`);
 console.log(`METRIC trig_ms=${trigMs.toFixed(3)}`);
@@ -147,3 +175,4 @@ console.log(`METRIC plot_ms=${plotMs.toFixed(3)}`);
 console.log(`METRIC hatch_ms=${hatchMs.toFixed(3)}`);
 console.log(`METRIC intersect_ms=${intersectMs.toFixed(3)}`);
 console.log(`METRIC intersect_lines_ms=${intersectLinesMs.toFixed(3)}`);
+console.log(`METRIC movepos_ms=${movePosMs.toFixed(3)}`);
