@@ -64,6 +64,7 @@ State.fill = {
   texture_strength: 0.8,
   border_strength: 0.5,
   direction: "out",
+  scatter: true,
   isActive: false,
 };
 
@@ -104,10 +105,14 @@ export function fillBleed(_i, _direction = "out") {
  * Sets the texture and border strengths for the fill.
  * @param {number} [_texture=0.4] - The texture strength (clamped to [0,1]).
  * @param {number} [_border=0.4] - The border strength (clamped to [0,1]).
+ * @param {boolean} [_scatter=true] - Whether to draw the scattered sparse polygon layers.
+ *   Set to false to disable the scatter effect, which can help when a clean
+ *   gradient trim is needed without extra texture noise at the edges.
  */
-export function fillTexture(_texture = 0.4, _border = 0.4) {
+export function fillTexture(_texture = 0.4, _border = 0.4, _scatter = true) {
   State.fill.texture_strength = constrain(_texture, 0, 1);
   State.fill.border_strength = constrain(_border, 0, 1);
+  State.fill.scatter = _scatter;
 }
 
 /**
@@ -610,8 +615,10 @@ class FillPoly {
         const grown = p.grow(999).grow(997);
         grown.layer(i, size, int, fillMatrix);
       }
-      const sparseLayer = sparse.grow(999).flipDirs().grow(997);
-      sparseLayer.layer(i, size, int * texture, fillMatrix);
+      if (State.fill.scatter) {
+        const sparseLayer = sparse.grow(999).flipDirs().grow(997);
+        sparseLayer.layer(i, size, int * texture, fillMatrix);
+      }
       if (i % 2 === 0) {
         const darkerLayer = pol.grow(darker).grow(999);
         darkerLayer.layer(i, size, int * 2, fillMatrix);

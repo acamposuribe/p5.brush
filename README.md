@@ -578,15 +578,19 @@ The Fill Management section focuses on managing fill properties for shapes, enab
 
 ---
 
-- `brush.fillTexture(textureStrength, borderIntensity)`
+- `brush.fillTexture(textureStrength, borderIntensity, scatter?)`
   - **Description**: Adjusts the texture levels for the fill operation, mimicking the behavior of watercolor paints. This function adds a natural and organic feel to digital artwork.
   - **Parameters**:
     - `textureStrength` (Number): The texture of the fill effect, ranging from 0 to 1.
     - `borderIntensity` (Number): The intensity of the border watercolor effect, ranging from 0 to 1.
+    - `scatter` (Boolean, optional, default `true`): Whether to draw the sparse scattered polygon layers that add edge texture noise. Set to `false` for a cleaner gradient trim effect.
   - **Usage**:
     ```javascript
     // Set the fill texture and border intensity
     brush.fillTexture(0.6, 0.4);
+
+    // Disable scatter layers for a cleaner gradient
+    brush.fillTexture(0.6, 0.4, false);
     ```
 
 ---

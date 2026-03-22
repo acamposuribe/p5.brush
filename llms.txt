@@ -249,7 +249,7 @@ Fill simulates watercolor — soft edges, bleed, texture layering.
 - `brush.wash(color, opacity)` — Fast solid fill, no watercolor simulation.
 - `brush.noWash()` — Disable wash.
 - `brush.fillBleed(strength, direction?)` — Edge bleed 0–1. Direction: `"out"` or `"in"`.
-- `brush.fillTexture(textureStrength, borderIntensity)` — Texture and border, both 0–1.
+- `brush.fillTexture(textureStrength, borderIntensity, scatter?)` — Texture and border, both 0–1. `scatter` (default `true`) enables the sparse scattered polygon layers; set to `false` for a cleaner gradient trim without edge texture noise.
 - For better fill performance, group shapes by fill color/opacity so the library can reuse its internal caching.
 
 ---
