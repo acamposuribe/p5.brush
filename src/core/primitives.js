@@ -256,7 +256,7 @@ export function spline(_array_points, _curvature = 0.5) {
     );
   }
   let p = _createSpline(_array_points, _curvature);
-  p.draw();
+  p.show();
 }
 
 /**

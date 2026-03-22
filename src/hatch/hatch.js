@@ -323,7 +323,7 @@ function renderHatchSegments(polygons, drawSegment) {
  */
 export function createHatch(polygons) {
   renderHatchSegments(polygons, (x1, y1, x2, y2) => {
-    if (State.hatch.hBrush) set(State.hatch.hBrush.brush, State.hatch.hBrush.color, State.stroke.weight * rr(0.9,1.1));
+    if (State.hatch.hBrush) set(State.hatch.hBrush.brush, State.hatch.hBrush.color, State.hatch.hBrush.weight * rr(0.9,1.1));
     line(x1, y1, x2, y2);
   });
 }

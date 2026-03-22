@@ -33,8 +33,8 @@ function isSupportedTarget(target) {
 
 function getTargetContext(target) {
   return (
-    target.getContext("webgl2", { premultipliedAlpha: true }) ??
-    target.getContext("webgl2")
+    target.getContext("webgl2", { premultipliedAlpha: true, preserveDrawingBuffer: true }) ??
+    target.getContext("webgl2", { preserveDrawingBuffer: true })
   );
 }
 
@@ -108,13 +108,14 @@ export function createCanvas(width, height, options = {}) {
   canvas.height = Math.max(1, Math.round(logicalHeight * density));
   canvas.style.width = `${logicalWidth}px`;
   canvas.style.height = `${logicalHeight}px`;
-  if (options.id) canvas.id = options.id;
+  canvas.id = options.id ?? "brush-canvas";
 
-  if (options.parent) {
+  const parentTarget = options.parent !== undefined ? options.parent : document.body;
+  if (parentTarget) {
     const parent =
-      typeof options.parent === "string"
-        ? document.querySelector(options.parent)
-        : options.parent;
+      typeof parentTarget === "string"
+        ? document.querySelector(parentTarget)
+        : parentTarget;
     if (!parent) {
       throw new Error(`Could not find parent "${options.parent}" for brush.createCanvas().`);
     }

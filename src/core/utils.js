@@ -102,6 +102,22 @@ export const noiseSeed = (s) => {
  * @returns {number}
  */
 export const rr = (e = 0, r = 1) => e + rng() * (r - e);
+
+/**
+ * Generates a random number or picks a random element from an array.
+ * - random()        → float in [0, 1)
+ * - random(max)     → float in [0, max)
+ * - random(min,max) → float in [min, max)
+ * - random(array)   → random element from array
+ * @param {number|Array} [e=0]
+ * @param {number} [r=1]
+ * @returns {number}
+ */
+export function random(e = 0, r = 1) {
+  if (Array.isArray(e)) return rArray(e);
+  if (arguments.length === 1) return rng2() * e;
+  return rr2(e, r);
+}
 export const rr2 = (e = 0, r = 1) => e + rng2() * (r - e);
 
 /**

@@ -322,7 +322,22 @@ class FillPoly {
     const totalN = this.v.length;
     const nTrim = ~~((1 - f) * totalN);
     const s = ~~(totalN / 2 - nTrim / 2);
-    const finalLen = totalN - nTrim + 2; // +2 for inserted edge vertices
+
+    // Resolve the bridge endpoints first so they're available for edge-length
+    // and density calculations below.
+    const trimStart = s, trimEnd = s + nTrim;
+    const eStart = this.v[(trimStart - 1 + totalN) % totalN];
+    const eEnd   = this.v[trimEnd % totalN];
+    const evx = eEnd.x - eStart.x, evy = eEnd.y - eStart.y;
+    const edgeLen = Math.hypot(evx, evy);
+
+    // Estimate typical vertex spacing from one random kept vertex pair,
+    // then insert at least 0.2× that density along the bridge.
+    const sampleIdx = s >= 2 ? ~~rr(0, s - 1) : (trimEnd < totalN - 1 ? trimEnd : 0);
+    const sa = this.v[sampleIdx], sb = this.v[(sampleIdx + 1) % totalN];
+    const typicalSpacing = Math.max(1, Math.hypot(sb.x - sa.x, sb.y - sa.y));
+    const nInsert = Math.max(2, Math.ceil(edgeLen / typicalSpacing * 0.05));
+    const finalLen = totalN - nTrim + nInsert;
 
     // Pre-allocate with final size — avoids splice() and element shifting
     const v = new Array(finalLen);
@@ -334,16 +349,15 @@ class FillPoly {
       v[dst] = this.v[i]; m[dst] = this.m[i]; dir[dst] = this.dir[i];
     }
 
-    // Insert 2 vertices along the trimmed edge (no splice needed)
-    const trimStart = s, trimEnd = s + nTrim;
-    const eStart = this.v[(trimStart - 1 + totalN) % totalN];
-    const eEnd = this.v[trimEnd % totalN];
-    const evx = eEnd.x - eStart.x, evy = eEnd.y - eStart.y;
+    // Insert nInsert vertices evenly spaced along the bridge edge, with a
+    // small jitter so the cut never renders as a ruler-straight line.
+    const jitterAmt = edgeLen * 0.06;
     const dirBase = this.dir[trimStart % this.dir.length];
-    for (let k = 0; k < 2; k++, dst++) {
-      const t = rr(0.25, 0.75);
-      v[dst] = { x: eStart.x + evx * t, y: eStart.y + evy * t };
-      m[dst] = rr(0.4, 0.7);
+    for (let k = 0; k < nInsert; k++, dst++) {
+      const t = (k + 1) / (nInsert + 1);
+      v[dst] = { x: eStart.x + evx * t + rr(-jitterAmt, jitterAmt),
+                 y: eStart.y + evy * t + rr(-jitterAmt, jitterAmt) };
+      m[dst] = rr(0.3, 0.5);
       dir[dst] = dirBase;
     }
 
@@ -567,10 +581,10 @@ class FillPoly {
     );
 
     const fillColorBase = `rgb(255 0 0 / `;
-    Mix.ctx.strokeStyle = fillColorBase + (State.fill.border_strength * 0.025) + ")";
+    Mix.ctx.strokeStyle = fillColorBase + (State.fill.border_strength * 0.010) + ")";
     Mix.ctx.lineCap = "round";
 
-    GROW_CAP = GROW_MAX_VERTS * Math.max(0.1, 2 * State.fill.bleed_strength);
+    GROW_CAP = GROW_MAX_VERTS * Math.max(0.2, 2 * State.fill.bleed_strength);
 
     const fillMatrix = Mix.ctx.getTransform();
     const size = Math.max(this.sizeX, this.sizeY);
@@ -618,7 +632,7 @@ class FillPoly {
    * Draws a layer of the fill polygon with stroke and fill.
    * @param {number} i - The layer index.
    */
-  layer(i, size, int, colorBase, matrix = null) {
+  layer(i, size, int, matrix = null) {
     Mix.ctx.lineWidth = map(i, 0, 24, size / 25, size / 30, true) * State.fill.border_strength;
 
     Mix.ctx.fillStyle = "rgb(255 0 0 / " + int + "%)";
