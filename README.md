@@ -36,6 +36,8 @@ This README covers the **p5 build**. For the standalone build see **[docs/standa
 
 ## Table of Contents
 - [Installation](#installation)
+- [Quick Start](#quick-start)
+- [Core Concepts in 1 Minute](#core-concepts-in-1-minute)
 - [Features](#features)
 - [Reference](#reference)
 - [Examples](#examples)
@@ -49,7 +51,7 @@ Important note: p5.brush requires p5.js 2.x or higher.
 
 ### Local Installation
 
-To set up your project, add `p5.min.js` `p5.brush.js` to your HTML file. You can download the last version of the p5.brush.js library in the [dist](/dist) folder.
+To set up your project, add `p5.min.js` and `p5.brush.js` to your HTML file. You can download the latest version of the p5.brush.js library in the [dist](/dist) folder.
 Place the script tags in the following order:
 
 ```html
@@ -116,6 +118,54 @@ new p5(sketch);
 
 ---
 
+## Quick Start
+
+If you already know the basics of p5, this is the shortest path to drawing with p5.brush:
+
+1. Create a `WEBGL` canvas.
+2. Pick a brush with `brush.set(name, color, weight)`.
+3. Draw with a primitive like `brush.line()`, `brush.rect()`, or `brush.circle()`.
+
+```javascript
+function setup() {
+  createCanvas(700, 410, WEBGL);
+  background("#f6f1e8");
+
+  brush.set("HB", "#2f2a26", 1.4);
+  brush.line(-220, -80, 180, 40);
+
+  brush.fill("#d7c3a3", 120);
+  brush.noStroke();
+  brush.circle(120, 20, 70);
+
+  brush.set("rotring", "#1f4b99", 0.8);
+  brush.noFill();
+  brush.hatch(7, 35);
+  brush.rect(-140, 40, 120, 90, "center");
+}
+```
+
+If you are new to the library, a good first sequence is:
+- `brush.set(...)` to choose the stroke brush
+- `brush.fill(...)` or `brush.hatch(...)` if you want interior texture
+- `brush.line()`, `brush.rect()`, `brush.circle()`, or `brush.polygon()` to draw
+
+## Core Concepts in 1 Minute
+
+- p5.brush follows p5's drawing model: first you set drawing state, then you draw shapes.
+- `brush.set()`, `brush.stroke()`, `brush.strokeWeight()`, `brush.fill()`, `brush.hatch()`, and related functions configure how upcoming shapes should look.
+- `brush.line()`, `brush.rect()`, `brush.circle()`, `brush.arc()`, `brush.beginShape()`, and `brush.polygon()` actually draw geometry.
+- `brush.noStroke()`, `brush.noFill()`, `brush.noHatch()`, and `brush.noWash()` turn parts of that state back off.
+- Vector fields are optional. If you never call `brush.field(...)`, your shapes still draw normally.
+- Most sketches only need a small subset of the API: choose a brush, maybe add fill or hatch, then draw primitives.
+
+You can think of the library in three layers:
+- **Style**: choose how marks look with `brush.set()`, `brush.fill()`, `brush.hatch()`, and related state functions
+- **Geometry**: draw lines and shapes with `brush.line()`, `brush.rect()`, `brush.circle()`, `brush.beginShape()`, and more
+- **Advanced control**: add vector fields, custom brushes, clipping, buffers, and classes when you need them
+
+---
+
 ## Features
 
 p5.brush.js enhances the p5.js framework with a set of tools that allow for sophisticated drawing and rendering techniques.
@@ -133,8 +183,6 @@ p5.brush.js enhances the p5.js framework with a set of tools that allow for soph
 
 With p5.brush.js, your digital canvas becomes a playground for innovation and expression, where each tool is fine-tuned to complement your unique creative process.
 
-.
-
 ## Reference
 
 p5.brush.js provides a comprehensive API for creating complex drawings and effects. Below are the categorized functions and classes available in the library.
@@ -143,29 +191,139 @@ p5.brush.js provides a comprehensive API for creating complex drawings and effec
 
 | Section | Functions | Section | Functions |
 |---|---|---|---|
-| [Utility](#utility-functions) |  | [Primitives](#primitives) | `brush.line()`, `brush.flowLine()`, `brush.beginStroke()`, `brush.move()`, `brush.endStroke()`, `brush.spline()`, `brush.rect()`, `brush.circle()`, `brush.arc()`, `brush.beginShape()`, `brush.vertex()`, `brush.endShape()`, `brush.polygon()` |
-| [Vector-Fields](#vector-fields) | `brush.field()`, `brush.noField()`, `brush.refreshField()`, `brush.listFields()`, `brush.addField()`, `brush.wiggle()` | [Configuration](#optional-configuration) | `brush.load()`, `brush.scaleBrushes()`, `brush.instance()` |
-| [Brush Management](#brush-management) | `brush.box()`, `brush.add()`, `brush.clip()`, `brush.noClip()` | [Classes](#exposed-classes) | `brush.Polygon()`, `brush.Plot()`, `brush.Position()` |
-| [Stroke Operations](#stroke-operations) | `brush.set()`, `brush.pick()`, `brush.stroke()`, `brush.noStroke()`, `brush.strokeWeight()` | [Hatch Operations](#hatch-operations) | `brush.hatch()`, `brush.noHatch()`, `brush.hatchStyle()`, `brush.mass()`, `brush.noMass()` |
-| [Fill Operations](#fill-operations) | `brush.fill()`, `brush.noFill()`, `brush.wash()`, `brush.noWash()`, `brush.fillBleed()`, `brush.fillTexture()` |  |  |
+| [Optional: Configuration](#optional-configuration) | `brush.load()`, `brush.scaleBrushes()`, `brush.instance()` | [Fill Operations](#fill-operations) | `brush.fill()`, `brush.noFill()`, `brush.wash()`, `brush.noWash()`, `brush.fillBleed()`, `brush.fillTexture()` |
+| [Vector Fields](#vector-fields) | `brush.field()`, `brush.noField()`, `brush.refreshField()`, `brush.listFields()`, `brush.addField()`, `brush.wiggle()` | [Hatch Operations](#hatch-operations) | `brush.hatch()`, `brush.noHatch()`, `brush.hatchStyle()`, `brush.mass()`, `brush.noMass()` |
+| [Brush Management](#brush-management) | `brush.box()`, `brush.add()`, `brush.clip()`, `brush.noClip()` | [Primitives](#primitives) | `brush.line()`, `brush.flowLine()`, `brush.beginStroke()`, `brush.move()`, `brush.endStroke()`, `brush.spline()`, `brush.rect()`, `brush.circle()`, `brush.arc()`, `brush.beginShape()`, `brush.vertex()`, `brush.endShape()`, `brush.polygon()` |
+| [Stroke Operations](#stroke-operations) | `brush.set()`, `brush.pick()`, `brush.stroke()`, `brush.noStroke()`, `brush.strokeWeight()` | [Exposed Classes](#exposed-classes) | `brush.Polygon()`, `brush.Plot()`, `brush.Position()` |
+|  |  | [Utility Functions](#utility-functions) | upgrade notes, angle behavior |
 
 ---
 
 <sub>[back to table](#table-of-functions)</sub>
-### Utility Functions
+### Optional: Configuration
+
+This section covers functions for initializing the drawing system and configuring system behavior. By default, the library works without executing these functions, but you might want to configure them to your liking.
+
+> **Seeding**: p5.brush automatically hooks into p5's `randomSeed()` and `noiseSeed()`. Calling either of those functions seeds both p5 and the library simultaneously — no separate `brush.seed()` call is needed.
+
+- `brush.load(buffer)`
+  - **Description**: Redirects brush drawing to a secondary canvas target. **Not needed for the main canvas** — the library initializes automatically when `createCanvas()` is called. Pass a `p5.Graphics` buffer or an active `p5.Framebuffer` to draw into that target instead; call `brush.load()` with no argument to switch back to the main canvas. Framebuffers created from `p5.Graphics` are not supported.
+  - **Parameters**:
+    - `buffer` (p5.Graphics | p5.Framebuffer): Optional. An offscreen target to draw into.
+  - **How to use it**:
+    - `p5.Graphics`: create it with `WEBGL`, call `brush.load(pg)`, draw with brush functions, then call `brush.load()` to restore the main canvas before presenting it with `image(pg, ...)`.
+    - `p5.Framebuffer`: create it from the main sketch with `createFramebuffer(...)`, enter its `draw()` or `begin()` / `end()` scope, call `brush.load(fb)` while it is active, draw with brush functions, then call `brush.load()` again after leaving the framebuffer scope.
+    - `brush.load(...)` only changes the target used by p5.brush. If you also use native p5 drawing calls, call them on the same target yourself, for example `pg.background(...)` for `p5.Graphics`.
+    - `pg.createFramebuffer()` is not supported.
+  - **Example (draw into a buffer)**:
+    ```javascript
+    function setup() {
+      createCanvas(400, 400, WEBGL);
+      brush.load();
+      brush.set("HB", "black", 1);
+      brush.rect(40, 40, 150, 100);
+
+      // Switch to a buffer
+      let buffer = createGraphics(200, 300, WEBGL);
+      brush.load(buffer);
+      brush.set("HB", "black", 1);
+      brush.rect(40, 40, 150, 100);
+      image(buffer, 20, 40);
+
+      // Switch back to main canvas
+      brush.load();
+    }
+    ```
+  - **Example (draw into a framebuffer)**:
+    ```javascript
+    function setup() {
+      createCanvas(400, 400, WEBGL);
+      brush.load();
+
+      const layer = createFramebuffer({ width: 200, height: 200 });
+
+      layer.draw(() => {
+        brush.load(layer);
+        brush.set("HB", "black", 1);
+        brush.circle(100, 100, 80);
+      });
+
+      brush.load();
+      image(layer, 20, 20);
+    }
+    ```
+
+  - **Typical workflows**:
+    ```javascript
+    // p5.Graphics
+    const pg = createGraphics(300, 200, WEBGL);
+    pg.background(250);
+    brush.load(pg);
+    brush.set("HB", "black", 1);
+    brush.circle(150, 100, 70);
+    brush.load();
+    image(pg, 20, 20);
+
+    // p5.Framebuffer
+    const fb = createFramebuffer({ width: 300, height: 200 });
+    fb.draw(() => {
+      background(250);
+      brush.load(fb);
+      brush.set("HB", "black", 1);
+      brush.circle(150, 100, 70);
+    });
+    brush.load();
+    image(fb, 20, 240);
+    ```
 
 ---
- 
-> **Note for users upgrading from older versions**: `brush.push()`, `brush.pop()`, `brush.translate()`, `brush.rotate()`, and `brush.scale()` are no longer needed. The library now automatically hooks into p5's `push()` and `pop()`, so brush state (stroke, fill, hatch settings) is saved and restored alongside p5's own state. Likewise, p5's `translate()`, `rotate()`, and `scale()` are automatically inherited by all brush strokes and fills.
 
-> Public brush APIs that accept angles also inherit p5's current `angleMode()`. With no `angleMode()` call, that means radians by default, matching p5 itself. The main exception is `brush.addField(name, fn, { angleMode })`, which lets custom field generators declare how returned angles should be interpreted before they are stored internally in degrees.
+- `brush.scaleBrushes(scale)`
+  - **Description**: Adjusts the global scale of all currently registered brush parameters, including weight, scatter, and spacing, based on the given scaling factor.
+  - **Parameters**:
+    - `scale` (Number): The scaling factor to be applied to the brush parameters.
+  - **Note**: In practice, using `brush.scaleBrushes()` is usually necessary to adapt the built-in brushes to your canvas size. For a `600x600` canvas, `brush.scaleBrushes(3)` is a good starting point, but the final value should still be confirmed visually. This affects the brushes that already exist when you call it. If you only want the built-in brushes scaled, call it before adding custom brushes. If you add custom brushes later, call `brush.scaleBrushes()` again to scale them too.
+  - **Usage**:
+    ```javascript
+    // Good starting point for a 600x600 canvas
+    brush.scaleBrushes(3);
+    ```
+    Using `brush.scaleBrushes()`, you can easily adjust the size and spacing characteristics of brushes in your project, providing a convenient way to adapt to different canvas sizes or artistic styles.
+    
+---
+
+- `brush.instance(p)`
+  - **Description**: Call this inside your sketch function before `setup` and `draw` when using p5 in instance mode. Tells p5.brush which p5 instance to render into. After calling this, all `brush.*` functions work normally — no need to prefix them with `p.`.
+  - **Parameters**:
+    - `p` (p5): The p5 instance passed as the argument to your sketch function.
+  - **Example**:
+      ```javascript
+      const sketch = (p) => {
+        // Must be called before setup/draw
+        brush.instance(p);
+
+        p.setup = () => {
+          // Canvas must be WEBGL
+          p.createCanvas(700, 410, p.WEBGL);
+          brush.load();
+        };
+
+        p.draw = () => {
+          p.background(240);
+          brush.set("HB", "#333", 1);
+          brush.line(100, 100, 400, 300);
+        };
+      };
+
+      new p5(sketch);
+      ```
 
 ---
 
 <sub>[back to table](#table-of-functions)</sub>
 ### Vector Fields
 
-Vector Fields allow for dynamic control over brush stroke behavior, enabling the creation of complex and fluid motion within sketches.
+Vector fields let you bend and redirect strokes so they follow a flow across the canvas. If you do not use them, p5.brush still works like a normal drawing library.
 
 
  #### Basic vector-field functions
@@ -271,7 +429,7 @@ Vector Fields allow for dynamic control over brush stroke behavior, enabling the
 <sub>[back to table](#table-of-functions)</sub>
 ### Brush Management
 
-Functions for managing brush behaviors and properties.
+This section covers choosing brushes, adding your own brushes, and clipping where strokes are allowed to appear.
 
 ---
 
@@ -411,7 +569,7 @@ Functions for managing brush behaviors and properties.
 <sub>[back to table](#table-of-functions)</sub>
 ### Stroke Operations
 
-Stroke Operations encompass methods for manipulating and applying brushes to strokes (aka lines), providing artists with precise control over their brushwork.
+These functions control stroke appearance: which brush is active, what color it uses, and how thick it should be.
 
 ---
 
@@ -489,7 +647,7 @@ Stroke Operations encompass methods for manipulating and applying brushes to str
 <sub>[back to table](#table-of-functions)</sub>
 ### Fill Operations
 
-The Fill Management section focuses on managing fill properties for shapes, enabling complex fill operations with effects like bleeding to simulate watercolor-like textures. These methods set fill colors with opacity, control bleed intensity, and manage fill operations. The watercolor fill effect is inspired by Tyler Hobbs' generative art techniques.
+These functions control how closed shapes are filled. You can use watercolor-style fills, flat wash fills, and adjust bleed or texture.
 
 ---
 
@@ -574,12 +732,10 @@ The Fill Management section focuses on managing fill properties for shapes, enab
 
 ---
 
----
-
 <sub>[back to table](#table-of-functions)</sub>
 ### Hatch Operations
 
-The Hatching section focuses on creating and drawing hatching patterns, which involves drawing closely spaced parallel lines. These functions offer control over the hatching style and application.
+These functions control hatching and massing inside shapes, using repeated lines or layered marks to build tone and texture.
 
 ---
 
@@ -655,8 +811,7 @@ The Hatching section focuses on creating and drawing hatching patterns, which in
     ```
 
 ---
-In essence, the hatching system activates hatches for subsequent shapes, similarly to stroke and fill operations. However, you can also directly hatch multiple objects at once (and their intersections), if you proceed as described below
-.
+In essence, the hatching system activates hatches for subsequent shapes, similarly to stroke and fill operations. However, you can also directly hatch multiple objects at once, including their intersections, as described below.
 
 - `brush.hatchArray(polygons)`
   - **Description**: Creates a hatching pattern across specified polygons. This function applies the set hatching parameters to a single polygon or an array of polygons.
@@ -687,7 +842,7 @@ In essence, the hatching system activates hatches for subsequent shapes, similar
 <sub>[back to table](#table-of-functions)</sub>
 ### Primitives
 
-This section details the functions for creating various shapes and strokes with the set brush, fill, and hatch parameters.
+These are the functions that actually draw lines, paths, and shapes using the current stroke, fill, and hatch settings.
 
 #### Lines, Strokes, Splines, and Plots
 
@@ -835,7 +990,7 @@ The following functions are affected by stroke(), fill() and hatch() operations.
 
 ---
 
-These three functions perform similarly to the p5.js beginShape(), vertex(), and endShape() functions, althouh curvature calculation is very different. These allow you to draw custom shapes, with fine control over brush pressure at the different points of the perimeter.
+These three functions perform similarly to the p5.js `beginShape()`, `vertex()`, and `endShape()` functions, although their curvature calculation is very different. They allow you to draw custom shapes with fine control over brush pressure at different points of the perimeter.
 
 - `brush.beginShape(curvature)`
   - **Description**: Initiates the creation of a custom shape by starting to record vertices. An optional curvature can be defined for the vertices.
@@ -890,128 +1045,6 @@ These three functions perform similarly to the p5.js beginShape(), vertex(), and
     brush.polygon(points);
     ```
     `brush.polygon()` is ideal for drawing fixed shapes that remain unaffected by vector fields, providing precise control over their form and appearance.
-
-
----
-
-<sub>[back to table](#table-of-functions)</sub>
-### Optional: Configuration
-
-This section covers functions for initializing the drawing system and configuring system behavior. By default, the library works without executing these functions, but you might want to configure them to your liking.
-
-> **Seeding**: p5.brush automatically hooks into p5's `randomSeed()` and `noiseSeed()`. Calling either of those functions seeds both p5 and the library simultaneously — no separate `brush.seed()` call is needed.
-
-- `brush.load(buffer)`
-  - **Description**: Redirects brush drawing to a secondary canvas target. **Not needed for the main canvas** — the library initializes automatically when `createCanvas()` is called. Pass a `p5.Graphics` buffer or an active `p5.Framebuffer` to draw into that target instead; call `brush.load()` with no argument to switch back to the main canvas. Framebuffers created from `p5.Graphics` are not supported.
-  - **Parameters**:
-    - `buffer` (p5.Graphics | p5.Framebuffer): Optional. An offscreen target to draw into.
-  - **How to use it**:
-    - `p5.Graphics`: create it with `WEBGL`, call `brush.load(pg)`, draw with brush functions, then call `brush.load()` to restore the main canvas before presenting it with `image(pg, ...)`.
-    - `p5.Framebuffer`: create it from the main sketch with `createFramebuffer(...)`, enter its `draw()` or `begin()` / `end()` scope, call `brush.load(fb)` while it is active, draw with brush functions, then call `brush.load()` again after leaving the framebuffer scope.
-    - `brush.load(...)` only changes the target used by p5.brush. If you also use native p5 drawing calls, call them on the same target yourself, for example `pg.background(...)` for `p5.Graphics`.
-    - `pg.createFramebuffer()` is not supported.
-  - **Example (draw into a buffer)**:
-    ```javascript
-    function setup() {
-      createCanvas(400, 400, WEBGL);
-      brush.load();
-      brush.set("HB", "black", 1);
-      brush.rect(40, 40, 150, 100);
-
-      // Switch to a buffer
-      let buffer = createGraphics(200, 300, WEBGL);
-      brush.load(buffer);
-      brush.set("HB", "black", 1);
-      brush.rect(40, 40, 150, 100);
-      image(buffer, 20, 40);
-
-      // Switch back to main canvas
-      brush.load();
-    }
-    ```
-  - **Example (draw into a framebuffer)**:
-    ```javascript
-    function setup() {
-      createCanvas(400, 400, WEBGL);
-      brush.load();
-
-      const layer = createFramebuffer({ width: 200, height: 200 });
-
-      layer.draw(() => {
-        brush.load(layer);
-        brush.set("HB", "black", 1);
-        brush.circle(100, 100, 80);
-      });
-
-      brush.load();
-      image(layer, 20, 20);
-    }
-    ```
-
-  - **Typical workflows**:
-    ```javascript
-    // p5.Graphics
-    const pg = createGraphics(300, 200, WEBGL);
-    pg.background(250);
-    brush.load(pg);
-    brush.set("HB", "black", 1);
-    brush.circle(150, 100, 70);
-    brush.load();
-    image(pg, 20, 20);
-
-    // p5.Framebuffer
-    const fb = createFramebuffer({ width: 300, height: 200 });
-    fb.draw(() => {
-      background(250);
-      brush.load(fb);
-      brush.set("HB", "black", 1);
-      brush.circle(150, 100, 70);
-    });
-    brush.load();
-    image(fb, 20, 240);
-    ```
-
----
-
-- `brush.scaleBrushes(scale)`
-  - **Description**: Adjusts the global scale of all currently registered brush parameters, including weight, scatter, and spacing, based on the given scaling factor.
-  - **Parameters**:
-    - `scale` (Number): The scaling factor to be applied to the brush parameters.
-  - **Note**: In practice, using `brush.scaleBrushes()` is usually necessary to adapt the built-in brushes to your canvas size. For a `600x600` canvas, `brush.scaleBrushes(3)` is a good starting point, but the final value should still be confirmed visually. This affects the brushes that already exist when you call it. If you only want the built-in brushes scaled, call it before adding custom brushes. If you add custom brushes later, call `brush.scaleBrushes()` again to scale them too.
-  - **Usage**:
-    ```javascript
-    // Good starting point for a 600x600 canvas
-    brush.scaleBrushes(3);
-    ```
-    Using `brush.scaleBrushes()`, you can easily adjust the size and spacing characteristics of brushes in your project, providing a convenient way to adapt to different canvas sizes or artistic styles.
-    
----
-
-- `brush.instance(p)`
-  - **Description**: Call this inside your sketch function before `setup` and `draw` when using p5 in instance mode. Tells p5.brush which p5 instance to render into. After calling this, all `brush.*` functions work normally — no need to prefix them with `p.`.
-  - **Parameters**:
-    - `p` (p5): The p5 instance passed as the argument to your sketch function.
-  - **Example**:
-      ```javascript
-      const sketch = (p) => {
-        // Must be called before setup/draw
-        brush.instance(p);
-
-        p.setup = () => {
-          // Canvas must be WEBGL
-          p.createCanvas(700, 410, p.WEBGL);
-          brush.load();
-        };
-
-        p.draw = () => {
-          p.background(240);
-          brush.set("HB", "#333", 1);
-          brush.line(100, 100, 400, 300);
-        };
-      };
-
-      new p5(sketch);
-      ```
 
 ---
 
@@ -1152,10 +1185,21 @@ Exposed Classes provide foundational elements for creating and manipulating shap
   - `.y`: The current y-coordinate.
   - `.plotted`: Stores the distance moved since the last reset or the creation of the position.
 
+<sub>[back to table](#table-of-functions)</sub>
+### Utility Functions
+
+---
+ 
+> **Note for users upgrading from older versions**: `brush.push()`, `brush.pop()`, `brush.translate()`, `brush.rotate()`, and `brush.scale()` are no longer needed. The library now automatically hooks into p5's `push()` and `pop()`, so brush state (stroke, fill, hatch settings) is saved and restored alongside p5's own state. Likewise, p5's `translate()`, `rotate()`, and `scale()` are automatically inherited by all brush strokes and fills.
+
+> Public brush APIs that accept angles also inherit p5's current `angleMode()`. With no `angleMode()` call, that means radians by default, matching p5 itself. The main exception is `brush.addField(name, fn, { angleMode })`, which lets custom field generators declare how returned angles should be interpreted before they are stored internally in degrees.
+
+---
+
 
 ## Examples
 
-- Basic examples: [collection in p5.editor (more soon)](https://editor.p5js.org/acamposuribe/collections/PmyBeAfQP)
+- Basic examples: [collection in the p5.js Web Editor (more soon)](https://editor.p5js.org/acamposuribe/collections/PmyBeAfQP)
 - GenArt project 1: [Enfantines I](https://www.fxhash.xyz/generative/20569)
 - GenArt project 2: [Enfantines II](https://www.fxhash.xyz/generative/22739)
 - GenArt project 3: [Fuga a tientas](https://verse.works/exhibitions/fugaatientas-imperfections)
