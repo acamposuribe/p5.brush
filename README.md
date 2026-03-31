@@ -141,34 +141,13 @@ p5.brush.js provides a comprehensive API for creating complex drawings and effec
 
 ### Table of Functions
 
-|      Section                               |      Functions      |   | Section                                    |      Functions      |
-|--------------------------------------------|---------------------|---|--------------------------------------------|---------------------|
-| [Utility](#utility-functions)              |                     |   | [Hatch Operations](#hatch-operations)      | brush.hatch()       |
-|                                            |                     |   |                                            | brush.noHatch()     |
-| [Vector-Fields](#vector-fields)            | brush.field()       |   |                                            | brush.hatchStyle()  |
-|                                            | brush.noField()     |   | [Primitives](#primitives)                  | brush.line()        |
-|                                            | brush.refreshField()|   |                                            | brush.flowLine()    |
-|                                            | brush.listFields()  |   |                                            | brush.beginStroke() |
-|                                            | brush.addField()    |   |                                            | brush.move()        |
-|                                            | brush.wiggle()      |   |                                            | brush.endStroke()   |
-| [Brush Management](#brush-management)      | brush.box()         |   |                                            | brush.spline()      |
-|                                            | brush.add()         |   |                                            | brush.rect()        |
-|                                            | brush.clip()        |   |                                            | brush.circle()      |
-|                                            | brush.noClip()      |   |                                            | brush.arc()         |
-| [Stroke Operations](#stroke-operations)    | brush.set()         |   |                                            | brush.beginShape()  |
-|                                            | brush.pick()        |   |                                            | brush.vertex()      |
-|                                            | brush.stroke()      |   |                                            | brush.endShape()    |
-|                                            | brush.noStroke()    |   |                                            | brush.polygon()     |
-|                                            | brush.strokeWeight()|   | [Configuration](#optional-configuration)   | brush.load()        |
-| [Fill Operations](#fill-operations)        | brush.fill()        |   |                                            |      |
-|                                            | brush.noFill()      |   |                                            | brush.scaleBrushes()|
-|                                            | brush.wash()        |   |                                            | brush.instance()    |
-|                                            | brush.noWash()      |   |                                            |                     |
-|                                            | brush.fillBleed()   |   |                                            |                     |
-|                                            | brush.fillTexture() |   |                                            |                     |
-| [Hatch Operations](#hatch-operations)      | brush.mass()        |   | [Classes](#exposed-classes)                | brush.Polygon()     |
-|                                            | brush.noMass()      |   |                                            | brush.Plot()        |
-|                                            |                     |   |                                            | brush.Position()    |
+| Section | Functions | Section | Functions |
+|---|---|---|---|
+| [Utility](#utility-functions) |  | [Primitives](#primitives) | `brush.line()`, `brush.flowLine()`, `brush.beginStroke()`, `brush.move()`, `brush.endStroke()`, `brush.spline()`, `brush.rect()`, `brush.circle()`, `brush.arc()`, `brush.beginShape()`, `brush.vertex()`, `brush.endShape()`, `brush.polygon()` |
+| [Vector-Fields](#vector-fields) | `brush.field()`, `brush.noField()`, `brush.refreshField()`, `brush.listFields()`, `brush.addField()`, `brush.wiggle()` | [Configuration](#optional-configuration) | `brush.load()`, `brush.scaleBrushes()`, `brush.instance()` |
+| [Brush Management](#brush-management) | `brush.box()`, `brush.add()`, `brush.clip()`, `brush.noClip()` | [Classes](#exposed-classes) | `brush.Polygon()`, `brush.Plot()`, `brush.Position()` |
+| [Stroke Operations](#stroke-operations) | `brush.set()`, `brush.pick()`, `brush.stroke()`, `brush.noStroke()`, `brush.strokeWeight()` | [Hatch Operations](#hatch-operations) | `brush.hatch()`, `brush.noHatch()`, `brush.hatchStyle()`, `brush.mass()`, `brush.noMass()` |
+| [Fill Operations](#fill-operations) | `brush.fill()`, `brush.noFill()`, `brush.wash()`, `brush.noWash()`, `brush.fillBleed()`, `brush.fillTexture()` |  |  |
 
 ---
 

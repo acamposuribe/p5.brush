@@ -30,7 +30,7 @@ p5.brush ships in **two completely different builds**. Before generating any cod
 
 ```html
 <script src="https://cdn.jsdelivr.net/npm/p5@2.2/lib/p5.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/p5.brush@2.1.0-beta"></script>
+<script src="https://cdn.jsdelivr.net/npm/p5.brush@latest"></script>
 ```
 
 ```js
