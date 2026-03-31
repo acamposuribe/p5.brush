@@ -191,7 +191,7 @@ p5.brush.js provides a comprehensive API for creating complex drawings and effec
 
 | Section | Functions | Section | Functions |
 |---|---|---|---|
-| [Optional: Configuration](#optional-configuration) | `brush.load()`, `brush.scaleBrushes()`, `brush.instance()` | [Fill Operations](#fill-operations) | `brush.fill()`, `brush.noFill()`, `brush.wash()`, `brush.noWash()`, `brush.fillBleed()`, `brush.fillTexture()` |
+| [Configuration](#configuration) | `brush.load()`, `brush.scaleBrushes()`, `brush.instance()` | [Fill Operations](#fill-operations) | `brush.fill()`, `brush.noFill()`, `brush.wash()`, `brush.noWash()`, `brush.fillBleed()`, `brush.fillTexture()` |
 | [Vector Fields](#vector-fields) | `brush.field()`, `brush.noField()`, `brush.refreshField()`, `brush.listFields()`, `brush.addField()`, `brush.wiggle()` | [Hatch Operations](#hatch-operations) | `brush.hatch()`, `brush.noHatch()`, `brush.hatchStyle()`, `brush.mass()`, `brush.noMass()` |
 | [Brush Management](#brush-management) | `brush.box()`, `brush.add()`, `brush.clip()`, `brush.noClip()` | [Primitives](#primitives) | `brush.line()`, `brush.flowLine()`, `brush.beginStroke()`, `brush.move()`, `brush.endStroke()`, `brush.spline()`, `brush.rect()`, `brush.circle()`, `brush.arc()`, `brush.beginShape()`, `brush.vertex()`, `brush.endShape()`, `brush.polygon()` |
 | [Stroke Operations](#stroke-operations) | `brush.set()`, `brush.pick()`, `brush.stroke()`, `brush.noStroke()`, `brush.strokeWeight()` | [Exposed Classes](#exposed-classes) | `brush.Polygon()`, `brush.Plot()`, `brush.Position()` |
@@ -200,9 +200,9 @@ p5.brush.js provides a comprehensive API for creating complex drawings and effec
 ---
 
 <sub>[back to table](#table-of-functions)</sub>
-### Optional: Configuration
+### Configuration
 
-This section covers functions for initializing the drawing system and configuring system behavior. By default, the library works without executing these functions, but you might want to configure them to your liking.
+This section covers functions for initializing the drawing system and configuring how the library behaves in your sketch. In particular, `brush.scaleBrushes()` is usually important when you use the built-in brushes.
 
 > **Seeding**: p5.brush automatically hooks into p5's `randomSeed()` and `noiseSeed()`. Calling either of those functions seeds both p5 and the library simultaneously — no separate `brush.seed()` call is needed.
 
@@ -282,13 +282,14 @@ This section covers functions for initializing the drawing system and configurin
   - **Description**: Adjusts the global scale of all currently registered brush parameters, including weight, scatter, and spacing, based on the given scaling factor.
   - **Parameters**:
     - `scale` (Number): The scaling factor to be applied to the brush parameters.
-  - **Note**: In practice, using `brush.scaleBrushes()` is usually necessary to adapt the built-in brushes to your canvas size. For a `600x600` canvas, `brush.scaleBrushes(3)` is a good starting point, but the final value should still be confirmed visually. This affects the brushes that already exist when you call it. If you only want the built-in brushes scaled, call it before adding custom brushes. If you add custom brushes later, call `brush.scaleBrushes()` again to scale them too.
+  - **Important**: If you are using the built-in brushes, `brush.scaleBrushes()` is usually not optional in practice. Without it, the built-in brushes will often look much too small or otherwise wrong for your canvas size. For a `600x600` canvas, `brush.scaleBrushes(3)` is a good starting point, but the final value should still be confirmed visually.
+  - **Note**: This affects the brushes that already exist when you call it. If you only want the built-in brushes scaled, call it before adding custom brushes. If you add custom brushes later, call `brush.scaleBrushes()` again to scale them too.
   - **Usage**:
     ```javascript
-    // Good starting point for a 600x600 canvas
+    // Usually needed when working with built-in brushes
     brush.scaleBrushes(3);
     ```
-    Using `brush.scaleBrushes()`, you can easily adjust the size and spacing characteristics of brushes in your project, providing a convenient way to adapt to different canvas sizes or artistic styles.
+    Use `brush.scaleBrushes()` early in `setup()` so the built-in brushes match your canvas scale before you start drawing.
     
 ---
 
