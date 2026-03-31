@@ -130,6 +130,7 @@ If you already know the basics of p5, this is the shortest path to drawing with 
 function setup() {
   createCanvas(700, 410, WEBGL);
   background("#f6f1e8");
+  brush.scaleBrushes(3);
 
   brush.set("HB", "#2f2a26", 1.4);
   brush.line(-220, -80, 180, 40);
@@ -146,6 +147,7 @@ function setup() {
 ```
 
 If you are new to the library, a good first sequence is:
+- `brush.scaleBrushes(...)` if you are using built-in brushes
 - `brush.set(...)` to choose the stroke brush
 - `brush.fill(...)` or `brush.hatch(...)` if you want interior texture
 - `brush.line()`, `brush.rect()`, `brush.circle()`, or `brush.polygon()` to draw
