@@ -1,6 +1,15 @@
 import { Cwidth, Cheight } from "./target.js";
 import { isMixReady, State } from "./color.js";
-import { randInt2, noise2, rr2, sin, cos, cossin, map, toDegreesSigned } from "./utils.js";
+import {
+  randInt2,
+  noise2,
+  rr2,
+  sin,
+  cos,
+  cossin,
+  map,
+  toDegreesSigned,
+} from "./utils.js";
 import { getAffineMatrix } from "./runtime.js";
 
 // =============================================================================
@@ -85,7 +94,7 @@ export class Position {
    * @returns {boolean} - True if the position is within bounds, false otherwise.
    */
   isInCanvas() {
-    const margin = 0.3;
+    const margin = 0.5;
     const w = Cwidth;
     const h = Cheight;
     const x = this.x + this.mx;
@@ -104,7 +113,7 @@ export class Position {
    */
   angle(skipCheck = false) {
     if (!State.field.isActive) return 0;
-    return (skipCheck || this.isIn())
+    return skipCheck || this.isIn()
       ? flow_field()[this.colIdx][this.rowIdx] * State.field.wiggle
       : 0;
   }
@@ -146,7 +155,8 @@ export class Position {
     }
     const steps = _length / _step;
     const _cs = cossin(-_dir);
-    const dx = _step * _cs[0], dy = _step * _cs[1];
+    const dx = _step * _cs[0],
+      dy = _step * _cs[1];
     for (let i = 0; i < steps; i++) {
       this.x += dx;
       this.y += dy;
@@ -161,11 +171,23 @@ export class Position {
    * @param {number} _step_length - The length of each step.
    * @param {number} _scale - The scaling factor for the plotting path.
    */
-  plotTo(_plot, _length, _step_length, _scale = 1, precomputedAngle = undefined) {
+  plotTo(
+    _plot,
+    _length,
+    _step_length,
+    _scale = 1,
+    precomputedAngle = undefined,
+  ) {
     this.movePos(_plot, _length, _step_length, _scale, precomputedAngle);
   }
 
-  movePos(_dirPlot, _length, _step, _scale = false, precomputedAngle = undefined) {
+  movePos(
+    _dirPlot,
+    _length,
+    _step,
+    _scale = false,
+    precomputedAngle = undefined,
+  ) {
     const scaleFactor = _scale || 1;
     if (!this.isIn()) {
       this.plotted += _step / scaleFactor;
@@ -175,9 +197,12 @@ export class Position {
     const fieldActive = State.field.isActive;
     const usePlot = !!_scale;
     for (let i = 0; i < steps; i++) {
-      const plotAngle = (usePlot && precomputedAngle !== undefined && i === 0)
-        ? precomputedAngle
-        : (usePlot ? _dirPlot.angle(this.plotted) : _dirPlot);
+      const plotAngle =
+        usePlot && precomputedAngle !== undefined && i === 0
+          ? precomputedAngle
+          : usePlot
+            ? _dirPlot.angle(this.plotted)
+            : _dirPlot;
       const angle = (fieldActive ? this.angle(true) : 0) - plotAngle;
       // Calculate new position — cossin() computes the index once for both cos and sin
       const _cs = cossin(angle);
@@ -400,7 +425,8 @@ function addStandard() {
     return fillField(
       field,
       (c, r) =>
-        3 * map(noise2(c * 0.02 + t * 0.03, r * 0.02 + t * 0.03), 0, 1, -ar, ar),
+        3 *
+        map(noise2(c * 0.02 + t * 0.03, r * 0.02 + t * 0.03), 0, 1, -ar, ar),
     );
   });
   // Sharp alternating angles per cell — herringbone / wicker look
