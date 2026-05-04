@@ -25,6 +25,7 @@ export function polygon(pointsArray) {
   // Create a new Polygon instance
   const polygon = new Polygon(pointsArray);
   polygon.show();
+  return polygon;
 }
 
 /**
@@ -90,6 +91,7 @@ export function circle(x, y, radius, r = false) {
   const offsetX = x - radius * sin(angleOffset);
   const offsetY = y - radius * cos(-angleOffset);
   p.show(offsetX, offsetY, 1);
+  return p;
 }
 
 /**
@@ -146,6 +148,7 @@ class SubPath {
   show() {
     let plot = _createSpline(this.vert, this.curvature, this.isClosed);
     plot.show();
+    return plot;
   }
 }
 
@@ -193,6 +196,7 @@ export function endShape(close = false) {
   }
   _current.show();
   _current = false;
+  return _current;
 }
 
 let _strokeArray, _strokeOrigin;
@@ -257,6 +261,7 @@ export function spline(_array_points, _curvature = 0.5) {
   }
   let p = _createSpline(_array_points, _curvature);
   p.show();
+  return p;
 }
 
 /**
