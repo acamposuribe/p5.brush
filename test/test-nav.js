@@ -9,6 +9,7 @@
       "p5/transform_test.html",
       "p5/pushpop_test.html",
       "p5/hatch_test.html",
+      "p5/hatch_array_regression.html",
       "p5/field_explorer.html",
       "p5/offscreen_target_test.html",
       "p5/instance_mode_test.html",

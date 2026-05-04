@@ -63,7 +63,7 @@ export {
   noHatch,
   createHatch as hatchArray,
 } from "./hatch/hatch.js";
-export { mass, noMass } from "./hatch/mass.js";
+export { mass, noMass, createMassArray as massArray } from "./hatch/mass.js";
 
 // Fill
 export { fill, noFill, fillTexture, fillBleed } from "./fill/fill.js";

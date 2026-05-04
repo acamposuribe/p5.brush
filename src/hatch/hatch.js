@@ -103,49 +103,65 @@ let _eY1 = new Float64Array(512);
 let _eX2 = new Float64Array(512);
 let _eY2 = new Float64Array(512);
 
-function scanlineHatch(polygon, angle, dist, gradient) {
+function scanlineHatch(polygons, angle, dist, gradient) {
+  if (!Array.isArray(polygons)) polygons = [polygons];
+
   const rad = (angle * Math.PI) / 180;
   const cosA = Math.cos(rad),
     sinA = Math.sin(rad);
   // cos(-rad) = cosA, sin(-rad) = -sinA — no extra trig needed
   const sinB = -sinA;
 
-  const verts = polygon.a,
-    n = verts.length;
+  let totalVerts = 0;
+  for (const polygon of polygons) totalVerts += polygon.a.length;
+  if (totalVerts === 0) return [];
 
   // Grow reusable vertex buffers if needed
-  if (_sRotX.length < n) {
-    _sRotX = new Float64Array(n * 2);
-    _sRotY = new Float64Array(n * 2);
+  if (_sRotX.length < totalVerts) {
+    _sRotX = new Float64Array(totalVerts * 2);
+    _sRotY = new Float64Array(totalVerts * 2);
   }
 
-  // Rotate vertices into scan space; track Y extent
+  // Rotate all contour vertices into scan space; track the combined Y extent
   let minY = Infinity,
     maxY = -Infinity;
-  for (let i = 0; i < n; i++) {
-    const x = verts[i][0],
-      y = verts[i][1];
-    _sRotX[i] = x * cosA - y * sinA;
-    _sRotY[i] = x * sinA + y * cosA;
-    if (_sRotY[i] < minY) minY = _sRotY[i];
-    if (_sRotY[i] > maxY) maxY = _sRotY[i];
+  let eLen = 0;
+  let vLen = 0;
+  if (_eX1.length < totalVerts) {
+    _eX1 = new Float64Array(totalVerts * 2);
+    _eY1 = new Float64Array(totalVerts * 2);
+    _eX2 = new Float64Array(totalVerts * 2);
+    _eY2 = new Float64Array(totalVerts * 2);
   }
 
-  // Build flat edge list (skip horizontal edges) into reusable buffers
-  let eLen = 0;
-  if (_eX1.length < n) {
-    _eX1 = new Float64Array(n * 2);
-    _eY1 = new Float64Array(n * 2);
-    _eX2 = new Float64Array(n * 2);
-    _eY2 = new Float64Array(n * 2);
-  }
-  for (let i = 0; i < n; i++) {
-    const j = i + 1 < n ? i + 1 : 0;
-    const ay = _sRotY[i], by = _sRotY[j];
-    if (ay !== by) {
-      _eX1[eLen] = _sRotX[i]; _eY1[eLen] = ay;
-      _eX2[eLen] = _sRotX[j]; _eY2[eLen] = by;
-      eLen++;
+  // Build one flat edge list across all contours so crossings pair globally.
+  for (const polygon of polygons) {
+    const verts = polygon.a;
+    const n = verts.length;
+    const base = vLen;
+
+    for (let i = 0; i < n; i++) {
+      const x = verts[i][0],
+        y = verts[i][1];
+      _sRotX[vLen] = x * cosA - y * sinA;
+      _sRotY[vLen] = x * sinA + y * cosA;
+      if (_sRotY[vLen] < minY) minY = _sRotY[vLen];
+      if (_sRotY[vLen] > maxY) maxY = _sRotY[vLen];
+      vLen++;
+    }
+
+    for (let i = 0; i < n; i++) {
+      const j = i + 1 < n ? i + 1 : 0;
+      const ai = base + i;
+      const bj = base + j;
+      const ay = _sRotY[ai], by = _sRotY[bj];
+      if (ay !== by) {
+        _eX1[eLen] = _sRotX[ai];
+        _eY1[eLen] = ay;
+        _eX2[eLen] = _sRotX[bj];
+        _eY2[eLen] = by;
+        eLen++;
+      }
     }
   }
 
@@ -207,11 +223,7 @@ function scanlineHatch(polygon, angle, dist, gradient) {
  * @returns {{scanY:number, x1:number, y1:number, x2:number, y2:number}[]}
  */
 function getHatchSegments(polygons, dist, angle, gradient) {
-  if (!Array.isArray(polygons)) polygons = [polygons];
-  const segs = [];
-  for (const poly of polygons) {
-    for (const s of scanlineHatch(poly, angle, dist, gradient)) segs.push(s);
-  }
+  const segs = scanlineHatch(polygons, angle, dist, gradient);
   segs.sort((a, b) => (a.scanY === b.scanY ? a.x1 - b.x1 : a.scanY - b.scanY));
   return segs;
 }

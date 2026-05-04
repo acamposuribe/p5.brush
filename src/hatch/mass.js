@@ -81,15 +81,19 @@ function jitterPolygon(polygon, jitterX, jitterY) {
   );
 }
 
+function jitterPolygons(polygons, jitterX, jitterY) {
+  return polygons.map((polygon) => jitterPolygon(polygon, jitterX, jitterY));
+}
+
 /**
  * Builds the three polygons used for a mass pass.
  * Both polygon and plot inputs use one base polygon plus two translated copies,
  * so plot-based massing only needs a single `genPol(...)` call.
- * @param {Polygon|Plot} shape
+ * @param {Polygon|Polygon[]|Plot} shape
  * @param {number|false} x
  * @param {number} y
  * @param {number} scale
- * @returns {Polygon[]}
+ * @returns {(Polygon|Polygon[])[]}
  */
 function getMassPolygons(shape, x, y, scale) {
   const isPolygon = x === false;
@@ -100,6 +104,14 @@ function getMassPolygons(shape, x, y, scale) {
     [rr2(-maxJitter, maxJitter), rr2(-maxJitter, maxJitter)],
     [rr2(-maxJitter, maxJitter), rr2(-maxJitter, maxJitter)],
   ];
+
+  if (Array.isArray(basePolygon)) {
+    return [
+      basePolygon,
+      jitterPolygons(basePolygon, jitters[0][0], jitters[0][1]),
+      jitterPolygons(basePolygon, jitters[1][0], jitters[1][1]),
+    ];
+  }
 
   return [
     basePolygon,
@@ -123,14 +135,22 @@ function getAngleConverter() {
     : (angle) => angle;
 }
 
+function getAngleInverseConverter() {
+  return usesRadians()
+    ? (angle) => (angle * 180) / Math.PI
+    : (angle) => angle;
+}
+
 /**
  * Computes an axis-aligned bounding box for a polygon.
  * The diagonal is used as a size reference for pivot distance.
- * @param {Polygon} polygon
+ * @param {Polygon|Polygon[]} polygon
  * @returns {{minX:number,minY:number,maxX:number,maxY:number,cx:number,cy:number,size:number}}
  */
 function getPolygonBounds(polygon) {
-  const points = polygon?.a ?? [];
+  const points = Array.isArray(polygon)
+    ? polygon.flatMap((part) => part?.a ?? [])
+    : polygon?.a ?? [];
   let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
   for (const [x, y] of points) {
     if (x < minX) minX = x;
@@ -172,7 +192,7 @@ function getPivotBias(angleDeg) {
 /**
  * Places the global pivot anchor outside the polygon, along the selected bias.
  * Distance varies per layer while the bias stays fixed for the whole mass.
- * @param {Polygon} polygon
+ * @param {Polygon|Polygon[]} polygon
  * @param {[number, number]} bias
  * @returns {{x:number,y:number}}
  */
@@ -212,6 +232,22 @@ function projectAnchorToBisector(anchor, x1, y1, x2, y2) {
   };
 }
 
+function biasArrayMassCenter(shape, center, x1, y1, x2, y2) {
+  if (!Array.isArray(shape)) return center;
+
+  const mx = (x1 + x2) / 2;
+  const my = (y1 + y2) / 2;
+  const chord = Math.hypot(x2 - x1, y2 - y1);
+  const size = Math.max(getPolygonBounds(shape).size, chord, 1);
+  const shortness = 1 - Math.min(1, chord / (size * 0.42));
+  const bias = 0.08 + shortness * 0.18;
+
+  return {
+    x: center.x + (mx - center.x) * bias,
+    y: center.y + (my - center.y) * bias,
+  };
+}
+
 /**
  * Returns the shortest arc between two endpoints around a given center.
  * The returned angles are already converted into the current runtime angle units.
@@ -232,6 +268,62 @@ function getShortArcAngles(cx, cy, x1, y1, x2, y2, toAngleUnit) {
     toAngleUnit(startDeg),
     toAngleUnit(endDeg),
   ];
+}
+
+function pointInRing(points, x, y) {
+  let inside = false;
+  for (let i = 0, j = points.length - 1; i < points.length; j = i++) {
+    const xi = points[i][0], yi = points[i][1];
+    const xj = points[j][0], yj = points[j][1];
+    const intersects = ((yi > y) !== (yj > y))
+      && (x < ((xj - xi) * (y - yi)) / ((yj - yi) || Number.EPSILON) + xi);
+    if (intersects) inside = !inside;
+  }
+  return inside;
+}
+
+function pointInMassShape(shape, x, y) {
+  if (Array.isArray(shape)) {
+    let inside = false;
+    for (const polygon of shape) {
+      if (pointInRing(polygon.a, x, y)) inside = !inside;
+    }
+    return inside;
+  }
+  return pointInRing(shape.a, x, y);
+}
+
+function getArcSamplePoint(cx, cy, radius, startAngle, endAngle, toDegreesUnit, t) {
+  const startDeg = toDegreesUnit(startAngle);
+  const endDeg = toDegreesUnit(endAngle);
+  const sweepDeg = ((endDeg - startDeg) % 360 + 360) % 360;
+  const sampleDeg = startDeg + sweepDeg * t;
+  const midRad = (sampleDeg * Math.PI) / 180;
+  return {
+    x: cx + radius * Math.cos(midRad),
+    y: cy - radius * Math.sin(midRad),
+  };
+}
+
+function arcFitsShape(shape, cx, cy, radius, startAngle, endAngle, toDegreesUnit) {
+  for (const t of [0.125, 0.25, 0.375, 0.5, 0.625, 0.75, 0.875]) {
+    const point = getArcSamplePoint(cx, cy, radius, startAngle, endAngle, toDegreesUnit, t);
+    if (!pointInMassShape(shape, point.x, point.y)) return false;
+  }
+  return true;
+}
+
+function getMassArcAngles(shape, cx, cy, radius, x1, y1, x2, y2, toAngleUnit, toDegreesUnit) {
+  const shortArc = getShortArcAngles(cx, cy, x1, y1, x2, y2, toAngleUnit);
+  const longArc = [shortArc[1], shortArc[0]];
+  const shortFits = arcFitsShape(shape, cx, cy, radius, shortArc[0], shortArc[1], toDegreesUnit);
+  const longFits = arcFitsShape(shape, cx, cy, radius, longArc[0], longArc[1], toDegreesUnit);
+
+  if (shortFits && !longFits) return shortArc;
+  if (longFits && !shortFits) return longArc;
+  if (shortFits) return shortArc;
+  if (longFits) return longArc;
+  return null;
 }
 
 /**
@@ -264,21 +356,35 @@ function splitSegment(seg) {
  * Draws one polygon of the mass as a family of arcs derived from hatch lines.
  * The same pivot bias is used across layers, while each layer gets its own
  * anchor distance from the shape.
- * @param {Polygon} polygon
+ * @param {Polygon|Polygon[]} polygon
  * @param {[number, number]} pivotBias
  */
-function drawMassArcs(polygon, pivotBias, toAngleUnit) {
+function drawMassArcs(polygon, pivotBias, toAngleUnit, toDegreesUnit) {
   const anchor = getPivotAnchor(polygon, pivotBias);
   for (const seg of getHatchLines(polygon)) {
     const parts = !seg.isConnector && rr2() < 0.35 ? splitSegment(seg) : [seg];
     for (const part of parts) {
-      const center = projectAnchorToBisector(anchor, part.x1, part.y1, part.x2, part.y2);
+      const projectedCenter = projectAnchorToBisector(anchor, part.x1, part.y1, part.x2, part.y2);
+      const center = projectedCenter
+        ? biasArrayMassCenter(polygon, projectedCenter, part.x1, part.y1, part.x2, part.y2)
+        : null;
       if (!center) continue;
       const radius = dist(center.x, center.y, part.x1, part.y1);
       if (!radius) continue;
-      const [startAngle, endAngle] = getShortArcAngles(
-        center.x, center.y, part.x1, part.y1, part.x2, part.y2, toAngleUnit,
+      const arcAngles = getMassArcAngles(
+        polygon,
+        center.x,
+        center.y,
+        radius,
+        part.x1,
+        part.y1,
+        part.x2,
+        part.y2,
+        toAngleUnit,
+        toDegreesUnit,
       );
+      if (!arcAngles) continue;
+      const [startAngle, endAngle] = arcAngles;
       arc(center.x, center.y, radius, startAngle, endAngle);
     }
   }
@@ -286,22 +392,30 @@ function drawMassArcs(polygon, pivotBias, toAngleUnit) {
 
 /**
  * Configures a hatch pass and immediately reinterprets the generated lines as arcs.
- * @param {Polygon} polygon
+ * @param {Polygon|Polygon[]} polygon
  * @param {number} dist
  * @param {number} angle
  * @param {object} options
  * @param {[number, number]} pivotBias
  */
-function drawMassPass(polygon, dist, angle, options, pivotBias, toAngleUnit) {
-  hatch(dist, angle, options);
-  drawMassArcs(polygon, pivotBias, toAngleUnit);
+function drawMassPass(polygon, dist, angle, options, pivotBias, toAngleUnit, toDegreesUnit) {
+  hatch(dist, angle, Array.isArray(polygon) ? { ...options, continuous: false } : options);
+  drawMassArcs(polygon, pivotBias, toAngleUnit, toDegreesUnit);
+}
+
+function drawMassOutline(shape) {
+  if (Array.isArray(shape)) {
+    for (const polygon of shape) polygon.draw();
+    return;
+  }
+  shape.draw();
 }
 
 /**
  * Creates the built-in "massing" effect for a polygon or plot.
  * A mass is built from up to three jittered polygon layers, each hatched and
  * then redrawn as arc gestures around a shared pivot bias.
- * @param {Polygon|Plot} shape
+ * @param {Polygon|Polygon[]|Plot} shape
  * @param {number|false} x
  * @param {number} y
  * @param {number} scale
@@ -320,10 +434,11 @@ export function createMass(shape, x, y, scale) {
   const baseAngle = rr2(-90, 90);
   const pivotBias = getPivotBias(baseAngle);
   const toAngleUnit = getAngleConverter();
+  const toDegreesUnit = getAngleInverseConverter();
 
   set(State.mass.brush, State.mass.color, 1);
   wiggle(2 - precision);
-  if (outline) pols[0].draw();
+  if (outline) drawMassOutline(pols[0]);
 
   drawMassPass(
     pols[0],
@@ -336,6 +451,7 @@ export function createMass(shape, x, y, scale) {
     },
     pivotBias,
     toAngleUnit,
+    toDegreesUnit,
   );
 
   if (strength > 0.33) {
@@ -350,6 +466,7 @@ export function createMass(shape, x, y, scale) {
       },
       pivotBias,
       toAngleUnit,
+      toDegreesUnit,
     );
   }
 
@@ -365,12 +482,17 @@ export function createMass(shape, x, y, scale) {
       },
       pivotBias,
       toAngleUnit,
+      toDegreesUnit,
     );
   }
 
   BrushSetState(brushState);
   HatchSetState(hatchState);
   State.field = { ...fieldState };
+}
+
+export function createMassArray(polygons) {
+  return createMass(polygons, false);
 }
 
 // ---------------------------------------------------------------------------

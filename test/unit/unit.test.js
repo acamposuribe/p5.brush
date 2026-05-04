@@ -84,7 +84,7 @@ import {
 } from "../../src/core/utils.js";
 import { arc } from "../../src/core/primitives.js";
 import { Position, addField, field as activateField, noField } from "../../src/core/flowfield.js";
-import { hatch } from "../../src/hatch/hatch.js";
+import { getHatchLines, hatch } from "../../src/hatch/hatch.js";
 
 beforeEach(() => {
   currentAngleMode.value = "radians";
@@ -350,6 +350,38 @@ describe("hatch()", () => {
 
     currentAngleMode.value = "degrees";
     expect(mockState.hatch.angle).toBeCloseTo(90);
+  });
+
+  it("pairs crossings across polygon arrays with even-odd parity", () => {
+    hatch(4, 0, { rand: 0, continuous: false, gradient: false });
+
+    const outer = {
+      a: [
+        [0, 0],
+        [10, 0],
+        [10, 10],
+        [0, 10],
+      ],
+    };
+    const inner = {
+      a: [
+        [3, 3],
+        [7, 3],
+        [7, 7],
+        [3, 7],
+      ],
+    };
+
+    const lines = getHatchLines([outer, inner]).filter((line) => !line.isConnector);
+    const centerLines = lines
+      .filter((line) => line.y1 === 6 && line.y2 === 6)
+      .sort((a, b) => a.x1 - b.x1);
+
+    expect(centerLines).toHaveLength(2);
+    expect(centerLines[0].x1).toBeCloseTo(0);
+    expect(centerLines[0].x2).toBeCloseTo(3);
+    expect(centerLines[1].x1).toBeCloseTo(7);
+    expect(centerLines[1].x2).toBeCloseTo(10);
   });
 });
 
