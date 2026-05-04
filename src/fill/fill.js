@@ -722,6 +722,7 @@ Polygon.prototype.fill = function (
     createFill(this);
   }
   FillSetState(state);
+  return this;
 };
 
 /**

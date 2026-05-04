@@ -119,6 +119,7 @@ Polygon.prototype.wash = function (_color = false, _opacity) {
   }
 
   State.wash = { ...state };
+  return this;
 };
 
 /**

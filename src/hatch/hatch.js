@@ -345,6 +345,7 @@ Polygon.prototype.hatch = function (_dist = false, _angle, _options) {
   if (_dist) hatch(_dist, _angle, _options);
   if (State.hatch.isActive) createHatch(this);
   HatchSetState(state);
+  return this;
 };
 
 /**

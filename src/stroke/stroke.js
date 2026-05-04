@@ -885,6 +885,7 @@ Polygon.prototype.draw = function (_brush = false, _color, _weight) {
     }
   }
   BrushSetState(state);
+  return this;
 };
 
 /**
@@ -898,6 +899,7 @@ Plot.prototype.draw = function (x, y, scale) {
     if (this.origin) ((x = this.origin[0]), (y = this.origin[1]), (scale = 1));
     plot(this, x, y, scale);
   }
+  return this;
 };
 
 // =============================================================================

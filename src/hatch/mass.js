@@ -384,6 +384,7 @@ Polygon.prototype.mass = function () {
   if (State.mass?.isActive) {
     createMass(this, false);
   }
+  return this;
 };
 
 /**
@@ -397,4 +398,5 @@ Plot.prototype.mass = function (x, y, scale) {
     if (this.origin) ((x = this.origin[0]), (y = this.origin[1]), (scale = 1));
     createMass(this, x, y, scale);
   }
+  return this;
 };
