@@ -41,6 +41,9 @@ jobs:
       - name: Build library
         run: npx rollup --config
 
+      - name: Browser smoke test
+        run: npm run test:smoke
+
       - name: Publish package
         run: npm publish --provenance --access public
         # No NODE_AUTH_TOKEN needed — npm authenticates via OIDC trusted publisher
