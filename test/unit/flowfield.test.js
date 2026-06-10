@@ -254,14 +254,19 @@ describe("Position.movePos() — early exit when outside canvas", () => {
 // 5. With an active field — moveTo follows field angle
 // ---------------------------------------------------------------------------
 describe("Position.moveTo() — with active constant field", () => {
-  it("follows field angle rather than argument when field is active", () => {
-    // Register a constant 0° field (moves right regardless of dir arg)
+  it("field angle combines with direction arg: field=90°, dir=0° moves along +y, not +x", () => {
+    // Register a constant 90° field (points downward in y-down coords).
+    // movePos computes: angle = fieldAngle - plotAngle = 90 - 0 = 90
+    // cossin(90°) = [cos(90°), sin(90°)] = [0, 1]
+    // → x stays at 400, y increases by step (10) → final (400, 310)
+    // This DIFFERS from the no-field result (410, 300), so the test catches
+    // any regression where the field is silently ignored.
     addField(
-      "const-zero-deg",
+      "const-ninety-deg",
       (_t, field) => {
         for (let c = 0; c < field.length; c++) {
           for (let r = 0; r < field[c].length; r++) {
-            field[c][r] = 0; // 0 degrees → move right
+            field[c][r] = 90; // 90 degrees → move along +y
           }
         }
         return field;
@@ -269,18 +274,14 @@ describe("Position.moveTo() — with active constant field", () => {
       { angleMode: "degrees" },
     );
 
-    activateField("const-zero-deg");
+    activateField("const-ninety-deg");
     mockState.field.wiggle = 1;
 
     const pos = new Position(400, 300);
-    // Even passing 90° as argument, field=0° should dominate
-    // movePos uses: angle = fieldAngle(0°) - plotAngle(arg)
-    // With wiggle=1: field angle = 0, plot-dir converts moveTo arg to degrees
-    // In movePos: angle = field(0) - plotAngle(dir) = 0 - dir_as_degrees
-    // So passing dir=0 → angle=0 → cos(0)=1, moves right
     currentAngleMode.value = "degrees";
     pos.moveTo(0, 10, 10);
-    // With field at 0° and dir arg at 0°: angle = 0 - 0 = 0 → cos(0)=1 → +x
-    expect(pos.x).toBeCloseTo(410, 1);
+    // field=90°, dir=0°: angle = 90 - 0 = 90 → cossin(90°) = [0, 1] → +y only
+    expect(pos.x).toBeCloseTo(400, 1);
+    expect(pos.y).toBeCloseTo(310, 1);
   });
 });
