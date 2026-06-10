@@ -56,7 +56,10 @@ vi.mock("../../src/core/flowfield.js", () => ({
 vi.mock("../../src/core/utils.js", () => ({
   rr2: (min = 0, max = 1) => (min + max) / 2,
   dist: (x1, y1, x2, y2) => Math.hypot(x2 - x1, y2 - y1),
-  calcAngle: (cx, cy, x, y) => (Math.atan2(y - cy, x - cx) * 180) / Math.PI,
+  calcAngle: (x1, y1, x2, y2) => {
+    const deg = (Math.atan2(-(y2 - y1), x2 - x1) * 180) / Math.PI;
+    return deg < 0 ? deg + 360 : deg;
+  },
 }));
 
 vi.mock("../../src/core/polygon.js", () => ({
