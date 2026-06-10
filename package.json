@@ -18,6 +18,7 @@
   "scripts": {
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:smoke": "node test/e2e/smoke.mjs",
     "coverage": "vitest run --coverage",
     "build": "rollup --config"
   },
