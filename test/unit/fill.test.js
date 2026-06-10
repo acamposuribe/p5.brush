@@ -84,7 +84,37 @@ vi.mock("../../src/core/runtime.js", () => ({
   }),
 }));
 
-import { createFill, fill } from "../../src/fill/fill.js";
+import { createFill, fill, noFill } from "../../src/fill/fill.js";
+import { seed } from "../../src/core/utils.js";
+
+// Helper: builds a simple convex polygon object that fill.js expects.
+function makePolygon(vertices) {
+  return {
+    vertices,
+    sides: vertices.map((v, i) => [v, vertices[(i + 1) % vertices.length]]),
+    intersect: () => [],
+  };
+}
+
+// Hexagonal polygon (6 vertices — uses centroid "simple average" fast path)
+function makeHexagon(cx = 50, cy = 50, r = 40) {
+  const verts = [];
+  for (let i = 0; i < 6; i++) {
+    const a = (i / 6) * 2 * Math.PI;
+    verts.push({ x: cx + r * Math.cos(a), y: cy + r * Math.sin(a) });
+  }
+  return makePolygon(verts);
+}
+
+// 10-vertex polygon (uses shoelace centroid path)
+function makeDodecagon(cx = 50, cy = 50, r = 40) {
+  const verts = [];
+  for (let i = 0; i < 10; i++) {
+    const a = (i / 10) * 2 * Math.PI;
+    verts.push({ x: cx + r * Math.cos(a), y: cy + r * Math.sin(a) });
+  }
+  return makePolygon(verts);
+}
 
 describe("createFill()", () => {
   beforeEach(() => {
@@ -94,6 +124,7 @@ describe("createFill()", () => {
       texture_strength: 0.8,
       border_strength: 0.5,
       direction: "out",
+      scatter: true,
       isActive: false,
     };
 
@@ -107,6 +138,7 @@ describe("createFill()", () => {
     mockCtx.globalCompositeOperation = "source-over";
   });
 
+  // ---- existing test ----
   it("does not throw for small polygons in the centroid fast path", () => {
     fill("#ff0000", 80);
 
@@ -129,5 +161,58 @@ describe("createFill()", () => {
     };
 
     expect(() => createFill(polygon)).not.toThrow();
+  });
+
+  // ---- characterization tests ----
+
+  it("throws the exact error message when fill is inactive", () => {
+    // isActive is false (set in beforeEach)
+    expect(() => createFill(makeHexagon())).toThrow(
+      "No fill color set. Call brush.fill(color) before drawing shapes.",
+    );
+  });
+
+  it("throws the exact error message when fill is active but color is unset", () => {
+    mockState.fill.isActive = true;
+    mockState.fill.color = undefined;
+    expect(() => createFill(makeHexagon())).toThrow(
+      "No fill color set. Call brush.fill(color) before drawing shapes.",
+    );
+  });
+
+  it("does not throw after fill() activates fill state (hexagon — small polygon path)", () => {
+    seed(12345);
+    fill("#00ff00", 120);
+    expect(() => createFill(makeHexagon())).not.toThrow();
+  });
+
+  it("does not throw after fill() activates fill state (10-vertex polygon — shoelace path)", () => {
+    seed(12345);
+    fill("#0000ff", 200);
+    expect(() => createFill(makeDodecagon())).not.toThrow();
+  });
+
+  it("invokes ctx.save() and ctx.restore() once each per fill pass", () => {
+    seed(12345);
+    fill("#ff0000", 100);
+    createFill(makeHexagon());
+    expect(mockCtx.save).toHaveBeenCalled();
+    expect(mockCtx.restore).toHaveBeenCalled();
+    expect(mockCtx.save.mock.calls.length).toBe(mockCtx.restore.mock.calls.length);
+  });
+
+  it("calls blend at least once per fill pass (watercolor layering)", () => {
+    seed(12345);
+    fill("#aabbcc", 80);
+    createFill(makeHexagon());
+    expect(blend).toHaveBeenCalled();
+  });
+
+  it("noFill() disables the fill so createFill throws afterward", () => {
+    fill("#ff0000", 100);
+    noFill();
+    expect(() => createFill(makeHexagon())).toThrow(
+      "No fill color set. Call brush.fill(color) before drawing shapes.",
+    );
   });
 });
