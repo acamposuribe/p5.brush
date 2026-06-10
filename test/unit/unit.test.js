@@ -63,6 +63,7 @@ vi.mock("../../src/core/plot.js", () => ({
       this.addSegment = vi.fn();
       this.endPlot = vi.fn();
       this.draw = vi.fn();
+      this.show = vi.fn();
       plotInstances.push(this);
     }
   },
@@ -82,7 +83,7 @@ import {
   weightedRand,
   toDegreesSigned,
 } from "../../src/core/utils.js";
-import { arc } from "../../src/core/primitives.js";
+import { arc, beginShape, vertex, endShape } from "../../src/core/primitives.js";
 import { Position, addField, field as activateField, noField } from "../../src/core/flowfield.js";
 import { getHatchLines, hatch } from "../../src/hatch/hatch.js";
 
@@ -460,5 +461,46 @@ describe("addField()", () => {
 
     const pos = new Position(400, 300);
     expect(pos.angle()).toBeCloseTo(-90, 3);
+  });
+});
+
+// ---- arc() return value ----
+describe("arc() return value", () => {
+  it("returns the Plot instance that was drawn (non-zero sweep)", () => {
+    const result = arc(0, 0, 50, 0, Math.PI);
+    expect(result).toBe(plotInstances[0]);
+    expect(plotInstances[0].draw).toHaveBeenCalled();
+  });
+
+  it("returns null and constructs no Plot when sweep is zero", () => {
+    // same start and end angle → sweepDeg === 0
+    const result = arc(0, 0, 50, 10, 10);
+    expect(result).toBeNull();
+    expect(plotInstances).toHaveLength(0);
+  });
+});
+
+// ---- endShape() return value ----
+describe("endShape() return value", () => {
+  it("returns a Plot instance (not false) after a valid shape", () => {
+    beginShape(0);
+    vertex(0, 0);
+    vertex(10, 0);
+    vertex(10, 10);
+    const result = endShape();
+    // The Plot mock is pushed into plotInstances by _createSpline inside endShape
+    expect(result).toBeTruthy();
+    expect(result).not.toBe(false);
+    // result is one of the Plot instances constructed during the call
+    expect(plotInstances).toContain(result);
+  });
+
+  it("throws on a second endShape() call (the _current=false guard is preserved)", () => {
+    beginShape(0);
+    vertex(0, 0);
+    vertex(10, 0);
+    vertex(10, 10);
+    endShape();
+    expect(() => endShape()).toThrow();
   });
 });

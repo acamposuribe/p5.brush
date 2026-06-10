@@ -101,12 +101,13 @@ export function circle(x, y, radius, r = false) {
  * @param {number} radius - Radius.
  * @param {number} start - Start angle in the current runtime angle units.
  * @param {number} end - End angle in the current runtime angle units.
+ * @returns {Plot|null} The drawn Plot, or null when the sweep is zero.
  */
 export function arc(x, y, radius, start, end) {
   const startDeg = toDegreesSigned(start);
   const endDeg = toDegreesSigned(end);
   const sweepDeg = ((endDeg - startDeg) % 360 + 360) % 360;
-  if (sweepDeg === 0) return;
+  if (sweepDeg === 0) return null;
 
   const p = new Plot("curve");
   const segmentCount = Math.max(1, Math.ceil(sweepDeg / 90));
@@ -121,6 +122,7 @@ export function arc(x, y, radius, start, end) {
   const startX = x + radius * cos(startDeg);
   const startY = y - radius * sin(startDeg);
   p.draw(startX, startY, 1);
+  return p;
 }
 
 // Variables for managing paths and strokes
@@ -178,6 +180,7 @@ export function vertex(x, y, pressure = 1) {
 
 /**
  * Ends the current path and renders all subpaths.
+ * @returns {Plot} The rendered Plot for the completed shape.
  */
 export function endShape(close = false) {
   if (!_current) {
@@ -194,9 +197,9 @@ export function endShape(close = false) {
     _current.vertex(..._current.vert[0]);
     _current.isClosed = true;
   }
-  _current.show();
+  const plot = _current.show();
   _current = false;
-  return _current;
+  return plot;
 }
 
 let _strokeArray, _strokeOrigin;
