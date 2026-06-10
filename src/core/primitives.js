@@ -91,7 +91,7 @@ export function circle(x, y, radius, r = false) {
   const offsetX = x - radius * sin(angleOffset);
   const offsetY = y - radius * cos(-angleOffset);
   p.show(offsetX, offsetY, 1);
-  return p;
+  return [p, offsetX, offsetY];
 }
 
 /**
