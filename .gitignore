@@ -9,3 +9,6 @@ autoresearch.sh
 autoresearch.sh
 # advisor plans (local)
 plans/
+
+# coverage output
+coverage/
