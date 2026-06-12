@@ -24,22 +24,6 @@ State.mass = {
 };
 
 /**
- * Returns a shallow copy of the current mass state.
- * @returns {object}
- */
-export function MassState() {
-  return { ...State.mass };
-}
-
-/**
- * Restores a previously saved mass state.
- * @param {object} state
- */
-export function MassSetState(state) {
-  State.mass = { ...state };
-}
-
-/**
  * Enables massing mode with a brush, color, and optional configuration.
  *
  * @param {string} brush - Brush name to use for the mass pass.

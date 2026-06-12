@@ -26,8 +26,6 @@ import {
   randInt,
   gaussian,
   rotate,
-  cos,
-  sin,
   cossin,
   _onSeed,
 } from "../core/utils.js";

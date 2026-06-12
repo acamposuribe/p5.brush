@@ -12,7 +12,7 @@
  */
 
 // Core imports
-import { Cwidth, Cheight, Renderer, isCanvasReady } from "../core/target.js";
+import { Cwidth, Cheight, isCanvasReady } from "../core/target.js";
 import {
   Mix,
   State,
