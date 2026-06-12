@@ -839,6 +839,26 @@ In essence, the hatching system activates hatches for subsequent shapes, similar
     ```
     `brush.hatchArray()` provides an efficient way to apply complex hatching patterns to a set of defined shapes.
 
+---
+
+- `brush.massArray(polygons)`
+  - **Description**: Applies the current `mass()` state to a single `brush.Polygon` or an array of `brush.Polygon` objects as one combined multi-layer gesture. The array is treated as combined layers: the first polygon defines the outer boundary, additional polygons act as holes or inner layers via even-odd logic.
+  - **Parameters**:
+    - `polygons` (Array|Object): A single `brush.Polygon` or an array of `brush.Polygon` objects to mass.
+  - **Note**: Like `hatchArray()`, this is an alternative to letting shapes pick up mass state automatically — use it when you need to treat multiple polygons as a single gesture.
+  - **Usage**:
+    ```javascript
+    // Define two nested polygons — outer boundary and inner hole
+    let outer = new brush.Polygon([[50,50],[350,50],[350,350],[50,350]]);
+    let inner = new brush.Polygon([[100,100],[300,100],[300,300],[100,300]]);
+    let myPolygons = [outer, inner];
+
+    // Apply mass to both as one combined gesture
+    brush.mass("HB", "#002185", { strength: 1 });
+    brush.massArray(myPolygons);
+    ```
+    `brush.massArray()` treats the array as layered geometry, so the inner polygon creates a hole via even-odd logic rather than being massed independently.
+
 
 ---
 
@@ -931,6 +951,7 @@ These functions allow for the creation of strokes with varied pressures and dire
   - **Parameters**:
     - `array_points` (Array<Array<number>>): An array of points, where each point is `[x, y]` or `[x, y, pressure]`. The optional pressure value at each point influences brush width along the curve.
     - `curvature` (Number): Optional. The curvature of the spline, ranging from 0 to 1. A value of 0 produces straight segments.
+  - **Returns**: `brush.Plot` — the rendered plot. Store it to apply `.hatch()`, `.mass()`, `.fill()`, or `.draw()` later at a different position.
   - **Note**: This is a simplified alternative to beginShape() - endShape() operations, useful for certain stroke() applications.
   - **Usage**:
     ```javascript
@@ -971,6 +992,7 @@ The following functions are affected by stroke(), fill() and hatch() operations.
     - `y` (Number): The y-coordinate of the circle's center.
     - `radius` (Number): The radius of the circle.
     - `r` (Number|Boolean): Optional. Hand-drawn irregularity amount. Values around `0` to `1` give subtle variation; `true` behaves like a strong irregularity.
+  - **Returns**: `[plot, offsetX, offsetY]` — the `brush.Plot` and the top-left drawing offset. Pass these to `plot.hatch(offsetX, offsetY)`, `plot.mass(offsetX, offsetY)`, etc. to reuse the geometry.
   - **Usage**:
     ```javascript
     brush.circle(100, 150, 75, true);
@@ -986,6 +1008,7 @@ The following functions are affected by stroke(), fill() and hatch() operations.
     - `radius` (Number): The radius of the arc.
     - `start` (Number): Start angle interpreted using the current p5 `angleMode()`.
     - `end` (Number): End angle interpreted using the current p5 `angleMode()`.
+  - **Returns**: `brush.Plot` — the rendered plot, or `null` when `start` equals `end` (zero sweep). Store it to redraw or apply effects at a different position.
   - **Usage**:
     ```javascript
     brush.arc(200, 200, 50, 0, Math.PI);
@@ -1025,7 +1048,7 @@ These three functions perform similarly to the p5.js `beginShape()`, `vertex()`,
   - **Description**: Complete the custom shape, finalizing the recording of vertices, and render it with the current stroke, fill, and hatch settings.
   - **Parameters**:
     - `a` (Boolean): Optional. Pass `true` to close the shape (connect the last vertex back to the first). Pass `false` or omit to leave the shape open.
-  - **Returns**: None.
+  - **Returns**: `brush.Plot` — the rendered plot for the completed shape. Store it to apply `.hatch()`, `.mass()`, `.fill()`, or `.draw()` later at a different position.
   - **Usage**:
     ```javascript
     // Finish the custom shape and close it
@@ -1040,6 +1063,7 @@ These three functions perform similarly to the p5.js `beginShape()`, `vertex()`,
   - **Description**: Creates and draws a polygon based on a provided array of points. This function is useful for drawing shapes that are not affected by vector fields, offering an alternative to the `beginShape()` and `endShape()` approach.
   - **Parameters**:
     - `pointsArray` (Array): An array of points, where each point is an array of two numbers `[x, y]`.
+  - **Returns**: `brush.Polygon` — the polygon instance. Store it to call `.hatch()`, `.mass()`, `.fill()`, or `.draw()` later, or pass it to `brush.hatchArray()` / `brush.massArray()`.
   - **Note**: This is a simplified alternative to beginShape() - endShape() operations, useful for certain fill() and hatch() applications.
   - **Usage**:
     ```javascript
@@ -1048,6 +1072,28 @@ These three functions perform similarly to the p5.js `beginShape()`, `vertex()`,
     brush.polygon(points);
     ```
     `brush.polygon()` is ideal for drawing fixed shapes that remain unaffected by vector fields, providing precise control over their form and appearance.
+
+---
+
+<sub>[back to table](#table-of-functions)</sub>
+### Composing Shapes
+
+The drawing primitives return their geometry — a `brush.Polygon` from `brush.polygon()`, a `brush.Plot` from `brush.arc()` / `brush.spline()` / `brush.endShape()`, or `[plot, x, y]` from `brush.circle()`. Store the return value to transform, redraw, or apply effects to the same geometry later, independently of when it was drawn.
+
+```javascript
+// Draw once; reuse the geometry for hatching and massing
+const frame = brush.polygon([[50,50],[350,50],[350,350],[50,350]]);
+
+// Hatch the stored polygon with the current hatch state
+brush.hatch(8, Math.PI / 4);
+frame.hatch();
+
+// Mass the same geometry with the current mass state
+brush.mass("pastel", "#4b6cb7", { strength: 0.8 });
+frame.mass();
+```
+
+To apply effects to multiple polygons as a single gesture (with even-odd hole logic), pass an array to `brush.hatchArray()` or `brush.massArray()`.
 
 ---
 

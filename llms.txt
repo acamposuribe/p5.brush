@@ -262,6 +262,7 @@ Fill simulates watercolor — soft edges, bleed, texture layering.
 - `brush.mass(brushName, color, options?)` — Dry-media, hand-filled hatched fill. Works best with crayon or pastel brushes. `brushName` is always required explicitly. Options: `precision` 0–1, `strength` 0–1, `gradient` 0–1, `outline` bool.
 - `brush.noMass()` — Disable massing.
 - `brush.hatchArray(polygons)` — Apply current hatch style directly to a `brush.Polygon` or array of polygons.
+- `brush.massArray(polygons)` — Apply current mass style to a `brush.Polygon` or array of `brush.Polygon` objects as one combined gesture (array = outer shapes + holes via even-odd logic).
 
 ---
 
@@ -294,7 +295,7 @@ brush.field("diagonal")
 
 - `brush.line(x1, y1, x2, y2)`
 - `brush.flowLine(x, y, length, dir)` — Follows active vector field. `dir` follows current `angleMode()`.
-- `brush.spline(points, curvature?)` — Smooth curve through `[[x,y], [x,y,pressure], ...]`. Curvature 0–1.
+- `brush.spline(points, curvature?)` — Smooth curve through `[[x,y], [x,y,pressure], ...]`. Curvature 0–1. Returns `brush.Plot` for reuse.
 
 #### Manual strokes (stroke only)
 
@@ -306,11 +307,11 @@ brush.endStroke(angle, pressure)
 
 #### Shapes (stroke + fill + hatch)
 
-- `brush.rect(x, y, w, h, mode?)` — `mode`: `"corner"` (default) or `"center"`.
-- `brush.circle(x, y, radius, r?)` — `r` = hand-drawn irregularity 0–1.
-- `brush.arc(x, y, radius, start, end)` — Stroke only. Angles follow current `angleMode()`.
-- `brush.polygon(pointsArray)` — Polygon from `[[x,y], ...]`. Not affected by vector fields. Avoid when fills or field-following matter.
-- `brush.beginShape(curvature?)` / `brush.vertex(x, y, pressure?)` / `brush.endShape(close?)`
+- `brush.rect(x, y, w, h, mode?)` — `mode`: `"corner"` (default) or `"center"`. Returns nothing.
+- `brush.circle(x, y, radius, r?)` — `r` = hand-drawn irregularity 0–1. Returns `[plot, offsetX, offsetY]` for reuse.
+- `brush.arc(x, y, radius, start, end)` — Stroke only. Angles follow current `angleMode()`. Returns `brush.Plot`, or `null` on zero sweep.
+- `brush.polygon(pointsArray)` — Polygon from `[[x,y], ...]`. Not affected by vector fields. Returns `brush.Polygon` for reuse.
+- `brush.beginShape(curvature?)` / `brush.vertex(x, y, pressure?)` / `brush.endShape(close?)` — `endShape()` returns `brush.Plot` for reuse.
 
 ---
 
@@ -363,6 +364,23 @@ await brush.add("photo", {
   markerTip: false
 })
 ```
+
+---
+
+### Composing Shapes
+
+Primitives return their geometry — store the return value to apply effects later or reuse the shape:
+
+```js
+const frame = brush.polygon([[50,50],[350,50],[350,350],[50,350]])  // returns Polygon
+brush.hatch(8, Math.PI / 4)
+frame.hatch()              // hatch the stored polygon
+
+brush.mass("pastel", "#4b6cb7", { strength: 0.8 })
+frame.mass()               // mass the same geometry
+```
+
+For multiple polygons as one gesture (even-odd hole logic), use `brush.hatchArray(polygons)` or `brush.massArray(polygons)`.
 
 ---
 
