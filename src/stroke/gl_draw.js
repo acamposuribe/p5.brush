@@ -135,6 +135,31 @@ function accumulateDirtyRect(currentRect, minX, minY, maxX, maxY) {
 }
 
 /**
+ * Deletes all GL objects owned by this module on the current context.
+ * Called before re-initializing when the drawing context changes, so
+ * resources are not orphaned on a still-alive previous context.
+ */
+function releaseGlResources() {
+  if (!gl || gl.isContextLost?.()) {
+    texCache.clear();
+    return;
+  }
+  for (const tex of texCache.values()) gl.deleteTexture(tex);
+  texCache.clear();
+  if (program) gl.deleteProgram(program);
+  if (vao) gl.deleteVertexArray(vao);
+  if (buf) gl.deleteBuffer(buf);
+  if (imgProgram) gl.deleteProgram(imgProgram);
+  if (imgVao) gl.deleteVertexArray(imgVao);
+  if (imgCornerBuf) gl.deleteBuffer(imgCornerBuf);
+  if (imgInstanceBuf) gl.deleteBuffer(imgInstanceBuf);
+  program = vao = buf = null;
+  imgProgram = imgVao = imgCornerBuf = imgInstanceBuf = null;
+  gpuBufferSize = 0;
+  imgGpuSize = 0;
+}
+
+/**
  * Initializes WebGL objects if not done already.
  */
 export function isReady() {
@@ -171,6 +196,7 @@ export function isReady() {
 
   if (!needsContextRefresh) return;
 
+  releaseGlResources();
   gl = nextGl;
 
   // Create shader program and initialize
@@ -210,8 +236,6 @@ export function isReady() {
   // ------------------------------------------------------------------
   // Image-tip instancing program
   // ------------------------------------------------------------------
-  texCache.clear();
-
   imgProgram = createProgram(gl, imgVertSrc, imgFragSrc);
   ["a_corner", "a_pos", "a_size", "a_angle", "a_alpha"].forEach(
     (n) => (imgAttr[n] = gl.getAttribLocation(imgProgram, n)),
