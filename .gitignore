@@ -12,3 +12,5 @@ plans/
 
 # coverage output
 coverage/
+
+.DS_Store
