@@ -1,16 +1,4 @@
 node_modules/
 workspace/
 
-# autoresearch
-autoresearch.jsonl
-autoresearch.md
-autoresearch.ideas.md
-autoresearch.sh
-autoresearch.sh
-# advisor plans (local)
-plans/
-
-# coverage output
-coverage/
-
 .DS_Store
