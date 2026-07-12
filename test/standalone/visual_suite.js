@@ -7,7 +7,7 @@
 import * as brush from "../../dist/brush.esm.js";
 
 const CANVAS_W = 1400;
-const CANVAS_H = 5200;
+const CANVAS_H = 5700;
 const MARGIN = 50;
 const LABEL_W = 175;
 const ROW_H = 52;
@@ -446,10 +446,10 @@ function runErrorTests() {
     currentY += 18;
   }
 
-  function fillRow(label, color, opacity, bleed, dir, texture, border) {
+  function fillRow(label, color, opacity, bleed, dir, texture, border, angle = null) {
     brush.noStroke();
     brush.fill(color, opacity);
-    brush.fillBleed(bleed, dir);
+    brush.fillBleed(bleed, dir, angle);
     brush.fillTexture(texture, border);
 
     lc.fillStyle = "rgb(245,245,245)";
@@ -472,6 +472,22 @@ function runErrorTests() {
     currentY += FILL_ROW_H;
   }
 
+  function fillAngleRow(label, angle) {
+    brush.seed(47);
+    brush.noStroke();
+    brush.fill(col(2), 60);
+    brush.fillBleed(0.2, "out", angle);
+    brush.fillTexture(0.4, 0.4);
+    rowLabel(label);
+    const x = CONTENT_X + 35, y = currentY + 12;
+    brush.polygon([
+      [x, y + 18], [x + 180, y], [x + 300, y + 42],
+      [x + 235, y + 88], [x + 65, y + 76],
+    ]);
+    brush.noFill();
+    currentY += FILL_ROW_H;
+  }
+
   fillSubHeader("bleed strength  (texture 0.4, border 0.4, opacity 60)");
   fillRow("bleed 0.03  out", col(0), 60, 0.03, "out", 0.4, 0.4);
   fillRow("bleed 0.1   out", col(0), 60, 0.1,  "out", 0.4, 0.4);
@@ -481,6 +497,12 @@ function runErrorTests() {
   fillSubHeader("bleed direction  (bleed 0.2, texture 0.4, border 0.4, opacity 60)");
   fillRow("direction: out", col(1), 60, 0.2, "out", 0.4, 0.4);
   fillRow("direction: in",  col(1), 60, 0.2, "in",  0.4, 0.4);
+
+  fillSubHeader("wash angle  (same polygon, bleed 0.2, texture 0.4, border 0.4, opacity 60)");
+  fillAngleRow("angle 0°", 0);
+  fillAngleRow("angle 90°", 90);
+  fillAngleRow("angle 180°", 180);
+  fillAngleRow("angle 270°", 270);
 
   fillSubHeader("texture strength  (bleed 0.1, border 0.4, opacity 60)");
   fillRow("texture 0.05", col(2), 60, 0.1, "out", 0.05, 0.4);

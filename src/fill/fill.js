@@ -27,6 +27,7 @@ import {
   gaussian,
   rotate,
   cossin,
+  toDegreesSigned,
   _onSeed,
 } from "../core/utils.js";
 import { isFieldReady } from "../core/flowfield.js";
@@ -62,6 +63,7 @@ State.fill = {
   texture_strength: 0.8,
   border_strength: 0.5,
   direction: "out",
+  angle: null,
   scatter: true,
   isActive: false,
 };
@@ -93,10 +95,12 @@ export function fill(a, b, c, d) {
  * Sets the bleed (watercolor) intensity and direction.
  * @param {number} _i - The bleed intensity (clamped to [0,1]).
  * @param {string} [_direction="out"] - The bleeding direction.
+ * @param {number|null} [_angle=null] - Optional wash direction angle in current angle mode.
  */
-export function fillBleed(_i, _direction = "out") {
+export function fillBleed(_i, _direction = "out", _angle = null) {
   State.fill.bleed_strength = constrain(_i, 0, 1);
   State.fill.direction = _direction;
+  State.fill.angle = _angle == null ? null : toDegreesSigned(_angle);
 }
 
 /**
@@ -137,6 +141,17 @@ function _fillGaussianPools() {
   }
 }
 _onSeed(_fillGaussianPools);
+
+function _fillStartIndex(pts, angle) {
+  const cs = cossin(angle);
+  const dx = cs[0], dy = -cs[1];
+  let best = 0, bestDot = Infinity;
+  for (let i = 0; i < pts.length; i++) {
+    const dot = pts[i].x * dx + pts[i].y * dy;
+    if (dot < bestDot) { bestDot = dot; best = i; }
+  }
+  return best;
+}
 
 /**
  * Calculates the centroid of a polygon from its vertices.
@@ -199,7 +214,9 @@ export function createFill(polygon) {
   const modifiers = v.map(
     (_, i) => (i > fluid ? 1 : 0.3) * rr(0.85, 1.4) * strength,
   );
-  const shift = randInt(0, v.length);
+  const shift = State.fill.angle == null
+    ? randInt(0, v.length)
+    : _fillStartIndex(v, State.fill.angle);
   const n = v.length;
   const shifted = new Array(n);
   for (let i = 0; i < n; i++) shifted[i] = v[(i + shift) % n];
@@ -700,6 +717,7 @@ class FillPoly {
  * @param {number} [_texture] - The texture strength.
  * @param {number} [_border] - The border strength.
  * @param {string} [_direction] - The bleed direction.
+ * @param {number|null} [_angle] - Optional wash direction angle in current angle mode.
  */
 Polygon.prototype.fill = function (
   _color = false,
@@ -708,11 +726,12 @@ Polygon.prototype.fill = function (
   _texture,
   _border,
   _direction,
+  _angle,
 ) {
   let state = FillState();
   if (_color) {
     fill(_color, _opacity);
-    fillBleed(_bleed, _direction);
+    fillBleed(_bleed, _direction, _angle);
     fillTexture(_texture, _border);
   }
   if (state.isActive) {

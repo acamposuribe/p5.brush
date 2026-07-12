@@ -1,0 +1,92 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>p5.brush Standalone Fill Angle Test</title>
+    <style>
+      * { box-sizing: border-box; }
+
+      body {
+        margin: 0;
+        color: #22313f;
+        background:
+          radial-gradient(circle at top left, rgba(20, 48, 73, 0.08), transparent 24%),
+          linear-gradient(180deg, #f7f2e7 0%, #ece3d3 100%);
+        font-family: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", Palatino, serif;
+      }
+
+      main {
+        width: min(1240px, calc(100vw - 24px));
+        margin: 0 auto;
+        padding: 18px 0 24px;
+        display: grid;
+        justify-items: center;
+      }
+
+      main > * { width: 100%; }
+
+      .nav {
+        margin-bottom: 14px;
+        font: 11px/1.2 Menlo, Monaco, "Courier New", monospace;
+        display: flex;
+        gap: 12px;
+      }
+
+      .nav a { color: #153e5c; text-decoration: none; }
+      .nav a:hover { text-decoration: underline; }
+      .nav .sep { color: #8a9aa8; }
+
+      h1 {
+        margin: 0 0 8px;
+        font-size: clamp(24px, 3.6vw, 34px);
+        letter-spacing: -0.04em;
+      }
+
+      p {
+        max-width: 860px;
+        margin: 0 0 8px;
+        color: #52616e;
+        line-height: 1.45;
+        font-size: 13px;
+      }
+
+      #canvas-host {
+        margin-top: 18px;
+        display: grid;
+        justify-content: center;
+        width: 100%;
+        overflow: hidden;
+      }
+
+      #canvas-host canvas {
+        grid-area: 1 / 1;
+        display: block;
+        max-width: 100%;
+        height: auto !important;
+      }
+
+      #label-canvas { pointer-events: none; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <div class="nav">
+        <a href="../index.html">All tests</a>
+        <span class="sep">·</span>
+        <a href="../p5/fill_angle_test.html">← p5 version</a>
+      </div>
+      <h1>Fill Angle Test <small style="font-size:0.55em;color:#8a9aa8;">standalone</small></h1>
+      <p>
+        Repeats the same filled polygon across each row with different seeds. Rows with a fixed angle should keep the same wash direction in every panel.
+      </p>
+      <p>
+        The first row omits the angle as a random baseline; the following rows call <code>fillBleed(strength, "out", angle)</code>.
+      </p>
+      <div id="canvas-host"></div>
+      <script src="./standalone_profiler.js"></script>
+      <script type="module" src="./fill_angle_test.js"></script>
+    </main>
+  <script src="../test-nav.js"></script>
+  </body>
+</html>

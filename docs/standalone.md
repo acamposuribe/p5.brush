@@ -162,7 +162,7 @@ brush.angleMode(brush.DEGREES);  // all angle inputs in degrees
 brush.angleMode(brush.RADIANS);  // all angle inputs in radians (default)
 ```
 
-The exported constants are `brush.DEGREES` and `brush.RADIANS`. The mode affects every API that accepts an angle: `brush.rotate()`, `brush.hatch()`, `brush.flowLine()`, `brush.arc()`, `brush.move()`, `brush.addField()`, and `brush.Position.moveTo()`.
+The exported constants are `brush.DEGREES` and `brush.RADIANS`. The mode affects every API that accepts an angle: `brush.rotate()`, `brush.hatch()`, `brush.fillBleed()`, `brush.flowLine()`, `brush.arc()`, `brush.move()`, `brush.addField()`, and `brush.Position.moveTo()`.
 
 ```js
 brush.angleMode(brush.DEGREES);
@@ -396,7 +396,7 @@ brush.set('HB', '#1a2a3a', 1);
 brush.line(80, 80, 720, 520);
 
 brush.fill('#003c32', 110);
-brush.fillBleed(0.2);
+brush.fillBleed(0.2, 'out', 0);
 brush.noStroke();
 brush.circle(W / 2, H / 2, 120);
 

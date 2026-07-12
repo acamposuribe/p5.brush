@@ -705,15 +705,15 @@ These functions control how closed shapes are filled. You can use watercolor-sty
 
 ---
 
-- `brush.fillBleed(strength, direction)`
+- `brush.fillBleed(strength, direction, angle)`
   - **Description**: Adjust the bleed intensity for the fill operation, mimicking the edge diffusion of watercolor paints.
   - **Parameters**:
     - `strength` (Number): The intensity of the bleed effect, ranging from 0 to 1.
     - `direction` (String): Optional. `"out"` or `"in"`. Defines the direction of the bleed effect.
-    - `_borderIntensity` (Number): The intensity of the border watercolor effect, ranging from 0 to 1.
+    - `angle` (Number): Optional. Sets the watercolor wash direction in the current angle mode; omit for random direction.
   - **Usage**:
     ```javascript
-    brush.fillBleed(0.3, "out");
+    brush.fillBleed(0.3, "out", 0); // left to right
     ```
 
 ---
@@ -1120,7 +1120,7 @@ Exposed Classes provide foundational elements for creating and manipulating shap
     - Returns: `Array` of objects, each with `x` and `y` properties, representing the intersection points.
   - `.draw(brush, color, weight)`
     - Draws the polygon on the canvas, following the current stroke state or the provided params.
-  - `.fill(color, opacity, bleed, texture)`
+  - `.fill(color, opacity, bleed, texture, border, direction, angle)`
     - Fills the polygon on the canvas, adhering to the current fill state or to the provided params.
   - `.wash(color, opacity)`
     - Washes the polygon on the canvas with the current wash() state or the provided params.

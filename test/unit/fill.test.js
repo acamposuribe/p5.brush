@@ -1,7 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { blend, mockCtx, mockState } = vi.hoisted(() => ({
+const { blend, currentAngleMode, drawPolygon, mockCtx, mockState } = vi.hoisted(() => ({
   blend: vi.fn(),
+  currentAngleMode: { value: "degrees" },
+  drawPolygon: vi.fn(),
   mockCtx: {
     beginPath: vi.fn(),
     fill: vi.fn(),
@@ -47,7 +49,7 @@ vi.mock("../../src/core/target.js", () => ({
 
 vi.mock("../../src/fill/mask.js", () => ({
   circle: vi.fn(),
-  drawPolygon: vi.fn(),
+  drawPolygon,
 }));
 
 vi.mock("../../src/core/flowfield.js", () => ({
@@ -71,6 +73,7 @@ vi.mock("../../src/core/plot.js", () => ({
 }));
 
 vi.mock("../../src/core/runtime.js", () => ({
+  usesRadians: () => currentAngleMode.value === "radians",
   createColor: (r, g, b) => ({
     r: typeof r === 'string' ? 255 : r,
     g: g ?? r ?? 0,
@@ -84,7 +87,7 @@ vi.mock("../../src/core/runtime.js", () => ({
   }),
 }));
 
-import { createFill, fill, noFill } from "../../src/fill/fill.js";
+import { createFill, fill, fillBleed, noFill } from "../../src/fill/fill.js";
 import { seed } from "../../src/core/utils.js";
 
 // Helper: builds a simple convex polygon object that fill.js expects.
@@ -124,11 +127,14 @@ describe("createFill()", () => {
       texture_strength: 0.8,
       border_strength: 0.5,
       direction: "out",
+      angle: null,
       scatter: true,
       isActive: false,
     };
+    currentAngleMode.value = "degrees";
 
     blend.mockClear();
+    drawPolygon.mockClear();
     mockCtx.beginPath.mockClear();
     mockCtx.fill.mockClear();
     mockCtx.restore.mockClear();
@@ -206,6 +212,32 @@ describe("createFill()", () => {
     fill("#aabbcc", 80);
     createFill(makeHexagon());
     expect(blend).toHaveBeenCalled();
+  });
+
+  it("uses fillBleed angle to choose the watercolor start side", () => {
+    fill("#ff0000", 100);
+    fillBleed(0, "out", 0);
+    createFill(makePolygon([
+      { x: 10, y: 0 },
+      { x: 50, y: 30 },
+      { x: 90, y: 0 },
+      { x: 50, y: -30 },
+    ]));
+    expect(drawPolygon.mock.calls[0][0][0].x).toBe(10);
+  });
+
+  it("captures fillBleed angle using the current angle mode at call time", () => {
+    currentAngleMode.value = "radians";
+    fill("#ff0000", 100);
+    fillBleed(0, "out", Math.PI);
+    currentAngleMode.value = "degrees";
+    createFill(makePolygon([
+      { x: 10, y: 0 },
+      { x: 50, y: 30 },
+      { x: 90, y: 0 },
+      { x: 50, y: -30 },
+    ]));
+    expect(drawPolygon.mock.calls[0][0][0].x).toBe(90);
   });
 
   it("noFill() disables the fill so createFill throws afterward", () => {
