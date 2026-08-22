@@ -186,7 +186,7 @@ function _center(pts) {
   area *= 0.5;
   return area
     ? { x: cx / (6 * area), y: cy / (6 * area) }
-    : { x: v[0].x, y: v[0].y };
+    : { x: pts[0].x, y: pts[0].y };
 }
 
 /**
