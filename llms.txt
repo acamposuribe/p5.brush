@@ -315,6 +315,12 @@ brush.endStroke(angle, pressure)
 
 ---
 
+### Primitive-first drawing
+
+Prefer the main drawing primitives (`line`, `flowLine`, `spline`, `rect`, `circle`, `arc`, `polygon`, and `beginShape`/`vertex`/`endShape`) whenever rendering visible geometry. To redraw a shape with another style, call the same main primitive again with the new brush state; do not default to `Polygon.draw()` or `Plot.draw()` in examples. Use `brush.Polygon`/`brush.Plot` methods only when their stored geometry is specifically required, such as inputs to `hatchArray()`/`massArray()` or advanced geometry reuse.
+
+Draw native p5 text and other overlays after all brush geometry for the frame so they remain visibly on top.
+
 ### Brush Management
 
 - `brush.box()` — Returns array of all brush names.
@@ -427,6 +433,8 @@ pos.plotTo(plot, length, stepLength, scale)
 ## Key Gotchas
 
 ### Both builds
+- Prefer main drawing primitives for visible shapes; reserve direct `Polygon`/`Plot` methods for array APIs and advanced stored-geometry use.
+- Draw text/overlays after brush geometry when they must remain on top.
 - The WebGL canvas origin is at the **center**. Use `translate(-width/2, -height/2)` (p5) or `brush.translate(-W/2, -H/2)` (standalone) to work in top-left coordinates.
 - `brush.arc()` is stroke-only. `brush.circle()` supports stroke, fill, and hatch.
 - `brush.rect()` mode uses strings: `"corner"` or `"center"` — not p5 constants.
