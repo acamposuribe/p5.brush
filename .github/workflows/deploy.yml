@@ -37,9 +37,11 @@ jobs:
         run: |
           mkdir -p _site/dist
           mkdir -p _site/example/brush_tips
+          mkdir -p _site/example2
           mkdir -p _site/tools
           cp dist/p5.brush.js _site/dist/
           cp -r example/. _site/example/
+          cp -r example2/. _site/example2/
           cp -r tools/. _site/tools/
           cp tools/index.html _site/index.html
 
