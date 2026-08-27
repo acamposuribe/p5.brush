@@ -54,6 +54,8 @@ function multiplyTransform(left, right) {
  */
 export class Color {
   constructor(r, g, b) {
+    const arg0 = r;
+    let alpha = 1;
     if (r?._array) {
       this.r = Math.round(r._array[0] * 255);
       this.g = Math.round(r._array[1] * 255);
@@ -82,13 +84,28 @@ export class Color {
       this.g = rgb.g;
       this.b = rgb.b;
     } else {
+      // Array form, e.g. [255, 0, 0] or [255, 0, 0, 0.5]. p5's own color()
+      // accepts arrays and the p5 adapter forwards its arguments straight to
+      // it, so the standalone runtime has to accept them too. Otherwise the
+      // same sketch quietly means different things on the two runtimes.
+      if (Array.isArray(r)) [r, g, b, alpha = 1] = r;
       this.r = clamp(r ?? 0, 0, 255);
       this.g = clamp(g ?? r ?? 0, 0, 255);
       this.b = clamp(b ?? r ?? 0, 0, 255);
       this.hex = this.rgbToHex(this.r, this.g, this.b);
     }
 
-    this._array = [this.r / 255, this.g / 255, this.b / 255, 1];
+    // Reject non-finite channels here rather than letting them reach _array.
+    // A NaN channel is worse than a wrong colour: the compositor decides
+    // whether a stroke can keep accumulating into the pending mask by
+    // comparing _array against the cached colour, and NaN !== NaN makes every
+    // stroke look like a colour change. That silently turns off stroke
+    // batching and forces a full composite pass per stroke.
+    if (!Number.isFinite(this.r) || !Number.isFinite(this.g) || !Number.isFinite(this.b)) {
+      throw new Error(`Invalid color value "${arg0}".`);
+    }
+
+    this._array = [this.r / 255, this.g / 255, this.b / 255, clamp(alpha, 0, 1)];
     this.gl = this._array;
   }
 
@@ -114,8 +131,28 @@ export class Color {
 
   standardize(value) {
     const ctx = getColorContext();
+
+    // Assigning an unparseable value to fillStyle is a spec no-op, and this
+    // context is a module-level singleton that is never reset, so reading it
+    // straight back returns whatever colour was last parsed successfully. A
+    // typo does not fail: `stroke("blu")` silently draws the previous colour,
+    // and which colour that is depends on call order, so the same typo gives
+    // different results between runs.
+    //
+    // Probe against two sentinels instead. A value the browser recognises
+    // overwrites both and reads back identically; one it rejects leaves each
+    // sentinel in place, and the two reads disagree.
+    ctx.fillStyle = "#000000";
     ctx.fillStyle = value;
-    return ctx.fillStyle;
+    const parsed = ctx.fillStyle;
+
+    ctx.fillStyle = "#ffffff";
+    ctx.fillStyle = value;
+    if (parsed !== ctx.fillStyle) {
+      throw new Error(`Invalid color value "${value}".`);
+    }
+
+    return parsed;
   }
 
   _getRed() {
