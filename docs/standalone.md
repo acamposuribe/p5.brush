@@ -300,9 +300,9 @@ In the p5 build, the `tip` function receives a real `p5.Graphics` object so any 
 | `translate(x, y)` | |
 | `scale(x, y?)` | |
 | `rotate(angle)` | **Always radians** — ignores `brush.angleMode()` |
-| `fill(value)` | Grayscale number `0–255` or CSS color string |
+| `fill(value)` | Grayscale number `0–255`, `[r, g, b]` / `[r, g, b, a]` array, or CSS color string |
 | `noFill()` | |
-| `stroke(value)` | Grayscale number `0–255` or CSS color string |
+| `stroke(value)` | Grayscale number `0–255`, `[r, g, b]` / `[r, g, b, a]` array, or CSS color string |
 | `noStroke()` | |
 | `strokeWeight(value)` | |
 | `rect(x, y, w, h)` | |
@@ -320,7 +320,9 @@ The tip surface is 500×500 px internally but the user-facing coordinate space i
 
 ### Colors
 
-Colors accept a **grayscale number** (0 = black/opaque, 255 = white/transparent) or any **CSS color string** (`'red'`, `'#3a2f1e'`, `'rgb(60, 47, 30)'`). `p5.Color` objects are not supported.
+Colors accept a **grayscale number** (0 = black/opaque, 255 = white/transparent), an **array** (`[60, 47, 30]`, or `[60, 47, 30, 0.5]` with alpha in `0–1`), separate **r, g, b arguments**, or a **CSS color string** the browser recognises (`'red'`, `'#3a2f1e'`, `'rgb(60, 47, 30)'`). `p5.Color` objects are not supported.
+
+A value that cannot be parsed throws `Invalid color value "..."` rather than drawing something arbitrary.
 
 ```js
 // ✓ works in both builds
