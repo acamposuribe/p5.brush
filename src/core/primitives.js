@@ -381,9 +381,9 @@ function _createSpline(points, curvature = 0.5, close = false) {
         const d = dist(p1[0], p1[1], p2[0], p2[1]);
         const a = calcAngle(p1[0], p1[1], p2[0], p2[1]);
 
-        p.addSegment(a, d, p2[2], true);
+        p.addSegment(a, d, p1[2], true);
         if (i === points.length - 2) {
-          p.endPlot(a, 1, true);
+          p.endPlot(a, p2[2], true);
         }
       }
     }
