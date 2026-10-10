@@ -43,7 +43,7 @@ import * as brush from 'p5.brush/standalone'
 
 ### Setup
 
-The canvas **must use WEBGL mode**. The library initializes automatically when `createCanvas()` is called — **no `brush.load()` needed for the main canvas**.
+The brush canvas **must use WEBGL mode**. Drawing resources initialize only when brush needs them after `createCanvas(..., WEBGL)` — **no `brush.load()` needed for the main canvas**. Other sketches on the page can use ordinary 2D canvases without calling any brush APIs.
 
 ```js
 function setup() {

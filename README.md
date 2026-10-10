@@ -209,7 +209,7 @@ This section covers functions for initializing the drawing system and configurin
 > **Seeding**: p5.brush automatically hooks into p5's `randomSeed()` and `noiseSeed()`. Calling either of those functions seeds both p5 and the library simultaneously — no separate `brush.seed()` call is needed.
 
 - `brush.load(buffer)`
-  - **Description**: Redirects brush drawing to a secondary canvas target. **Not needed for the main canvas** — the library initializes automatically when `createCanvas()` is called. Pass a `p5.Graphics` buffer or an active `p5.Framebuffer` to draw into that target instead; call `brush.load()` with no argument to switch back to the main canvas. Framebuffers created from `p5.Graphics` are not supported.
+  - **Description**: Redirects brush drawing to a secondary canvas target. **Not needed for the main canvas** — the library initializes on the first brush drawing operation after `createCanvas(..., WEBGL)`. Pass a `p5.Graphics` buffer or an active `p5.Framebuffer` to draw into that target instead; call `brush.load()` with no argument to switch back to the main canvas. Framebuffers created from `p5.Graphics` are not supported.
   - **Parameters**:
     - `buffer` (p5.Graphics | p5.Framebuffer): Optional. An offscreen target to draw into.
   - **How to use it**:

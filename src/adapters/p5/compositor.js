@@ -24,8 +24,8 @@ function clearTarget(renderer, target, isFramebufferTarget) {
 
 function ensureBlendShaderProgram(renderer, vertSrc, fragSrc) {
   if (!renderer.loaded) {
-    renderer.loaded = true;
     renderer.shaderProgram ??= renderer.createShader(vertSrc, fragSrc);
+    renderer.loaded = true;
   }
   return renderer.shaderProgram;
 }
@@ -68,32 +68,36 @@ function runBlendShaderPass({
   const gl = renderer.drawingContext;
   const hadDepthTest = gl.isEnabled(gl.DEPTH_TEST);
 
-  gl.disable(gl.DEPTH_TEST);
-
   renderer.push();
-  renderer.translate(0, 0);
-  renderer.shader(shader);
+  try {
+    gl.disable(gl.DEPTH_TEST);
+    renderer.translate(0, 0);
+    renderer.shader(shader);
 
-  shader.setUniform("u_source", source);
-  shader.setUniform("u_targetIsFramebuffer", targetIsFramebuffer);
-  shader.setUniform("u_isBrush", isBrushMask);
-  shader.setUniform("u_mask", mask);
-  shader.setUniform("u_color", color);
+    shader.setUniform("u_source", source);
+    shader.setUniform("u_targetIsFramebuffer", targetIsFramebuffer);
+    shader.setUniform("u_isBrush", isBrushMask);
+    shader.setUniform("u_mask", mask);
+    shader.setUniform("u_color", color);
 
-  withScissor(
-    gl,
-    dirtyRect,
-    () => {
-      renderer.fill(0, 0, 0, 0);
-      renderer.noStroke();
-      renderer.rect(-Cwidth / 2, -Cheight / 2, Cwidth, Cheight);
-    },
-    !targetIsFramebuffer,
-  );
-
-  renderer.pop();
-  renderer.resetShader();
-  if (hadDepthTest) gl.enable(gl.DEPTH_TEST);
+    withScissor(
+      gl,
+      dirtyRect,
+      () => {
+        renderer.fill(0, 0, 0, 0);
+        renderer.noStroke();
+        renderer.rect(-Cwidth / 2, -Cheight / 2, Cwidth, Cheight);
+      },
+      !targetIsFramebuffer,
+    );
+  } finally {
+    try {
+      renderer.pop();
+    } finally {
+      renderer.resetShader();
+      if (hadDepthTest) gl.enable(gl.DEPTH_TEST);
+    }
+  }
 }
 
 function blitSourceToFramebuffer(args) {
@@ -106,15 +110,18 @@ function blitSourceToFramebuffer(args) {
         () => {
           args.renderer.clear();
           args.renderer.push();
-          args.renderer.imageMode(args.renderer.CENTER);
-          args.renderer.image(
-            args.sourceTarget,
-            0,
-            0,
-            args.Cwidth,
-            args.Cheight,
-          );
-          args.renderer.pop();
+          try {
+            args.renderer.imageMode(args.renderer.CENTER);
+            args.renderer.image(
+              args.sourceTarget,
+              0,
+              0,
+              args.Cwidth,
+              args.Cheight,
+            );
+          } finally {
+            args.renderer.pop();
+          }
         },
         false,
       );

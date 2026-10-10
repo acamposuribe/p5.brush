@@ -104,8 +104,7 @@ function runErrorTests() {
     ["spline() with fewer than 2 points", () => brush.spline([[0, 0, 1]])],
     ["field() with unknown field name", () => brush.field("__DOES_NOT_EXIST__")],
     ["refreshField() when no field is active", () => { brush.noField(); brush.refreshField(); }],
-    // Colour parsing runs through a canvas context, so it cannot be covered by
-    // the Node unit tests. These belong here for the same reason.
+    // Colour parsing needs a browser canvas context.
     ["stroke() with an unparseable colour string", () => brush.stroke("__NOT_A_COLOUR__")],
     ["stroke() with a colour name typo", () => { brush.stroke("red"); brush.stroke("blu"); }],
     ["stroke() with a malformed hex string", () => brush.stroke("#zzz")],

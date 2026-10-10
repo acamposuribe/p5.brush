@@ -354,7 +354,8 @@ export const Mix = {
  * the shared compositor back to its initial idle state.
  */
 export const flushActiveComposite = () => {
-  isMixReady();
+  // Flushing is not a drawing operation: an idle compositor needs no target.
+  if (!Mix.isBlending && !Mix.justChanged) return;
   Mix.blend(false, true);
   Mix.clearMask(Mix.glMask);
   Mix.clearMask(Mix.mask);

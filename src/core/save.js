@@ -1,24 +1,27 @@
 import { State } from "./color.js";
-import { isFieldReady } from "./flowfield.js";
 
 // =============================================================================
 // SAVE / RESTORE
 // =============================================================================
 
 /**
- * Stack of saved brush states for push/pop operations.
- * A stack (not a single slot) is required because applyShader() internally
- * calls Renderer.push()/pop(), which fires our hook — a flat object would be
- * overwritten mid-draw and pop() would restore the wrong state.
+ * Each drawing surface has its own stack, so nested compositor calls and
+ * interleaved p5 instances cannot consume one another’s saved brush states.
  */
-const _stateStack = [];
+const _stateStacks = new WeakMap();
 
 /**
- * Pushes the current brush state onto the stack.
+ * Pushes the current brush state onto the drawing surface's stack.
+ * @param {object} [owner=State] - The p5 surface, or shared standalone state.
  */
-export function push() {
-  isFieldReady();
-  _stateStack.push({
+export function push(owner = State) {
+  let stack = _stateStacks.get(owner);
+  if (!stack) {
+    stack = [];
+    _stateStacks.set(owner, stack);
+  }
+  // State defaults exist at module load; saving them needs no GPU or field.
+  stack.push({
     fill: { ...State.fill },
     wash: State.wash ? { ...State.wash } : null,
     stroke: { ...State.stroke },
@@ -29,18 +32,19 @@ export function push() {
 }
 
 /**
- * Pops the top brush state from the stack and restores it.
+ * Pops the drawing surface's top brush state and restores it.
+ * @param {object} [owner=State] - The p5 surface, or shared standalone state.
  */
-export function pop() {
-  const saved = _stateStack.pop();
+export function pop(owner = State) {
+  const saved = _stateStacks.get(owner)?.pop();
   if (!saved) return;
-  State.stroke = { ...saved.stroke };
-  State.field = { ...saved.field };
-  State.hatch = { ...saved.hatch };
-  State.fill = { ...saved.fill };
-  if (saved.wash) State.wash = { ...saved.wash };
+  State.stroke = saved.stroke;
+  State.field = saved.field;
+  State.hatch = saved.hatch;
+  State.fill = saved.fill;
+  if (saved.wash) State.wash = saved.wash;
   if (saved.mass) {
-    State.mass = { ...saved.mass };
+    State.mass = saved.mass;
   } else if (State.mass) {
     State.mass = {
       ...State.mass,

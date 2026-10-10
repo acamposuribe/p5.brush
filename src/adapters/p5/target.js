@@ -41,13 +41,13 @@ const safeRead = (getter) => {
   }
 };
 
-const isReadyWebGLSketch = (candidate) =>
+export const isReadyWebGLSketch = (candidate) =>
   !!candidate &&
+  safeRead(() => candidate.webglVersion) === "webgl2" &&
   typeof candidate.pixelDensity === "function" &&
   typeof candidate.createFramebuffer === "function" &&
   isFiniteSize(safeRead(() => candidate.width)) &&
-  isFiniteSize(safeRead(() => candidate.height)) &&
-  safeRead(() => candidate.webglVersion) === "webgl2";
+  isFiniteSize(safeRead(() => candidate.height));
 
 const getCurrentP5Instance = () => window.self?.p5?.instance ?? null;
 
