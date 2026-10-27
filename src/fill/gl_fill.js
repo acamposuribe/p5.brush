@@ -31,6 +31,7 @@ import capsuleVertSrc from "./capsule.vert";
 import capsuleFragSrc from "./capsule.frag";
 import fullscreenVertSrc from "../core/gl/shader.vert";
 import blurFragSrc from "./blur.frag";
+import wetFragSrc from "./wet.frag";
 
 // =============================================================================
 // Section: State
@@ -53,6 +54,7 @@ let gl = null;
 const fan = { program: null, vao: null, buffer: null, uMatrix: null, uWeight: null, uJitter: null, uShape: null };
 const capsule = { program: null, vao: null, buffer: null, uMatrix: null, uPixel: null };
 const blur = { program: null, vao: null, uSrc: null, uDstSize: null, uStep: null, uLevel: null };
+const wet = { program: null, vao: null };
 
 let fanData = new Float32Array(4096 * FAN_WORDS);
 let fanCount = 0;
@@ -76,7 +78,7 @@ Mix.beforeFillMaskAccess = () => flushFill();
 
 function releaseGlResources() {
   if (!gl || gl.isContextLost?.()) return;
-  for (const p of [fan, capsule, blur]) {
+  for (const p of [fan, capsule, blur, wet]) {
     if (p.program) gl.deleteProgram(p.program);
     if (p.vao) gl.deleteVertexArray(p.vao);
     if (p.buffer) gl.deleteBuffer(p.buffer);
@@ -118,6 +120,11 @@ function ensureGl() {
   blur.vao = gl.createVertexArray();
   for (const name of ["u_src", "u_dstSize", "u_step", "u_level"]) {
     blur[name] = gl.getUniformLocation(blur.program, name);
+  }
+  wet.program = createProgram(gl, fullscreenVertSrc, wetFragSrc);
+  wet.vao = gl.createVertexArray();
+  for (const name of ["u_blur", "u_dstSize", "u_level", "u_wet"]) {
+    wet[name] = gl.getUniformLocation(wet.program, name);
   }
 }
 
@@ -415,26 +422,27 @@ export function clearFillTarget(target) {
 // Section: Watercolour blur
 // =============================================================================
 
-// Two half-resolution half-float targets: horizontal pass, then vertical.
+// Half-resolution half-float targets, made for the current canvas size.
+const halfTarget = () =>
+  createFramebuffer(Renderer, {
+    width: Cwidth,
+    height: Cheight,
+    density: Density / 2,
+    format: "half-float",
+    antialias: false,
+    depth: false,
+    stencil: false,
+  });
+const fitsCanvas = (t) =>
+  t.width === Cwidth && t.height === Cheight &&
+  (t.pixelDensity?.() ?? t.density) === Density / 2;
+
+// Two blur targets: horizontal pass, then vertical.
 function ensureBlurTargets() {
-  const density = Density / 2;
   const current = Renderer.fillBlurTargets;
-  const fits = (t) =>
-    t.width === Cwidth && t.height === Cheight &&
-    (t.pixelDensity?.() ?? t.density) === density;
-  if (current && current.every(fits)) return current;
+  if (current && current.every(fitsCanvas)) return current;
   current?.forEach((t) => t.remove?.());
-  Renderer.fillBlurTargets = [0, 1].map(() =>
-    createFramebuffer(Renderer, {
-      width: Cwidth,
-      height: Cheight,
-      density,
-      format: "half-float",
-      antialias: false,
-      depth: false,
-      stencil: false,
-    }),
-  );
+  Renderer.fillBlurTargets = [halfTarget(), halfTarget()];
   return Renderer.fillBlurTargets;
 }
 
@@ -493,4 +501,110 @@ export function blurFillMask(sigma, level) {
   gl.bindVertexArray(null);
   resetDirectShaderTracking(Renderer, gl);
   return targets[1];
+}
+
+// =============================================================================
+// Section: Wet paper
+// =============================================================================
+/**
+ * Paper left wet by recent watercolour fills, so that a new fill touching
+ * them loses its edge there and creeps into them (wet-in-wet). The buffer
+ * stores (wetness, wetness · fill index) per pixel; a fill `age` fills later
+ * reads it at wetness · WET_KEEP^(age − 1). Everything dries when the frame
+ * is flushed (render(), the end of p5's draw()) or the drawing target
+ * changes: the buffer is cleared and indices restart, so a frame never
+ * depends on earlier ones.
+ */
+const WET_KEEP = 0.45;
+// Fill indices are stored in half floats; past this many fills in one frame
+// the paper dries.
+const WET_MAX_INDEX = 1000;
+const wetState = { index: 0, target: null, dirty: false };
+
+// Dry all paint drawn so far.
+export function dryFills() {
+  wetState.index = 0;
+}
+Mix.afterFlush = dryFills;
+
+function clearWetTarget(target) {
+  const state = beginDirectMaskDraw(Renderer, gl, target);
+  gl.disable(gl.SCISSOR_TEST);
+  gl.clearColor(0, 0, 0, 0);
+  gl.clear(gl.COLOR_BUFFER_BIT);
+  endDirectMaskDraw(Renderer, gl, state);
+  wetState.dirty = false;
+}
+
+function ensureWetTarget() {
+  let target = Renderer.fillWetTarget;
+  if (!target || !fitsCanvas(target)) {
+    target?.remove?.();
+    target = Renderer.fillWetTarget = halfTarget();
+    wetState.dirty = true;
+    wetState.index = 0;
+  }
+  if (wetState.index >= WET_MAX_INDEX) wetState.index = 0;
+  // A new frame starts on dry paper.
+  if (wetState.index === 0 && wetState.dirty) clearWetTarget(target);
+  return target;
+}
+
+/**
+ * Returns the wet-paper inputs of the next watercolour fill's composite: the
+ * buffer and (current index, unused, drying per fill, unused).
+ * @param {object} drawTarget - The target being painted (framebuffer or canvas).
+ * @returns {{texture: object, info: number[]}}
+ */
+export function wetPaper(drawTarget) {
+  ensureGl();
+  if (wetState.target !== drawTarget) {
+    dryFills();
+    wetState.target = drawTarget;
+  }
+  const texture = ensureWetTarget();
+  wetState.index++;
+  return { texture, info: [wetState.index, 0, WET_KEEP, 0] };
+}
+
+/**
+ * Marks the paper under the fill just composited as wet, from its blurred
+ * silhouette (the last blurFillMask() result).
+ * @param {object} rect - The fill's paint bounds in mask pixels, taken before
+ *   the composite cleared the mask.
+ * @param {number} level - Silhouette edge level.
+ * @param {number} wetness - How wet the fill leaves the paper, 0..1.
+ */
+export function wetFill(rect, level, wetness) {
+  const target = Renderer.fillWetTarget;
+  const blurred = Renderer.fillBlurTargets?.[1];
+  if (!target || !blurred || !rect || wetness <= 0) return;
+  const w = Math.round((Cwidth * Density) / 2);
+  const h = Math.round((Cheight * Density) / 2);
+  const x0 = Math.max(0, Math.floor(rect.minX / 2));
+  const y0 = Math.max(0, Math.floor(rect.minY / 2));
+  const x1 = Math.min(w, Math.ceil(rect.maxX / 2));
+  const y1 = Math.min(h, Math.ceil(rect.maxY / 2));
+  if (x1 <= x0 || y1 <= y0) return;
+
+  const state = beginDirectMaskDraw(Renderer, gl, target);
+  gl.disable(gl.BLEND);
+  gl.enable(gl.SCISSOR_TEST);
+  gl.scissor(x0, y0, x1 - x0, y1 - y0);
+  gl.useProgram(wet.program);
+  gl.bindVertexArray(wet.vao);
+  gl.activeTexture(gl.TEXTURE0);
+  gl.bindTexture(gl.TEXTURE_2D, blurred.colorTexture);
+  gl.uniform1i(wet.u_blur, 0);
+  gl.uniform2f(wet.u_dstSize, w, h);
+  gl.uniform1f(wet.u_level, level);
+  gl.uniform2f(wet.u_wet, wetness, wetState.index);
+  gl.drawArrays(gl.TRIANGLES, 0, 3);
+  gl.bindTexture(gl.TEXTURE_2D, null);
+  gl.disable(gl.SCISSOR_TEST);
+  gl.enable(gl.BLEND);
+  gl.bindVertexArray(null);
+  endDirectMaskDraw(Renderer, gl, state);
+  resetDirectShaderTracking(Renderer, gl);
+  wetState.dirty = true;
 }

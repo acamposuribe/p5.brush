@@ -49,6 +49,10 @@ function makeShader(gl, vertSrc, fragSrc) {
   // Persistent VAO for fullscreen-triangle draws (avoids create/delete per pass)
   const quadVao = gl.createVertexArray();
 
+  // Extra textures get their own units from 2 up; 0 and 1 hold the source
+  // and mask.
+  const samplerUnits = new Map();
+
   const getUniformLocation = (name) => {
     if (!uniformCache.has(name)) {
       uniformCache.set(name, gl.getUniformLocation(program, name));
@@ -71,14 +75,16 @@ function makeShader(gl, vertSrc, fragSrc) {
     loc_color,
     loc_pigmentKS,
     loc_pigmentLuminance,
+    samplerUnits,
     setUniform(name, value) {
       const location = getUniformLocation(name);
       if (!location) return;
-      // Extra textures go on unit 2; units 0 and 1 hold the source and mask.
       if (value?.colorTexture) {
-        gl.activeTexture(gl.TEXTURE2);
+        if (!samplerUnits.has(name)) samplerUnits.set(name, 2 + samplerUnits.size);
+        const unit = samplerUnits.get(name);
+        gl.activeTexture(gl.TEXTURE0 + unit);
         gl.bindTexture(gl.TEXTURE_2D, value.colorTexture);
-        gl.uniform1i(location, 2);
+        gl.uniform1i(location, unit);
         gl.activeTexture(gl.TEXTURE0);
         return;
       }
@@ -255,9 +261,9 @@ function runBlendShaderPass({
     !targetIsFramebuffer,
   );
 
-  // Unbind the mask (unit 1) and any extra texture (unit 2).
-  for (const unit of [gl.TEXTURE2, gl.TEXTURE1]) {
-    gl.activeTexture(unit);
+  // Unbind the mask (unit 1) and any extra textures (units 2 and up).
+  for (let unit = 1; unit < 2 + shader.samplerUnits.size; unit++) {
+    gl.activeTexture(gl.TEXTURE0 + unit);
     gl.bindTexture(gl.TEXTURE_2D, null);
   }
   gl.activeTexture(gl.TEXTURE0);

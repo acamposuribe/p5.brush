@@ -267,6 +267,11 @@ uniform vec4 u_wcFlow;  // flow direction.xy (mask px, unit or 0), edge level (s
 // The mask blurred at half resolution (src/fill/blur.frag): r / a is the mean
 // paint inside the shape nearby, a the share of the neighbourhood inside.
 uniform sampler2D u_blur;
+// Paper left wet by earlier fills this frame (src/fill/gl_fill.js): (wetness,
+// wetness · fill index) per half-resolution pixel, and (this fill's index,
+// unused, drying per fill, unused).
+uniform sampler2D u_wet;
+uniform vec4 u_wetInfo;
 // Features placed in shape space (q: shape radii from the centre); a zero
 // strength turns one off.
 uniform vec4 u_wcBloom; // backrun: centre.xy, radius, strength
@@ -322,13 +327,22 @@ vec2 watercolor(vec2 uv, float coverage) {
     // wobble. `dist` is the signed distance to it in mask pixels (positive
     // inside), from the field's slope.
     vec4 blurred = texture(u_blur, uv);
-    float wobble = 1.0 + 0.3 * (fbm(px / (density * 7.0), seed + 29u) - 0.5);
+    // Two scales, so the stack's evenly spaced bumps along long edges come
+    // out uneven.
+    float wobble = 1.0 + 0.3 * (fbm(px / (density * 7.0), seed + 29u) - 0.5)
+                       + 0.45 * (fbm(q * 3.0 + 41.0, seed + 73u) - 0.5);
     float field = blurred.b - level * wobble;
     float dist = field / max(length(vec2(dFdx(field), dFdy(field))), 1e-5);
 
     // Lost edges: along some stretches the wash was still wet and feathered
-    // out, fading from pigment to bare paper with no dried line.
-    float lost = u_wcFlow.w * smoothstep(0.45, 0.75, fbm(q * 1.8 + 23.0, seed + 67u));
+    // out, fading from pigment to bare paper with no dried line. Where the
+    // edge meets paper an earlier fill left wet, it is always lost, and the
+    // pigment creeps into the wet paint in a feathered fringe.
+    vec4 wetTexel = texture(u_wet, uv);
+    float age = u_wetInfo.x - wetTexel.g / max(wetTexel.r, 1e-4);
+    float wet = wetTexel.r > 1e-3 ? wetTexel.r * pow(u_wetInfo.z, max(age - 1.0, 0.0)) : 0.0;
+    float wetEdge = smoothstep(0.1, 0.5, wet);
+    float lost = max(u_wcFlow.w * smoothstep(0.45, 0.75, fbm(q * 1.8 + 23.0, seed + 67u)), wetEdge);
 
     // Elsewhere the wash stopped against the paper: it runs into the valleys
     // and halts at the hills, so the edge follows the same paper as the
@@ -342,7 +356,10 @@ vec2 watercolor(vec2 uv, float coverage) {
     float edgeDist = dist - hill * rough * 2.5 * density;
     float hard = clamp(edgeDist + 0.5, 0.0, 1.0);
     float soft = smoothstep(0.1 * level, 2.5 * level, blurred.b);
-    float inside = mix(hard, soft * soft, lost);
+    // Creep: fingers of pigment of a few pixels, from the wet edge outward.
+    float fingers = fbm(px / (density * 3.0), seed + 71u) - 0.5;
+    float creep = smoothstep(0.05, 0.9, blurred.b / level + 0.8 * fingers);
+    float inside = mix(hard, mix(soft * soft, creep, wetEdge), lost);
     if (inside <= 0.0) return vec2(0.0);
 
     // The rim: a thin dark line that follows the actual edge, teeth and all,
@@ -375,6 +392,8 @@ vec2 watercolor(vec2 uv, float coverage) {
     }
 
     // Drop: a dense core whose edge breaks into branches, more so outward.
+    // Its pigment sits in water, so it does not granulate.
+    float drop = 0.0;
     if (u_wcDrop.w > 0.0) {
         vec2 dq = (q - u_wcDrop.xy) / u_wcDrop.z;
         float lr = length(dq);
@@ -382,6 +401,7 @@ vec2 watercolor(vec2 uv, float coverage) {
         float twig = fbm(dq * 13.0, seed + 39u) - 0.5;
         float d = lr + (0.3 + 0.7 * smoothstep(0.3, 1.2, lr)) * branch + 0.25 * twig * lr;
         float core = 1.0 - smoothstep(0.2, 1.0, d);
+        drop = core;
         thick *= 1.0 + u_wcDrop.w * core * core;
     }
 
@@ -412,12 +432,14 @@ vec2 watercolor(vec2 uv, float coverage) {
         float settle = (0.5 - h) * 0.7 + (clumps - 0.5) * 1.1;
         // Reticulation: in patches, irregular cells whose walls gather pigment.
         if (u_wcLook.z > 0.0) {
-            vec2 cq = px / (grain * 6.0);
-            cq += 0.8 * vec2(fbm(cq * 0.3, seed + 43u), fbm(cq * 0.3 + 5.0, seed + 47u));
-            float patches = smoothstep(0.4, 0.7, fbm(q * 2.0, seed + 53u));
-            settle += u_wcLook.z * patches * (cellWalls(cq, seed + 41u) - 0.4);
+            // Strongly warped, so cells vary in size and shape, and faint.
+            vec2 cq = px / (grain * 7.0);
+            cq += 1.8 * vec2(fbm(cq * 0.25, seed + 43u), fbm(cq * 0.25 + 5.0, seed + 47u));
+            float patches = smoothstep(0.45, 0.75, fbm(q * 2.0, seed + 53u));
+            float walls = cellWalls(cq, seed + 41u) * (0.5 + fbm(cq * 0.7, seed + 79u));
+            settle += 0.7 * u_wcLook.z * patches * (walls - 0.4);
         }
-        thick *= max(0.0, 1.0 + u_wcLook.y * settle * (1.3 - factor) * (1.0 - 0.7 * rim));
+        thick *= max(0.0, 1.0 + u_wcLook.y * settle * (1.3 - factor) * (1.0 - 0.7 * rim) * (1.0 - drop));
         factor = 1.0 - exp(-body * thick);
     }
 

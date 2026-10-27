@@ -13,12 +13,20 @@
  */
 
 // Core imports
-import { Cwidth, Cheight, Density } from "../core/target.js";
+import { Cwidth, Cheight, Density, Renderer, getActiveFramebuffer } from "../core/target.js";
 import {
   Mix,
   State,
 } from "../core/color.js";
-import { setFillTransform, queuePolygon, queueErase, flushFill, blurFillMask } from "./gl_fill.js";
+import {
+  setFillTransform,
+  queuePolygon,
+  queueErase,
+  flushFill,
+  blurFillMask,
+  wetPaper,
+  wetFill,
+} from "./gl_fill.js";
 import {
   constrain,
   rr,
@@ -697,8 +705,16 @@ class FillPoly {
             maxX: rect.maxX + pad, maxY: rect.maxY + pad,
           });
         }
-        Mix.watercolor.uniforms.u_blur = blurFillMask(sigma, Mix.watercolor.uniforms.u_wcFlow[2]);
+        const { uniforms } = Mix.watercolor;
+        const level = uniforms.u_wcFlow[2];
+        uniforms.u_blur = blurFillMask(sigma, level);
+        // Wet-in-wet: the paper recent fills left wet, then this fill's own.
+        const paper = wetPaper(getActiveFramebuffer() ?? Renderer);
+        uniforms.u_wet = paper.texture;
+        uniforms.u_wetInfo = paper.info;
+        const painted = Mix.mask?.dirtyRect && { ...Mix.mask.dirtyRect };
         Mix.blend(color, true);
+        wetFill(painted, level, constrain(0.4 + 1.2 * State.fill.bleed_strength, 0, 1));
       }
     } finally {
       Mix.watercolor = null;

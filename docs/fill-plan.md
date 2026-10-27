@@ -1,6 +1,6 @@
 # Fill plan
 
-**Status: in progress.** Steps 0, 1 and 2 done (2026-10-27); step 2 awaits F-D1 approval. Step 3 spike works as an opt-in prototype (`fillStyle("watercolor")`); step 3b (wet-in-wet) in progress; F-D2 open. Hardware measurements are from an Apple M4 (ANGLE Metal) only.  
+**Status: in progress.** Steps 0, 1 and 2 done (2026-10-27); step 2 awaits F-D1 approval. Step 3 spike works as an opt-in prototype (`fillStyle("watercolor")`); step 3b (wet-in-wet) done; F-D2 open. Hardware measurements are from an Apple M4 (ANGLE Metal) only.  
 **Background:** [`rendering-model-audit.md`](rendering-model-audit.md) (F06, F07, F09, F10, F11) and the closed stroke plan in [`rendering-plan.md`](rendering-plan.md).
 
 ## Goal
@@ -243,6 +243,22 @@ Fills that touch a wash that is still wet lose their edge there, and their pigme
 - The composite reads wetness under the fill. Where its edge meets wet paint, the edge becomes a lost edge and the pigment spreads past the silhouette. Only the new fill moves; the earlier one is already on the canvas.
 - Lifecycle: cleared on `clear()` and resize, one buffer per drawing target.
 - Also fix: smooth, dense drops (no granulation spray over them), less regular reticulation, and less periodic wobble along long straight edges.
+
+**Result (2026-10-27).** Done as planned; drying is by fill count.
+
+- **Wetness buffer.** `Renderer.fillWetTarget`, half resolution, half float. After its composite, each fill stamps (wetness, wetness · index) wherever its blurred silhouette is inside (`src/fill/wet.frag`); wetness grows with bleed. A fill `age` fills later reads it at wetness · 0.45^(age − 1). Storing the index premultiplied keeps it exact under linear filtering.
+- **Composite.** Wherever the edge meets wet paper it becomes a lost edge, and the pigment creeps past the silhouette in fine fingers.
+- **Drying.** Every frame flush dries the paper (`Mix.afterFlush`: `render()`, the end of p5's `draw()`, a target switch), as does drawing into another target. The buffer is cleared and indices restart. A first version kept absolute indices across frames, and filtered reads mixed in stale ones, so frames depended on earlier frames. The new bug test (`Watercolour fills: …`) checks repeatability, that a wet contact differs from a dry one, and that no GL errors occur across sizes and densities.
+- **Side findings.** The standalone compositor now gives each extra sampler its own texture unit. The first fill on a new canvas can differ between page loads. That is pre-existing (seen at 5b66d7a, classic too) and not fixed here; the new test warms up first.
+
+| Workload, total ms (Apple M4, same quiet session) | classic | watercolor |
+|---|---:|---:|
+| fill | 6.2 | 3.7 |
+| fillLarge | 31.5 | 33.5 |
+| fillMany | 107 | **39** |
+| fillHighBleed | 38 | 35 |
+
+The large single fill is now slightly slower than classic: the composite's noise work (edge, lost edges, wetness, reticulation) outweighs having one pass instead of four. Step 4 can trim it if needed.
 
 ### 4. Composite collapse
 

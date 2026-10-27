@@ -210,5 +210,37 @@ export async function regressions(b) {
       } finally { window.OffscreenCanvas=NativeCanvas; }
     }
   });
+  await run('Watercolour fills: repeatable, wet-in-wet within a frame, dry after render, no GL errors across sizes', () => {
+    const hash=(context)=>{
+      const w=context.drawingBufferWidth, h=context.drawingBufferHeight, data=new Uint8Array(w*h*4);
+      context.readPixels(0,0,w,h,context.RGBA,context.UNSIGNED_BYTE,data);
+      let x=2166136261; for (let i=0;i<data.length;i+=7) x=Math.imul(x^data[i],16777619)>>>0;
+      return x;
+    };
+    // Two touching fills, with or without a render() (which dries the paper)
+    // between them.
+    const scene=(dryBetween)=>{
+      b.clear('white'); b.seed(7); b.noStroke(); b.fillStyle('watercolor');
+      b.fill('#2a6fb0',160); b.fillBleed(0.4); b.fillTexture(0.5,0.4);
+      b.circle(-25,0,40);
+      if (dryBetween) b.render();
+      b.fill('#c0392b',160); b.circle(25,0,40);
+      b.render();
+    };
+    try {
+      for (const [size,density] of [[160,1],[200,2],[160,2]]) {
+        const target=b.createCanvas(size,size,{pixelDensity:density,parent:null}), context=target.getContext('webgl2');
+        // Warm up: the first fill on a new canvas can differ (pre-existing,
+        // classic too).
+        scene(false);
+        scene(false); const wetA=hash(context);
+        scene(false); const wetB=hash(context);
+        scene(true); const dry=hash(context);
+        check(wetA===wetB, `watercolour scene not repeatable at ${size}px, density ${density}`);
+        check(wetA!==dry, `wet contact looks the same as a dry one at ${size}px, density ${density}`);
+        check(context.getError()===0, `GL error in watercolour fills at ${size}px, density ${density}`);
+      }
+    } finally { b.fillStyle('classic'); }
+  });
   return results;
 }

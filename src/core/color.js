@@ -376,6 +376,8 @@ export const Mix = {
  * the shared compositor back to its initial idle state.
  */
 export const flushActiveComposite = () => {
+  // Watercolour paint dries at every flush (src/fill/gl_fill.js).
+  Mix.afterFlush?.();
   // Flushing is not a drawing operation: an idle compositor needs no target.
   if (!Mix.isBlending && !Mix.justChanged) return;
   Mix.blend(false, true);
