@@ -133,6 +133,21 @@ export async function regressions(b) {
       check(smooth.ink > a.ink * 1.05, `paper did not remove ink (${a.ink} vs smooth ${smooth.ink})`);
     } finally { b.paper(); }
   });
+  await run('Seeded mass repeats exactly, including the first after a resize', async () => {
+    // A canvas size no other case uses forces the flow field to be rebuilt.
+    const target = b.createCanvas(200, 180, {parent: null});
+    const context = target.getContext('webgl2');
+    const hashes = [];
+    for (let i = 0; i < 3; i++) {
+      b.clear('white'); b.seed(5); b.noiseSeed(5);
+      b.mass('HB', 'black'); b.rect(-60, -60, 120, 120); b.noMass(); b.render();
+      const data = new Uint8Array(200 * 180 * 4);
+      context.readPixels(0, 0, 200, 180, context.RGBA, context.UNSIGNED_BYTE, data);
+      hashes.push([...new Uint8Array(await crypto.subtle.digest('SHA-256', data))].join(','));
+    }
+    b.load(canvas);
+    check(hashes[0] === hashes[1] && hashes[1] === hashes[2], 'same seed drew a different mass');
+  });
   await run('B16 transparent CSS colors', () => {
     for (const css of ['transparent','#ff000080','rgb(255 0 0 / 0.5)']) {
       const c=new b.Color(css); check(c._array[3]<1, `alpha lost for ${css}`);

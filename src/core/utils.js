@@ -99,7 +99,18 @@ export let noise2 = createNoise2D(_makePRNG(Math.random() + ':2'));
 export const noiseSeed = (s) => {
   noise = createNoise2D(_makePRNG(s));
   noise2 = createNoise2D(_makePRNG(`${s}:2`));
+  for (const callback of _noiseSeedCallbacks) {
+    callback();
+  }
 };
+
+const _noiseSeedCallbacks = [];
+
+/**
+ * Register a callback to be called whenever noiseSeed() is invoked.
+ * @param {Function} cb
+ */
+export const _onNoiseSeed = (cb) => _noiseSeedCallbacks.push(cb);
 
 /**
  * Returns a random float in [min, max).

@@ -9,6 +9,8 @@ import {
   cossin,
   map,
   toDegreesSigned,
+  _onSeed,
+  _onNoiseSeed,
 } from "./utils.js";
 import { getAffineMatrix } from "./runtime.js";
 
@@ -278,12 +280,24 @@ function createField() {
 }
 
 /**
- * Retrieves the field values for the current vector field.
+ * Retrieves the field values for the current vector field, generating them
+ * if a reseed discarded them.
  * @returns {Float32Array[]} The current vector field grid.
  */
 function flow_field() {
-  return list.get(State.field.current).field;
+  const entry = list.get(State.field.current);
+  if (!entry.field) entry.field = generateField(entry, 0);
+  return entry.field;
 }
+
+// Fields are generated from the seeded random and noise streams. Discard them
+// on reseed so the same seed always rebuilds the same field at the same point
+// in the drawing, instead of reusing whatever the first use happened to make.
+function discardFields() {
+  for (const entry of list.values()) entry.field = null;
+}
+_onSeed(discardFields);
+_onNoiseSeed(discardFields);
 
 function normalizeFieldAngleMode(options = {}) {
   const config =
