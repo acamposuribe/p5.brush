@@ -210,7 +210,7 @@ export async function regressions(b) {
       } finally { window.OffscreenCanvas=NativeCanvas; }
     }
   });
-  await run('Fills: repeatable, wet-in-wet within a frame, dry after render, no GL errors across sizes', () => {
+  await run('Fills: repeatable from the first fill on a new canvas, wet-in-wet within a frame, dry after render, no GL errors across sizes', () => {
     const hash=(context)=>{
       const w=context.drawingBufferWidth, h=context.drawingBufferHeight, data=new Uint8Array(w*h*4);
       context.readPixels(0,0,w,h,context.RGBA,context.UNSIGNED_BYTE,data);
@@ -229,8 +229,7 @@ export async function regressions(b) {
     };
     for (const [size,density] of [[160,1],[200,2],[160,2]]) {
       const target=b.createCanvas(size,size,{pixelDensity:density,parent:null}), context=target.getContext('webgl2');
-      // Warm up: the first fill on a new canvas can differ (pre-existing).
-      scene(false);
+      // The first scene on a new canvas must match later ones.
       scene(false); const wetA=hash(context);
       scene(false); const wetB=hash(context);
       scene(true); const dry=hash(context);
