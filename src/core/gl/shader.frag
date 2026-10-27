@@ -480,11 +480,13 @@ vec3 watercolor(vec2 uv, float coverage) {
         float clumps = fbm(mat2(0.8, 0.6, -0.6, 0.8) * px / (grain * 9.0), seed + 23u);
         float settle = (0.5 - h) * 0.7 + (clumps - 0.5) * 1.1;
         // Reticulation: in patches, irregular cells whose walls gather pigment.
-        if (u_wcLook.z > 0.0) {
+        // The cells are only computed inside a patch: they are the composite's
+        // most expensive term, and patches cover a small part of a shape.
+        float patches = u_wcLook.z > 0.0 ? smoothstep(0.45, 0.75, fbm(q * 2.0, seed + 53u)) : 0.0;
+        if (patches > 0.0) {
             // Strongly warped, so cells vary in size and shape, and faint.
             vec2 cq = px / (grain * 7.0);
             cq += 1.8 * vec2(fbm(cq * 0.25, seed + 43u), fbm(cq * 0.25 + 5.0, seed + 47u));
-            float patches = smoothstep(0.45, 0.75, fbm(q * 2.0, seed + 53u));
             float walls = cellWalls(cq, seed + 41u) * (0.5 + fbm(cq * 0.7, seed + 79u));
             settle += 0.7 * u_wcLook.z * patches * (walls - 0.4);
         }
