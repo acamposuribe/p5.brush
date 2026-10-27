@@ -3,7 +3,7 @@
 // One pass of a separable Gaussian blur of the fill mask, for watercolour
 // fills (see watercolor() in core/gl/shader.frag). The first pass reads the
 // mask and also marks which texels are inside the silhouette (u_level > 0):
-// it outputs (paint · inside, erase, silhouette paint, inside), so that after
+// it outputs (paint · inside, unused, silhouette paint, inside), so that after
 // both passes r / a is the mean paint of the inside only, and a is the share
 // of the neighbourhood inside the shape.
 //

@@ -80,7 +80,7 @@ function drawWashPolygon(polygon) {
     Density * (m.x + Cwidth / 2),
     Density * (m.y + Cheight / 2),
   ]);
-  queuePolygon(polygon.vertices, State.wash.opacity / 255, 0, 0, 4);
+  queuePolygon(polygon.vertices, State.wash.opacity / 255, 4);
   flushFill();
 }
 

@@ -37,17 +37,14 @@ const BLANK_PAGE = "<!doctype html><html><body style=\"margin:0\"></body></html>
 //                    Headless Chromium has no hardware WebGL unless one
 //                    is named explicitly.
 //   --headed         run with a visible browser window
-//   --fill-style=<s> brush.fillStyle() for the workloads (bench.mjs);
-//                    default "classic"
 // ---------------------------------------------------------------------------
 
 export function parseArgs(argv = process.argv.slice(2)) {
-  const opts = { out: null, angle: "swiftshader", headed: false, fillStyle: "classic" };
+  const opts = { out: null, angle: "swiftshader", headed: false };
   for (const arg of argv) {
     if (arg.startsWith("--out=")) opts.out = arg.slice(6);
     else if (arg.startsWith("--angle=")) opts.angle = arg.slice(8);
     else if (arg === "--headed") opts.headed = true;
-    else if (arg.startsWith("--fill-style=")) opts.fillStyle = arg.slice(13);
     else throw new Error(`Unknown argument: ${arg}`);
   }
   return opts;

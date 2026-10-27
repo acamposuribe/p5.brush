@@ -18,7 +18,6 @@
 // (for example --angle=metal on macOS); see docs/rendering-plan.md step 5.
 //
 // Run: npm run build && node test/e2e/bench.mjs [--out=<file>] [--angle=…]
-//        [--fill-style=classic|watercolor]
 // ============================================================
 
 import {
@@ -106,11 +105,10 @@ const SOFTWARE_HEAVY = { warmup: 1, runs: 3 };
 const workloadSpec = (w) =>
   typeof w === "string" ? { canvas: CANVAS, density: DENSITY, body: w } : w;
 
-async function runWorkload(page, { canvas: CANVAS, density: DENSITY, body }, WARMUP, RUNS, fillStyle) {
-  return page.evaluate(({ body, CANVAS, DENSITY, WARMUP, RUNS, fillStyle }) => {
+async function runWorkload(page, { canvas: CANVAS, density: DENSITY, body }, WARMUP, RUNS) {
+  return page.evaluate(({ body, CANVAS, DENSITY, WARMUP, RUNS }) => {
     const { brush } = window;
     const draw = new Function("brush", body);
-    brush.fillStyle(fillStyle);
     const canvas = brush.createCanvas(CANVAS[0], CANVAS[1], { pixelDensity: DENSITY });
     const gl = canvas.getContext("webgl2");
     const pixel = new Uint8Array(4);
@@ -139,7 +137,7 @@ async function runWorkload(page, { canvas: CANVAS, density: DENSITY, body }, WAR
     // The timed readPixels is harness work, not library work.
     counts.readPixels = (counts.readPixels ?? 1) - 1;
     return { cpu, total, counts, points: window.__gl.pointCount };
-  }, { body, CANVAS, DENSITY, WARMUP, RUNS, fillStyle });
+  }, { body, CANVAS, DENSITY, WARMUP, RUNS });
 }
 
 const opts = parseArgs();
@@ -164,7 +162,7 @@ try {
       const { warmup, runs } = heavy ? SOFTWARE_HEAVY : { warmup: WARMUP, runs: RUNS };
       process.stdout.write(`${name} (${warmup}+${runs} runs)… `);
       const t0 = Date.now();
-      const r = await runWorkload(page, workloadSpec(workload), warmup, runs, opts.fillStyle);
+      const r = await runWorkload(page, workloadSpec(workload), warmup, runs);
       console.log(`${((Date.now() - t0) / 1000).toFixed(1)} s`);
       if (page.harnessErrors.length) throw new Error(page.harnessErrors.join("\n"));
       const stats = (xs) => {
@@ -204,7 +202,7 @@ try {
 
   await writeResults(opts.out, {
     meta,
-    setup: { fillStyle: opts.fillStyle, canvas: CANVAS, density: DENSITY, warmup: WARMUP, runs: RUNS, heavyRuns: opts.angle === "swiftshader" ? SOFTWARE_HEAVY : null, seed: 1, noiseSeed: 1, workloads: Object.fromEntries(Object.entries(WORKLOADS).map(([k, w]) => [k, workloadSpec(w)])) },
+    setup: { canvas: CANVAS, density: DENSITY, warmup: WARMUP, runs: RUNS, heavyRuns: opts.angle === "swiftshader" ? SOFTWARE_HEAVY : null, seed: 1, noiseSeed: 1, workloads: Object.fromEntries(Object.entries(WORKLOADS).map(([k, w]) => [k, workloadSpec(w)])) },
     results,
   });
 } catch (err) {

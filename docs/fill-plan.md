@@ -1,6 +1,6 @@
 # Fill plan
 
-**Status: in progress.** Steps 0, 1 and 2 done (2026-10-27); step 2 awaits F-D1 approval. Step 3 spike works as an opt-in prototype (`fillStyle("watercolor")`); step 3b (wet-in-wet) done; F-D2 open. Hardware measurements are from an Apple M4 (ANGLE Metal) only.  
+**Status: in progress.** Steps 0, 1 and 2 done (2026-10-27); step 2 awaits F-D1 approval. Steps 3 and 3b done; F-D2 decided (2026-10-28): watercolour is the only fill model and classic is removed. Steps 4–6 next. Hardware measurements are from an Apple M4 (ANGLE Metal) only.  
 **Background:** [`rendering-model-audit.md`](rendering-model-audit.md) (F06, F07, F09, F10, F11) and the closed stroke plan in [`rendering-plan.md`](rendering-plan.md).
 
 ## Goal
@@ -103,7 +103,7 @@ The float buffer needs `EXT_color_buffer_float` or `EXT_color_buffer_half_float`
 | # | Decision | Needed before | Notes |
 |---|---|---|---|
 | F-D1 | **How much may the classic look change in step 2?** Same CPU polygons, but GPU coverage changes edge antialiasing, quantisation and the border band. | Step 2 merge | Approve from side-by-side seeded renders. |
-| F-D2 | **New look: default or opt-in?** | Step 3 end | For example, a `fillStyle("classic" \| "watercolor")` call, or the new model becomes the default and the classic one stays behind a flag. 2.4.0 made a similar call for strokes (paper always on). |
+| F-D2 | **New look: default or opt-in?** | Step 3 end | **Decided 2026-10-28: watercolour replaces classic entirely.** No style switch; `fillTexture(texture, border, scatter, split)` gains the pigment split. |
 | F-D3 | **Seed compatibility.** Steps 4 and 5 change seeded output (KS-space glazes, hashed RNG). | Step 4 | Seeds keep their statistics, not their exact pixels, as with D4 in the stroke plan. |
 | F-D4 | **Release vehicle.** | Step 6 | Minor (2.5.0) if the classic look stays the default; consider a major version if the new look becomes the default. |
 
@@ -269,6 +269,8 @@ The large single fill is now slightly slower than classic: the composite's noise
 - **Pigment separation (colour shifts).** Real paints are two or more pigments that separate on wet paper, so hue varies inside a wash. Each watercolour fill colour is split into a warmer and a cooler pigment: the same OKLab lightness and chroma, the hue turned ±30° × `colorShift`. Their ratio drifts across the shape in broad noise zones, a little toward the travelling pigment in the rim and pools, and back to the original mix in drops. K/S is blended per pixel and still goes through the spectral mix. The option is `fillStyle("watercolor", { colorShift })`, default 0.2, chosen by eye; 0 reproduces the unsplit look. The explorer has a "Pigment split" slider (C toggles it).
 - **Rejected: Kubelka-Munk glazing after Curtis et al. 1997** (two-constant R/T layers). With spectra guessed from one RGB colour it mostly raised saturation instead of shifting hue. It also needed K/S capping, because black's K/S runs into the thousands and speckles. Glazing between fills already comes from the spectral mix.
 - **Explorer: `klint`.** A composition after af Klint's *The Evolution, No. 1*: a blue ground painted around four lobes, a black square in two glazes, ovals and white lines.
+- **Layer count.** 5, 8 and 12 drawn layers compared. More layers give more irregular, layered edges and softer tone; 7 was chosen. The edge threshold is scaled by the layer count. Otherwise more, thinner layers move the edge out onto the later, bigger growth stages, and neighbouring shapes overlap.
+- **Classic removed (F-D2).** `fillStyle()` is gone. The pigment split moved to `fillTexture(texture, border, scatter, split)`, default 0.15. Removed: erase circles, border capsules (`capsule.*`), the finest growth level, per-glaze composites, and the mask's erase channel. The washes' composite program is unchanged. Only the `watercolor` compatibility fixture changed; it was regenerated.
 - **Rejected.** A cold-press paper structure with white sparkle ("bullshit realism"). Also rejected: weakening the darker layer and trims, broad pooling fronts, and per-fill rings with paler centres. Reference dot studies show the opposite: rich washes, darker on one side and fading to the other. The Hobbs darker layer is what produces that.
 
 ### 4. Composite collapse

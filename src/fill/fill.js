@@ -21,7 +21,6 @@ import {
 import {
   setFillTransform,
   queuePolygon,
-  queueErase,
   flushFill,
   blurFillMask,
   wetPaper,
@@ -54,6 +53,11 @@ initFillComposite(); // Register the fill composite with the core color module
 // Fill State and helpers
 // =============================================================================
 
+// Hobbs' layer schedule, and the layers of it a fill draws.
+const SCHEDULE = 20;
+const LAYERS = 7;
+const DRAWN = new Set(Array.from({ length: LAYERS }, (_, k) => Math.round((k * SCHEDULE) / LAYERS)));
+
 // Vertex cap for grow() — set to 0 or false to disable
 const GROW_MAX_VERTS = 2024;
 let GROW_CAP;
@@ -75,8 +79,7 @@ State.fill = {
   direction: "out",
   angle: null,
   scatter: true,
-  style: "classic",
-  colorShift: 0.2,
+  split: 0.15,
   isActive: false,
 };
 
@@ -116,37 +119,20 @@ export function fillBleed(_i, _direction = "out", _angle = null) {
 }
 
 /**
- * Sets the texture and border strengths for the fill.
- * @param {number} [_texture=0.4] - The texture strength (clamped to [0,1]).
- * @param {number} [_border=0.4] - The border strength (clamped to [0,1]).
+ * Sets the texture of the fill.
+ * @param {number} [_texture=0.4] - Granulation and reticulation strength (clamped to [0,1]).
+ * @param {number} [_border=0.4] - Strength of the dried rim at the edge (clamped to [0,1]).
  * @param {boolean} [_scatter=true] - Whether to draw the scattered sparse polygon layers.
  *   Set to false to disable the scatter effect, which can help when a clean
  *   gradient trim is needed without extra texture noise at the edges.
+ * @param {number} [_split=0.15] - How far the paint separates into a warmer and a
+ *   cooler pigment across a wash (clamped to [0,1]); 0 is a single pigment.
  */
-export function fillTexture(_texture = 0.4, _border = 0.4, _scatter = true) {
+export function fillTexture(_texture = 0.4, _border = 0.4, _scatter = true, _split = 0.15) {
   State.fill.texture_strength = constrain(_texture, 0, 1);
   State.fill.border_strength = constrain(_border, 0, 1);
   State.fill.scatter = _scatter;
-}
-
-/**
- * Chooses how fills are painted. Experimental (docs/fill-plan.md step 3).
- * "classic" is Tyler Hobbs' layered look. "watercolor" keeps the same
- * silhouettes but paints them as a dried wash: a crisp edge with a dark rim
- * (border strength), granulation in the paper (texture strength), pooling and,
- * with stronger bleed, blooms.
- * @param {"classic"|"watercolor"} [style="classic"]
- * @param {object} [options]
- * @param {number} [options.colorShift=0.2] - Watercolour only: how far the
- *   paint separates into a warmer and a cooler pigment across a wash, 0 (one
- *   pigment) to 1.
- */
-export function fillStyle(style = "classic", { colorShift = 0.2 } = {}) {
-  if (style !== "classic" && style !== "watercolor") {
-    throw new Error('fillStyle() takes "classic" or "watercolor".');
-  }
-  State.fill.style = style;
-  State.fill.colorShift = constrain(colorShift, 0, 1);
+  State.fill.split = constrain(_split, 0, 1);
 }
 
 /**
@@ -268,7 +254,7 @@ export function createFill(polygon) {
 /**
  * The FillPolygon class is used to create and manage the properties of the polygons that produces
  * the watercolor effect. It includes methods to grow (expand) the polygon and apply layers
- * of color with varying intensity and erase parts to simulate a natural watercolor bleed.
+ * of color with varying intensity; the watercolour composite then paints them as a wash.
  * The implementation follows Tyler Hobbs' guide to simulating watercolor:
  * https://tylerxhobbs.com/essays/2017/a-generative-approach-to-simulating-watercolor-paints
  */
@@ -403,15 +389,12 @@ class FillPoly {
     }
 
     // Insert nInsert vertices evenly spaced along the bridge edge, with a
-    // small jitter so the cut never renders as a ruler-straight line.
-    // Watercolour bows the cut too: its tone step reads as a wash boundary.
+    // small jitter so the cut never renders as a ruler-straight line. The
+    // cut also bows, toward the centre only so it never pushes the edge
+    // outward: its tone step reads as a wash boundary.
     const jitterAmt = edgeLen * 0.06;
-    // It bows toward the centre only, so it never pushes the edge outward.
-    let bow = 0;
-    if (State.fill.style === "watercolor") {
-      const inward = -evy * (this.midP.x - eStart.x) + evx * (this.midP.y - eStart.y);
-      bow = rr(0, 0.2) * Math.sign(inward);
-    }
+    const inward = -evy * (this.midP.x - eStart.x) + evx * (this.midP.y - eStart.y);
+    const bow = rr(0, 0.2) * Math.sign(inward);
     const dirBase = this.dir[trimStart % this.dir.length];
     for (let k = 0; k < nInsert; k++, dst++) {
       const t = (k + 1) / (nInsert + 1);
@@ -621,22 +604,17 @@ class FillPoly {
    * @param {number} tex - Texture factor.
    */
   fill(color, intensity, tex) {
-    const numLayers = 20;
     const texture = tex * 3;
-    let int = 2 * intensity * (1 + tex / 2);
-
-    const watercolor = State.fill.style === "watercolor";
-    // Watercolour texture comes from the composite, so it walks the same
-    // layer schedule in bigger steps (5 layers instead of 20), with each
-    // layer proportionally denser.
-    const step = watercolor ? 4 : 1;
-    int *= step;
+    // Texture comes from the composite, so of the 20 layers of Hobbs'
+    // schedule (growth every 4, trims every 2) only LAYERS are drawn, evenly
+    // spaced, each proportionally denser.
+    const int = 2 * intensity * (1 + tex / 2) * (SCHEDULE / LAYERS);
     const switchingToFill = Mix.isBrush !== false;
     Mix.isBrush = false;
     if (switchingToFill) Mix.justChanged = true;
     Mix.blend(color);
-    // A watercolour fill composites alone: flush same-colour washes first.
-    if (watercolor) Mix.blend(color, true);
+    // Each fill composites alone: flush same-colour washes first.
+    Mix.blend(color, true);
 
     const m = getAffineMatrix();
     const transform = [
@@ -657,72 +635,58 @@ class FillPoly {
       const sparse = this.scatter(0.1).grow().scatter(0.75).flipDirs();
       let pols;
 
-      for (let i = 0; i < numLayers; i += step) {
+      for (let i = 0; i < SCHEDULE; i++) {
         if (i % 4 === 0) {
           pol = pol.grow();
         }
 
         if (i % 2 === 0) {
-          // A watercolour outline layer is never trimmed: the trims all cut
-          // the same side, which would leave the outline there too thin.
+          // The outline layer is never trimmed: the trims all cut the same
+          // side, which would leave the outline there too thin.
           pols = [
-            pol.grow(watercolor ? 1 : 1 - 0.0125 * i),
+            pol.grow(1),
             pol.grow(0.7 - 0.0125 * i),
             pol.grow(0.4 - 0.0125 * i),
           ];
         }
 
-        // Watercolour skips the finest growth level: its tiny zigzags would
-        // show as a saw-tooth along the crisp edge.
-        // The first, least-trimmed of them outlines a watercolour fill.
+        if (!DRAWN.has(i)) continue;
+
+        // One growth level fewer than Hobbs: the finest one's tiny zigzags
+        // show as a saw-tooth along the crisp edge. The first, untrimmed
+        // layer outlines the fill.
         for (let k = 0; k < pols.length; k++) {
-          const grown = pols[k].grow(999);
-          (watercolor ? grown : grown.grow(997)).layer(i, size, int, watercolor, k === 0);
+          pols[k].grow(999).layer(int, k === 0);
         }
         if (State.fill.scatter) {
-          const sparseLayer = sparse.grow(999).flipDirs();
-          (watercolor ? sparseLayer : sparseLayer.grow(997)).layer(i, size, int * texture, watercolor);
+          sparse.grow(999).flipDirs().layer(int * texture);
         }
-        if (i % 2 === 0) {
-          const darkerLayer = pol.grow(darker).grow(999);
-          darkerLayer.layer(i, size, int * 2, watercolor);
-        }
-
-        // Watercolour texture comes from the composite, not from erasing.
-        if (watercolor) continue;
-        if (i % 8 === 0 || i === numLayers - 1) {
-          if (texture !== 0) {
-            pol.erase(texture * 3, intensity);
-          }
-          Mix.blend(color, true);
-        }
+        pol.grow(darker).grow(999).layer(int);
       }
 
-      if (watercolor) {
-        Mix.watercolor = this.watercolorLook(transform, size, int);
-        // The smoothed edge can sit just outside the painted pixels, and the
-        // blur reaches 3σ beyond them.
-        flushFill();
-        const rect = Mix.mask?.dirtyRect;
-        const sigma = Mix.watercolor.sigma;
-        const pad = 3 * sigma + 2;
-        if (rect) {
-          Mix.markDirtyRect(Mix.mask, {
-            minX: rect.minX - pad, minY: rect.minY - pad,
-            maxX: rect.maxX + pad, maxY: rect.maxY + pad,
-          });
-        }
-        const { uniforms } = Mix.watercolor;
-        const level = uniforms.u_wcFlow[2];
-        uniforms.u_blur = blurFillMask(sigma, level);
-        // Wet-in-wet: the paper recent fills left wet, then this fill's own.
-        const paper = wetPaper(getActiveFramebuffer() ?? Renderer);
-        uniforms.u_wet = paper.texture;
-        uniforms.u_wetInfo = paper.info;
-        const painted = Mix.mask?.dirtyRect && { ...Mix.mask.dirtyRect };
-        Mix.blend(color, true);
-        wetFill(painted, level, constrain(0.4 + 1.2 * State.fill.bleed_strength, 0, 1));
+      Mix.watercolor = this.watercolorLook(transform, size, int);
+      // The smoothed edge can sit just outside the painted pixels, and the
+      // blur reaches 3σ beyond them.
+      flushFill();
+      const rect = Mix.mask?.dirtyRect;
+      const sigma = Mix.watercolor.sigma;
+      const pad = 3 * sigma + 2;
+      if (rect) {
+        Mix.markDirtyRect(Mix.mask, {
+          minX: rect.minX - pad, minY: rect.minY - pad,
+          maxX: rect.maxX + pad, maxY: rect.maxY + pad,
+        });
       }
+      const { uniforms } = Mix.watercolor;
+      const level = uniforms.u_wcFlow[2];
+      uniforms.u_blur = blurFillMask(sigma, level);
+      // Wet-in-wet: the paper recent fills left wet, then this fill's own.
+      const paper = wetPaper(getActiveFramebuffer() ?? Renderer);
+      uniforms.u_wet = paper.texture;
+      uniforms.u_wetInfo = paper.info;
+      const painted = Mix.mask?.dirtyRect && { ...Mix.mask.dirtyRect };
+      Mix.blend(color, true);
+      wetFill(painted, level, constrain(0.4 + 1.2 * State.fill.bleed_strength, 0, 1));
     } finally {
       Mix.watercolor = null;
       flushFill();
@@ -735,7 +699,7 @@ class FillPoly {
    * Positions are in mask pixels.
    * @param {number[]} t - User space → device pixels (a, b, c, d, e, f).
    * @param {number} size - Polygon size in user space.
-   * @param {number} int - Fill opacity in percent.
+   * @param {number} int - Layer opacity in percent.
    * @returns {{sigma: number, uniforms: Object}}
    */
   /**
@@ -746,7 +710,7 @@ class FillPoly {
    */
   pigments() {
     // Each pigment's hue turns up to 30° from the fill colour.
-    const [a, b] = splitPigment(State.fill.color._array, 30 * State.fill.colorShift);
+    const [a, b] = splitPigment(State.fill.color._array, 30 * State.fill.split);
     const termsA = pigmentTerms(a);
     const ksA = Float32Array.from(termsA.ks), luminanceA = termsA.luminance;
     const termsB = pigmentTerms(b);
@@ -778,9 +742,10 @@ class FillPoly {
     const ty = b * fx + d * fy;
     const len = Math.hypot(tx, ty) || 1;
 
-    // The edge is where at least two of the five outline layers overlap
-    // (log-domain paint in the mask's silhouette channel).
-    const level = -2.2 * Math.log1p(-Math.min(int / 100, 0.9999));
+    // The edge is where the outline layers' paint (log domain, the mask's
+    // silhouette channel) reaches what about two of five layers would lay
+    // down, whatever LAYERS is: more, thinner layers must not move it out.
+    const level = -2.2 * (LAYERS / 5) * Math.log1p(-Math.min(int / 100, 0.9999));
     const radius = size * Math.sqrt(Math.abs(a * d - b * c));
     // Blur σ for the rim band and body, in mask px (the silhouette uses half).
     const sigma = constrain(radius * 0.07, 3 * Density, 18 * Density);
@@ -823,52 +788,12 @@ class FillPoly {
   }
 
   /**
-   * Draws a layer of the fill polygon with stroke and fill.
-   * @param {number} i - The layer index.
-   * @param {number} size - Polygon size, for the border width.
-   * @param {number} int - Fill opacity in percent.
-   * @param {boolean} [watercolor=false] - Watercolour fills have no border
-   *   band: their edge and rim come from the composite.
-   * @param {boolean} [outline=false] - Part of a watercolour silhouette.
+   * Draws a layer of the fill polygon.
+   * @param {number} int - Layer opacity in percent.
+   * @param {boolean} [outline=false] - Part of the fill's silhouette.
    */
-  layer(i, size, int, watercolor = false, outline = false) {
-    const border = watercolor ? 0 : State.fill.border_strength;
-    queuePolygon(
-      this.v,
-      Math.min(int / 100, 1),
-      border * 0.01,
-      map(i, 0, 24, size / 25, size / 30, true) * border,
-      2,
-      outline,
-    );
-  }
-
-  /**
-   * Erases parts of the polygon to create a natural watercolor texture.
-   * @param {number} texture - Texture strength factor.
-   * @param {number} intensity - Intensity value for size scaling.
-   */
-  erase(texture, intensity) {
-    const numCircles = ~~(rr(80, 110) * map(texture, 0, 1, 2, 3.5));
-    const halfSizeX = this.sizeX / 1.3;
-    const halfSizeY = this.sizeY / 1.3;
-    const minSize =
-      Math.min(this.sizeX, this.sizeY) * (1.3);
-    const minSizeFactor = 0.03 * minSize;
-    const maxSizeFactor = 0.45 * minSize;
-    const { x: midX, y: midY } = this.midP;
-
-    const alpha = Math.min(
-      ((5 - map(intensity, 80, 100, 0.3, 0.7, true)) * texture) / 255,
-      1,
-    );
-
-    for (let i = 0; i < numCircles; i++) {
-      const x = midX + gaussian(0, halfSizeX);
-      const y = midY + gaussian(0, halfSizeY);
-      const diameter = rr(minSizeFactor, maxSizeFactor);
-      if (i % 5 !== 0) queueErase(x, y, diameter / 2, alpha);
-    }
+  layer(int, outline = false) {
+    queuePolygon(this.v, Math.min(int / 100, 1), 2, outline);
   }
 }
 

@@ -1,7 +1,3 @@
-// ?style=watercolor switches the fill style (docs/fill-plan.md step 3). Read
-// once, before the page rewrites its query string.
-const FILL_STYLE = new URLSearchParams(location.search).get("style") ?? "classic";
-
 const PALETTE = ["#002185", "#003c32", "#fcd300", "#ff2702", "#6b9404", "#000000", "#ffffff"];
 const PAPER = "#fffceb";
 const STROKE = "#111111";
@@ -244,7 +240,6 @@ function renderScene() {
 
   brush.noField();
   brush.noHatch();
-  brush.fillStyle(FILL_STYLE);
   brush.set("HB", STROKE, 0.5);
   if (state.shape === "grid") {
     drawGrid(width, height);

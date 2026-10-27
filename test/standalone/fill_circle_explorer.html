@@ -211,14 +211,6 @@
             </div>
           </div>
 
-          <div style="font: 11px/1.4 Menlo, Monaco, 'Courier New', monospace; display:grid; gap:6px;">
-            Style <span style="color:#8a9aa8">(S toggles)</span>
-            <div style="display:flex; flex-wrap:wrap; gap:6px;">
-              <button type="button" class="style-btn shape-btn active" data-style="classic">classic</button>
-              <button type="button" class="style-btn shape-btn" data-style="watercolor">watercolor</button>
-            </div>
-          </div>
-
           <div class="control-grid">
             <label>
               Bleed
@@ -289,7 +281,6 @@
         color:   PALETTE[0],
         seed:    100000 + Math.floor(Math.random() * 900000),
         shape:   "circle",
-        style:   "classic",
         shift:   0.2,
       };
 
@@ -331,9 +322,6 @@
       if (urlParams.has("color") && PALETTE.includes(urlParams.get("color"))) {
         state.color = urlParams.get("color");
       }
-      if (["classic", "watercolor"].includes(urlParams.get("style"))) {
-        state.style = urlParams.get("style");
-      }
       if (urlParams.has("shape") && SHAPES.includes(urlParams.get("shape"))) {
         state.shape = urlParams.get("shape");
       }
@@ -364,7 +352,7 @@
           bleed: state.bleed, opacity: state.opacity,
           texture: state.texture, border: state.border,
           color: state.color, seed: state.seed, shape: state.shape,
-          style: state.style, shift: state.shift,
+          shift: state.shift,
         });
         history.replaceState(null, "", `?${qs}`);
       }
@@ -395,7 +383,6 @@
 
         brush.noField();
         brush.noHatch();
-        brush.fillStyle(state.style, { colorShift: state.shift });
         brush.set("HB", STROKE, 0.5);
         if (state.shape === "grid") {
           drawGrid(CW, CH);
@@ -411,7 +398,7 @@
         } else {
           brush.fill(state.color, state.opacity);
           brush.fillBleed(state.bleed, "out");
-          brush.fillTexture(state.texture, state.border);
+          brush.fillTexture(state.texture, state.border, true, state.shift);
           drawShape(CW, CH);
           brush.noFill();
         }
@@ -435,7 +422,7 @@
       function washDot(color, x, y, d, opacity) {
         brush.fill(color, opacity);
         brush.fillBleed(state.bleed, "out");
-        brush.fillTexture(state.texture, state.border);
+        brush.fillTexture(state.texture, state.border, true, state.shift);
         brush.circle(x, y, d / 2);
         brush.noFill();
       }
@@ -484,7 +471,7 @@
         const wash = (color, opacity, bleed = state.bleed) => {
           brush.fill(color, Math.round(opacity * state.opacity / 92));
           brush.fillBleed(bleed, "out");
-          brush.fillTexture(state.texture, state.border);
+          brush.fillTexture(state.texture, state.border, true, state.shift);
         };
         const shape = (pts) => {
           brush.beginShape(0);
@@ -544,7 +531,7 @@
         // Two glazes: one wash of watercolour does not reach black.
         for (let k = 0; k < 2; k++) {
           wash("#1d1714", 255, 0.06);
-          brush.fillTexture(state.texture * 0.3, state.border);
+          brush.fillTexture(state.texture * 0.3, state.border, true, state.shift);
           brush.rect(sq.l, sq.t, sq.r - sq.l, sq.b - sq.t);
           brush.render(); // dry between glazes, so the second sits on the first
         }
@@ -591,7 +578,7 @@
             const y = PAD + row * (cellH + GAP);
             brush.fill(color, state.opacity);
             brush.fillBleed(state.bleed, "out");
-            brush.fillTexture(state.texture, state.border);
+            brush.fillTexture(state.texture, state.border, true, state.shift);
             brush.rect(x, y, cellW, cellH);
             brush.noFill();
           }
@@ -626,23 +613,8 @@
         for (const btn of document.querySelectorAll(".shape-btn[data-shape]")) {
           btn.classList.toggle("active", btn.dataset.shape === state.shape);
         }
-        for (const btn of document.querySelectorAll(".style-btn")) {
-          btn.classList.toggle("active", btn.dataset.style === state.style);
-        }
       }
 
-      function setStyle(style) {
-        state.style = style;
-        syncShapeButtons();
-        syncUrl();
-        queueRender();
-      }
-      for (const btn of document.querySelectorAll(".style-btn")) {
-        btn.addEventListener("click", () => setStyle(btn.dataset.style));
-      }
-      addEventListener("keydown", (e) => {
-        if (e.key === "s" || e.key === "S") setStyle(state.style === "classic" ? "watercolor" : "classic");
-      });
 
       for (const btn of document.querySelectorAll(".shape-btn[data-shape]")) {
         btn.addEventListener("click", () => {
@@ -684,7 +656,7 @@
       bindSlider("texture", controls.texture, controls.textureVal);
       bindSlider("border",  controls.border,  controls.borderVal);
       bindSlider("shift",   controls.shift,   controls.shiftVal);
-      // C flips the colour shift off and back to its last non-zero value.
+      // C flips the pigment split off and back to its last non-zero value.
       let lastShift = state.shift || 0.2;
       addEventListener("keydown", (e) => {
         if (e.key !== "c" && e.key !== "C") return;

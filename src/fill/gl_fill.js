@@ -6,14 +6,11 @@
  *
  * The mask is a half-float framebuffer that stores paint in log space:
  *   r = Σ −ln(1 − a) over painted layers
- *   g = Σ −ln(1 − e) over erase circles
- *   b = Σ −ln(1 − a) over silhouette layers only (watercolour fills)
- * and the composite shader turns it back into coverage, (1 − e^−r) · e^−g.
- * That is exactly what Canvas2D source-over painting followed by
- * destination-out erasing produces, but every term is a sum, so draw order
- * does not matter. Polygons are filled by stencil-then-cover (fan.vert), two
- * draws each; borders and erase circles draw in one instanced call
- * (capsule.vert).
+ *   b = Σ −ln(1 − a) over silhouette layers only (fills)
+ * and the composite shader turns it back into coverage, 1 − e^−r. That is
+ * exactly what Canvas2D source-over painting produces, but every term is a
+ * sum, so draw order does not matter. Polygons are filled by
+ * stencil-then-cover (fan.vert), two draws each.
  */
 
 import { Renderer, Cwidth, Cheight, Density } from "../core/target.js";
@@ -27,8 +24,6 @@ import {
 } from "../core/renderer_runtime.js";
 import fanVertSrc from "./fan.vert";
 import fanFragSrc from "./fan.frag";
-import capsuleVertSrc from "./capsule.vert";
-import capsuleFragSrc from "./capsule.frag";
 import fullscreenVertSrc from "../core/gl/shader.vert";
 import blurFragSrc from "./blur.frag";
 import wetFragSrc from "./wet.frag";
@@ -38,10 +33,7 @@ import wetFragSrc from "./wet.frag";
 // =============================================================================
 
 const FAN_WORDS = 6; // one fan triangle: centre.xy, start.xy, end.xy
-const CAPSULE_WORDS = 8; // start.xy, end.xy, radius, paint, erase, depth
 const MAX_ALPHA = 0.9999; // keeps −ln(1 − a) finite for opaque washes
-// Each border and erase circle gets its own depth, decreasing from 1.
-const DEPTH_STEP = 1 / (1 << 22);
 // Sub-pixel offsets (device px) that antialias polygon fills, by sample
 // count. Fill layers use 2: the many overlapping layers smooth their edges
 // further. A wash is a single hard-edged polygon and uses 4 (rotated grid).
@@ -52,7 +44,6 @@ const JITTER = {
 
 let gl = null;
 const fan = { program: null, vao: null, buffer: null, uMatrix: null, uWeight: null, uJitter: null, uShape: null };
-const capsule = { program: null, vao: null, buffer: null, uMatrix: null, uPixel: null };
 const blur = { program: null, vao: null };
 const wet = { program: null, vao: null };
 
@@ -61,12 +52,9 @@ let fanCount = 0;
 // Queued polygons: first triangle, triangle count, log-domain weight,
 // antialiasing sample count and silhouette flag.
 let polygons = [];
-let capsuleData = new Float32Array(4096 * CAPSULE_WORDS);
-let capsuleCount = 0;
 
 // User space → device pixels (a, b, c, d, e, f, as in DOMMatrix).
 const matrix = new Float64Array(6);
-let depth = 1;
 let dirtyRect = null;
 
 // Draw queued layers before the composite reads or clears the fill mask.
@@ -78,7 +66,7 @@ Mix.beforeFillMaskAccess = () => flushFill();
 
 function releaseGlResources() {
   if (!gl || gl.isContextLost?.()) return;
-  for (const p of [fan, capsule, blur, wet]) {
+  for (const p of [fan, blur, wet]) {
     if (p.program) gl.deleteProgram(p.program);
     if (p.vao) gl.deleteVertexArray(p.vao);
     if (p.buffer) gl.deleteBuffer(p.buffer);
@@ -91,7 +79,6 @@ function setupProgram(target, vertSrc, fragSrc, attributes, words, divisor) {
   target.uMatrix = gl.getUniformLocation(target.program, "u_matrix");
   target.uWeight = gl.getUniformLocation(target.program, "u_weight");
   target.uJitter = gl.getUniformLocation(target.program, "u_jitter");
-  target.uPixel = gl.getUniformLocation(target.program, "u_pixel");
   target.uShape = gl.getUniformLocation(target.program, "u_shape");
   target.buffer = gl.createBuffer();
   target.vao = gl.createVertexArray();
@@ -113,9 +100,6 @@ function ensureGl() {
   releaseGlResources();
   gl = nextGl;
   setupProgram(fan, fanVertSrc, fanFragSrc, [["a_pos", 2, 0]], 2, 0);
-  setupProgram(capsule, capsuleVertSrc, capsuleFragSrc, [
-    ["a_start", 2, 0], ["a_end", 2, 2], ["a_info", 4, 4],
-  ], CAPSULE_WORDS, 1);
   blur.program = createProgram(gl, fullscreenVertSrc, blurFragSrc);
   blur.vao = gl.createVertexArray();
   for (const name of ["u_src", "u_dstSize", "u_step", "u_level", "u_ratio"]) {
@@ -150,16 +134,7 @@ function growFan(extra) {
   fanData = next;
 }
 
-function growCapsule(extra) {
-  if ((capsuleCount + extra) * CAPSULE_WORDS <= capsuleData.length) return;
-  let size = capsuleData.length * 2;
-  while (size < (capsuleCount + extra) * CAPSULE_WORDS) size *= 2;
-  const next = new Float32Array(size);
-  next.set(capsuleData);
-  capsuleData = next;
-}
-
-function markBounds(minX, minY, maxX, maxY, pad) {
+function markBounds(minX, minY, maxX, maxY) {
   const [a, b, c, d, e, f] = matrix;
   let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
   for (const [x, y] of [[minX, minY], [maxX, minY], [minX, maxY], [maxX, maxY]]) {
@@ -170,7 +145,7 @@ function markBounds(minX, minY, maxX, maxY, pad) {
     if (ty < y0) y0 = ty;
     if (ty > y1) y1 = ty;
   }
-  const p = 1 + pad * Math.max(Math.hypot(a, c), Math.hypot(b, d));
+  const p = 1;
   x0 -= p; y0 -= p; x1 += p; y1 += p;
   if (!dirtyRect) dirtyRect = { minX: x0, minY: y0, maxX: x1, maxY: y1 };
   else {
@@ -193,18 +168,15 @@ export function setFillTransform(m) {
 }
 
 /**
- * Queues a polygon layer: a fill with opacity `alpha` and, when
- * `strokeAlpha` > 0, a round-joined border `lineWidth` wide.
+ * Queues a polygon layer with opacity `alpha`.
  * @param {{x: number, y: number}[]} vertices - Polygon in user space.
- * @param {number} alpha - Fill opacity 0..1.
- * @param {number} [strokeAlpha=0] - Border opacity 0..1.
- * @param {number} [lineWidth=0] - Border width in user space.
+ * @param {number} alpha - Opacity 0..1.
  * @param {2|4} [samples=2] - Antialiasing samples per pixel.
  * @param {boolean} [shape=false] - Also paint the silhouette channel.
  */
-export function queuePolygon(vertices, alpha, strokeAlpha = 0, lineWidth = 0, samples = 2, shape = false) {
+export function queuePolygon(vertices, alpha, samples = 2, shape = false) {
   const n = vertices.length;
-  if (n < 3) return;
+  if (n < 3 || alpha <= 0) return;
 
   let cx = 0, cy = 0, area = 0;
   let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
@@ -219,82 +191,35 @@ export function queuePolygon(vertices, alpha, strokeAlpha = 0, lineWidth = 0, sa
     if (p.y < minY) minY = p.y;
     if (p.y > maxY) maxY = p.y;
   }
+  if (area === 0) return;
   cx /= n;
   cy /= n;
 
-  const stroke = strokeAlpha > 0 && lineWidth > 0;
-  if (alpha > 0 && area !== 0) {
-    growFan(n);
-    polygons.push(fanCount, n, logWeight(alpha), samples, shape ? 1 : 0);
-    let o = fanCount * FAN_WORDS;
-    for (let i = 0; i < n; i++, o += FAN_WORDS) {
-      const p = vertices[i];
-      const q = vertices[i + 1 < n ? i + 1 : 0];
-      fanData[o] = cx;
-      fanData[o + 1] = cy;
-      fanData[o + 2] = p.x;
-      fanData[o + 3] = p.y;
-      fanData[o + 4] = q.x;
-      fanData[o + 5] = q.y;
-    }
-    fanCount += n;
+  growFan(n);
+  polygons.push(fanCount, n, logWeight(alpha), samples, shape ? 1 : 0);
+  let o = fanCount * FAN_WORDS;
+  for (let i = 0; i < n; i++, o += FAN_WORDS) {
+    const p = vertices[i];
+    const q = vertices[i + 1 < n ? i + 1 : 0];
+    fanData[o] = cx;
+    fanData[o + 1] = cy;
+    fanData[o + 2] = p.x;
+    fanData[o + 3] = p.y;
+    fanData[o + 4] = q.x;
+    fanData[o + 5] = q.y;
   }
-  if (stroke) {
-    const w = logWeight(strokeAlpha);
-    const r = lineWidth / 2;
-    depth -= DEPTH_STEP;
-    growCapsule(n);
-    let o = capsuleCount * CAPSULE_WORDS;
-    for (let i = 0; i < n; i++, o += CAPSULE_WORDS) {
-      const p = vertices[i];
-      const q = vertices[i + 1 < n ? i + 1 : 0];
-      capsuleData[o] = p.x;
-      capsuleData[o + 1] = p.y;
-      capsuleData[o + 2] = q.x;
-      capsuleData[o + 3] = q.y;
-      capsuleData[o + 4] = r;
-      capsuleData[o + 5] = w;
-      capsuleData[o + 6] = 0;
-      capsuleData[o + 7] = depth;
-    }
-    capsuleCount += n;
-  }
-  if (alpha > 0 || stroke) {
-    markBounds(minX, minY, maxX, maxY, stroke ? lineWidth / 2 : 0);
-  }
-}
-
-/**
- * Queues an erase circle that removes a fraction `alpha` of the paint under it.
- * @param {number} x - Centre x in user space.
- * @param {number} y - Centre y in user space.
- * @param {number} radius - Radius in user space.
- * @param {number} alpha - Erase strength 0..1.
- */
-export function queueErase(x, y, radius, alpha) {
-  if (alpha <= 0 || radius <= 0) return;
-  growCapsule(1);
-  const o = capsuleCount * CAPSULE_WORDS;
-  depth -= DEPTH_STEP;
-  capsuleData[o] = x;
-  capsuleData[o + 1] = y;
-  capsuleData[o + 2] = x;
-  capsuleData[o + 3] = y;
-  capsuleData[o + 4] = radius;
-  capsuleData[o + 5] = 0;
-  capsuleData[o + 6] = logWeight(alpha);
-  capsuleData[o + 7] = depth;
-  capsuleCount++;
+  fanCount += n;
+  markBounds(minX, minY, maxX, maxY);
 }
 
 /**
  * Draws all queued layers into the fill mask and clears the queue.
  */
 export function flushFill() {
-  if (fanCount === 0 && capsuleCount === 0) return;
+  if (fanCount === 0) return;
   const mask = Mix.mask;
   if (!mask || !Renderer?.drawingContext || Renderer.drawingContext.isContextLost?.()) {
-    fanCount = capsuleCount = 0;
+    fanCount = 0;
     polygons = [];
     dirtyRect = null;
     return;
@@ -319,7 +244,7 @@ export function flushFill() {
   dirtyRect = null;
   const bounds = mask.dirtyRect;
   if (!bounds) {
-    fanCount = capsuleCount = 0;
+    fanCount = 0;
     polygons = [];
     return;
   }
@@ -364,42 +289,24 @@ export function flushFill() {
     }
     gl.disable(gl.STENCIL_TEST);
   }
-  if (capsuleCount > 0) {
-    gl.enable(gl.DEPTH_TEST);
-    gl.depthFunc(gl.LESS);
-    gl.depthMask(true);
-    gl.useProgram(capsule.program);
-    gl.uniformMatrix3fv(capsule.uMatrix, false, clip);
-    gl.uniform1f(capsule.uPixel, Math.sqrt(Math.abs(a * d - b * c)));
-    gl.bindVertexArray(capsule.vao);
-    upload(capsule, capsuleData, capsuleCount, CAPSULE_WORDS);
-    gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, capsuleCount);
-    gl.disable(gl.DEPTH_TEST);
-  }
-
-  // Restore the host's usual depth state without a synchronous query: p5
-  // draws with LEQUAL and depth writes on; standalone does not use depth.
-  gl.depthFunc(gl.LEQUAL);
-  gl.depthMask(true);
   if (hadCullFace) gl.enable(gl.CULL_FACE);
   gl.bindVertexArray(null);
   gl.disable(gl.SCISSOR_TEST);
   endDirectMaskDraw(Renderer, gl, targetState);
   resetDirectShaderTracking(Renderer, gl);
 
-  fanCount = capsuleCount = 0;
+  fanCount = 0;
   polygons = [];
 }
 
 /**
- * Clears the fill mask's paint and depth. Queued layers are dropped.
+ * Clears the fill mask's paint and stencil. Queued layers are dropped.
  * @param {object} target - Fill mask framebuffer.
  */
 export function clearFillTarget(target) {
-  fanCount = capsuleCount = 0;
+  fanCount = 0;
   polygons = [];
   dirtyRect = null;
-  depth = 1;
   const context = Renderer.drawingContext;
   const state = beginDirectMaskDraw(Renderer, context, target);
   context.depthMask(true);

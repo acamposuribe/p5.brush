@@ -259,7 +259,7 @@ const float DARKEN_THRESHOLD = 0.7;
 const float EDGE_MIN = 0.05, EDGE_MAX = 0.35;
 
 // Compiled three times: with BRUSH for the stroke mask, with WATERCOLOR for
-// watercolour fills, and with neither for classic fills and washes. Keeping
+// fills, and with neither for washes. Keeping
 // each variant's extra work out of the others keeps them light enough to run
 // at full GPU occupancy.
 #ifdef BRUSH
@@ -268,10 +268,10 @@ const bool IS_BRUSH = true;
 const bool IS_BRUSH = false;
 #endif
 
-// Fill mask coverage from a texel: log-domain paint (r) and erasure (g); see
+// Fill mask coverage from a texel's log-domain paint (r); see
 // src/fill/gl_fill.js.
 float fillCoverage(vec4 m) {
-    return (1.0 - exp(-max(m.r, 0.0))) * exp(-m.g);
+    return 1.0 - exp(-max(m.r, 0.0));
 }
 
 // Mask coverage at a point. The stroke mask stores it in alpha.
