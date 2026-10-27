@@ -1,0 +1,138 @@
+{
+  "meta": {
+    "date": "2026-10-27T11:03:05.804Z",
+    "version": "2.3.0",
+    "commit": "ca199806b9acc2ac6906d38fdc129862804ab979",
+    "libraryDirty": false,
+    "bundle": "dist/brush.esm.js",
+    "bundleSha256": "4f0c545e14a21cb8a4343b186dcac31a94894a5cfec02f69a0bf0567082d151e",
+    "node": "v23.9.0",
+    "platform": "darwin-arm64",
+    "browser": "chromium 145.0.7632.6",
+    "angle": "metal",
+    "gpu": {
+      "vendor": "Google Inc. (Apple)",
+      "renderer": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4, Unspecified Version)",
+      "pointSizeRange": [
+        1,
+        511
+      ],
+      "timerQuery": true
+    }
+  },
+  "setup": {
+    "canvas": [
+      512,
+      512
+    ],
+    "density": 1,
+    "warmup": 2,
+    "runs": 10,
+    "seed": 1,
+    "noiseSeed": 1,
+    "workloads": {
+      "lines": "\n    brush.set(\"2B\", \"#222\", 1);\n    for (let i = 0; i < 100; i++) brush.line(-200, -200 + i * 4, 200, -200 + i * 4);\n  ",
+      "hatch": "\n    brush.set(\"HB\", \"#222\", 1);\n    brush.hatch(3, 45);\n    brush.rect(-200, -200, 400, 400);\n    brush.noHatch();\n  ",
+      "mass": "\n    brush.noStroke();\n    brush.mass(\"HB\", \"#222\");\n    brush.rect(-150, -150, 300, 300);\n    brush.noMass();\n  ",
+      "fill": "\n    brush.noStroke();\n    brush.fill(\"#2a6fb0\", 150);\n    brush.fillBleed(0.3);\n    brush.fillTexture(0.6, 0.4);\n    brush.rect(-150, -150, 300, 300);\n    brush.noFill();\n  "
+    }
+  },
+  "results": {
+    "lines": {
+      "cpuMs": {
+        "median": 22.7,
+        "p90": 23.3,
+        "min": 22.4,
+        "max": 23.3
+      },
+      "totalMs": {
+        "median": 29.6,
+        "p90": 30.2,
+        "min": 28,
+        "max": 30.3
+      },
+      "points": 311344,
+      "counts": {
+        "bindFramebuffer": 208,
+        "useProgram": 102,
+        "bufferSubData": 100,
+        "drawArrays": 101,
+        "getParameter": 6,
+        "blitFramebuffer": 1,
+        "readPixels": 0
+      }
+    },
+    "hatch": {
+      "cpuMs": {
+        "median": 32.6,
+        "p90": 33.6,
+        "min": 32.2,
+        "max": 33.8
+      },
+      "totalMs": {
+        "median": 39.3,
+        "p90": 41.4,
+        "min": 38.2,
+        "max": 41.9
+      },
+      "points": 366823,
+      "counts": {
+        "bindFramebuffer": 376,
+        "useProgram": 186,
+        "bufferSubData": 184,
+        "drawArrays": 185,
+        "getParameter": 6,
+        "blitFramebuffer": 1,
+        "readPixels": 0
+      }
+    },
+    "mass": {
+      "cpuMs": {
+        "median": 247,
+        "p90": 249.1,
+        "min": 246.1,
+        "max": 250
+      },
+      "totalMs": {
+        "median": 250.4,
+        "p90": 252,
+        "min": 249.1,
+        "max": 252.3
+      },
+      "points": 1600034,
+      "counts": {
+        "bindFramebuffer": 3108,
+        "useProgram": 1552,
+        "bufferSubData": 1550,
+        "drawArrays": 1551,
+        "getParameter": 6,
+        "blitFramebuffer": 1,
+        "readPixels": 0
+      }
+    },
+    "fill": {
+      "cpuMs": {
+        "median": 3.8,
+        "p90": 4.9,
+        "min": 3.5,
+        "max": 5.3
+      },
+      "totalMs": {
+        "median": 8.9,
+        "p90": 9.4,
+        "min": 7.6,
+        "max": 10.2
+      },
+      "points": 0,
+      "counts": {
+        "getParameter": 24,
+        "bindFramebuffer": 32,
+        "blitFramebuffer": 4,
+        "texSubImage2D": 4,
+        "useProgram": 8,
+        "drawArrays": 4,
+        "readPixels": 0
+      }
+    }
+  }
+}

@@ -19,6 +19,8 @@
     "test": "npm run build && npm run test:bugs && npm run test:smoke",
     "test:bugs": "node test/e2e/bugs.mjs",
     "test:smoke": "node test/e2e/smoke.mjs",
+    "measure:density": "npm run build && node test/e2e/density.mjs",
+    "measure:bench": "npm run build && node test/e2e/bench.mjs",
     "build": "rollup --config"
   },
   "files": [

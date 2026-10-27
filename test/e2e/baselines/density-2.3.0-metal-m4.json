@@ -1,0 +1,474 @@
+{
+  "meta": {
+    "date": "2026-10-27T11:03:10.495Z",
+    "version": "2.3.0",
+    "commit": "ca199806b9acc2ac6906d38fdc129862804ab979",
+    "libraryDirty": false,
+    "bundle": "dist/brush.esm.js",
+    "bundleSha256": "4f0c545e14a21cb8a4343b186dcac31a94894a5cfec02f69a0bf0567082d151e",
+    "node": "v23.9.0",
+    "platform": "darwin-arm64",
+    "browser": "chromium 145.0.7632.6",
+    "angle": "metal",
+    "gpu": {
+      "vendor": "Google Inc. (Apple)",
+      "renderer": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4, Unspecified Version)",
+      "pointSizeRange": [
+        1,
+        511
+      ],
+      "timerQuery": true
+    }
+  },
+  "setup": {
+    "canvas": [
+      400,
+      120
+    ],
+    "line": [
+      -180,
+      0,
+      180,
+      0
+    ],
+    "weight": 1,
+    "seed": 1,
+    "noiseSeed": 1,
+    "densities": [
+      1,
+      2,
+      3
+    ]
+  },
+  "results": [
+    {
+      "brush": "pen",
+      "densities": {
+        "1": {
+          "points": 2651,
+          "pointDraws": 1,
+          "diameterP10": 0.271,
+          "diameterMedian": 0.327,
+          "diameterP90": 0.415,
+          "subpixelFraction": 1,
+          "darkness": 413.5,
+          "width": 2
+        },
+        "2": {
+          "points": 2651,
+          "pointDraws": 1,
+          "diameterP10": 0.543,
+          "diameterMedian": 0.653,
+          "diameterP90": 0.829,
+          "subpixelFraction": 1,
+          "darkness": 118.3,
+          "width": 1
+        },
+        "3": {
+          "points": 2651,
+          "pointDraws": 1,
+          "diameterP10": 0.814,
+          "diameterMedian": 0.98,
+          "diameterP90": 1.244,
+          "subpixelFraction": 0.555,
+          "darkness": 66.8,
+          "width": 0.67
+        }
+      },
+      "darknessRatio": {
+        "d1/d2": 3.5,
+        "d1/d3": 6.19
+      }
+    },
+    {
+      "brush": "rotring",
+      "densities": {
+        "1": {
+          "points": 3413,
+          "pointDraws": 1,
+          "diameterP10": 0.137,
+          "diameterMedian": 0.166,
+          "diameterP90": 0.235,
+          "subpixelFraction": 1,
+          "darkness": 604.4,
+          "width": 2
+        },
+        "2": {
+          "points": 3413,
+          "pointDraws": 1,
+          "diameterP10": 0.275,
+          "diameterMedian": 0.333,
+          "diameterP90": 0.47,
+          "subpixelFraction": 1,
+          "darkness": 198.7,
+          "width": 1
+        },
+        "3": {
+          "points": 3413,
+          "pointDraws": 1,
+          "diameterP10": 0.412,
+          "diameterMedian": 0.499,
+          "diameterP90": 0.705,
+          "subpixelFraction": 1,
+          "darkness": 96.6,
+          "width": 0.67
+        }
+      },
+      "darknessRatio": {
+        "d1/d2": 3.04,
+        "d1/d3": 6.26
+      }
+    },
+    {
+      "brush": "2B",
+      "densities": {
+        "1": {
+          "points": 2840,
+          "pointDraws": 1,
+          "diameterP10": 0.223,
+          "diameterMedian": 0.279,
+          "diameterP90": 0.368,
+          "subpixelFraction": 1,
+          "darkness": 505.8,
+          "width": 2
+        },
+        "2": {
+          "points": 2840,
+          "pointDraws": 1,
+          "diameterP10": 0.447,
+          "diameterMedian": 0.558,
+          "diameterP90": 0.737,
+          "subpixelFraction": 1,
+          "darkness": 152.3,
+          "width": 1
+        },
+        "3": {
+          "points": 2840,
+          "pointDraws": 1,
+          "diameterP10": 0.67,
+          "diameterMedian": 0.837,
+          "diameterP90": 1.105,
+          "subpixelFraction": 0.755,
+          "darkness": 74.7,
+          "width": 0.67
+        }
+      },
+      "darknessRatio": {
+        "d1/d2": 3.32,
+        "d1/d3": 6.77
+      }
+    },
+    {
+      "brush": "HB",
+      "densities": {
+        "1": {
+          "points": 2408,
+          "pointDraws": 1,
+          "diameterP10": 0.221,
+          "diameterMedian": 0.265,
+          "diameterP90": 0.345,
+          "subpixelFraction": 1,
+          "darkness": 416.7,
+          "width": 2
+        },
+        "2": {
+          "points": 2408,
+          "pointDraws": 1,
+          "diameterP10": 0.442,
+          "diameterMedian": 0.531,
+          "diameterP90": 0.69,
+          "subpixelFraction": 1,
+          "darkness": 117,
+          "width": 1
+        },
+        "3": {
+          "points": 2408,
+          "pointDraws": 1,
+          "diameterP10": 0.662,
+          "diameterMedian": 0.796,
+          "diameterP90": 1.035,
+          "subpixelFraction": 0.863,
+          "darkness": 55,
+          "width": 0.67
+        }
+      },
+      "darknessRatio": {
+        "d1/d2": 3.56,
+        "d1/d3": 7.58
+      }
+    },
+    {
+      "brush": "2H",
+      "densities": {
+        "1": {
+          "points": 2572,
+          "pointDraws": 1,
+          "diameterP10": 0.146,
+          "diameterMedian": 0.177,
+          "diameterP90": 0.229,
+          "subpixelFraction": 1,
+          "darkness": 318.3,
+          "width": 2
+        },
+        "2": {
+          "points": 2572,
+          "pointDraws": 1,
+          "diameterP10": 0.293,
+          "diameterMedian": 0.353,
+          "diameterP90": 0.458,
+          "subpixelFraction": 1,
+          "darkness": 82.8,
+          "width": 1
+        },
+        "3": {
+          "points": 2572,
+          "pointDraws": 1,
+          "diameterP10": 0.439,
+          "diameterMedian": 0.53,
+          "diameterP90": 0.687,
+          "subpixelFraction": 1,
+          "darkness": 36.8,
+          "width": 0.67
+        }
+      },
+      "darknessRatio": {
+        "d1/d2": 3.84,
+        "d1/d3": 8.65
+      }
+    },
+    {
+      "brush": "cpencil",
+      "densities": {
+        "1": {
+          "points": 2698,
+          "pointDraws": 1,
+          "diameterP10": 0.331,
+          "diameterMedian": 0.395,
+          "diameterP90": 0.46,
+          "subpixelFraction": 1,
+          "darkness": 235,
+          "width": 2
+        },
+        "2": {
+          "points": 2698,
+          "pointDraws": 1,
+          "diameterP10": 0.662,
+          "diameterMedian": 0.79,
+          "diameterP90": 0.921,
+          "subpixelFraction": 1,
+          "darkness": 59.8,
+          "width": 1
+        },
+        "3": {
+          "points": 2698,
+          "pointDraws": 1,
+          "diameterP10": 0.993,
+          "diameterMedian": 1.185,
+          "diameterP90": 1.381,
+          "subpixelFraction": 0.105,
+          "darkness": 39.8,
+          "width": 0.67
+        }
+      },
+      "darknessRatio": {
+        "d1/d2": 3.93,
+        "d1/d3": 5.9
+      }
+    },
+    {
+      "brush": "pastel",
+      "densities": {
+        "1": {
+          "points": 12072,
+          "pointDraws": 1,
+          "diameterP10": 0.545,
+          "diameterMedian": 0.631,
+          "diameterP90": 0.734,
+          "subpixelFraction": 1,
+          "darkness": 371,
+          "width": 8
+        },
+        "2": {
+          "points": 12072,
+          "pointDraws": 1,
+          "diameterP10": 1.089,
+          "diameterMedian": 1.263,
+          "diameterP90": 1.469,
+          "subpixelFraction": 0,
+          "darkness": 158,
+          "width": 9
+        },
+        "3": {
+          "points": 12072,
+          "pointDraws": 1,
+          "diameterP10": 1.634,
+          "diameterMedian": 1.894,
+          "diameterP90": 2.203,
+          "subpixelFraction": 0,
+          "darkness": 178,
+          "width": 8.67
+        }
+      },
+      "darknessRatio": {
+        "d1/d2": 2.35,
+        "d1/d3": 2.08
+      }
+    },
+    {
+      "brush": "crayon",
+      "densities": {
+        "1": {
+          "points": 5143,
+          "pointDraws": 1,
+          "diameterP10": 0.271,
+          "diameterMedian": 0.331,
+          "diameterP90": 0.4,
+          "subpixelFraction": 1,
+          "darkness": 836.2,
+          "width": 2
+        },
+        "2": {
+          "points": 5143,
+          "pointDraws": 1,
+          "diameterP10": 0.542,
+          "diameterMedian": 0.663,
+          "diameterP90": 0.8,
+          "subpixelFraction": 1,
+          "darkness": 252.1,
+          "width": 2
+        },
+        "3": {
+          "points": 5143,
+          "pointDraws": 1,
+          "diameterP10": 0.813,
+          "diameterMedian": 0.994,
+          "diameterP90": 1.201,
+          "subpixelFraction": 0.517,
+          "darkness": 131.6,
+          "width": 2.67
+        }
+      },
+      "darknessRatio": {
+        "d1/d2": 3.32,
+        "d1/d3": 6.35
+      }
+    },
+    {
+      "brush": "charcoal",
+      "densities": {
+        "1": {
+          "points": 12000,
+          "pointDraws": 1,
+          "diameterP10": 0.296,
+          "diameterMedian": 0.366,
+          "diameterP90": 0.45,
+          "subpixelFraction": 1,
+          "darkness": 921.7,
+          "width": 2
+        },
+        "2": {
+          "points": 12000,
+          "pointDraws": 1,
+          "diameterP10": 0.592,
+          "diameterMedian": 0.732,
+          "diameterP90": 0.9,
+          "subpixelFraction": 1,
+          "darkness": 409.8,
+          "width": 2
+        },
+        "3": {
+          "points": 12000,
+          "pointDraws": 1,
+          "diameterP10": 0.888,
+          "diameterMedian": 1.099,
+          "diameterP90": 1.351,
+          "subpixelFraction": 0.281,
+          "darkness": 260.7,
+          "width": 1.33
+        }
+      },
+      "darknessRatio": {
+        "d1/d2": 2.25,
+        "d1/d3": 3.54
+      }
+    },
+    {
+      "brush": "spray",
+      "densities": {
+        "1": {
+          "points": 34410,
+          "pointDraws": 1,
+          "diameterP10": 0.184,
+          "diameterMedian": 0.2,
+          "diameterP90": 0.216,
+          "subpixelFraction": 1,
+          "darkness": 2697.6,
+          "width": 8
+        },
+        "2": {
+          "points": 34410,
+          "pointDraws": 1,
+          "diameterP10": 0.367,
+          "diameterMedian": 0.401,
+          "diameterP90": 0.433,
+          "subpixelFraction": 1,
+          "darkness": 915.2,
+          "width": 5.5
+        },
+        "3": {
+          "points": 34410,
+          "pointDraws": 1,
+          "diameterP10": 0.551,
+          "diameterMedian": 0.601,
+          "diameterP90": 0.649,
+          "subpixelFraction": 1,
+          "darkness": 413.4,
+          "width": 5
+        }
+      },
+      "darknessRatio": {
+        "d1/d2": 2.95,
+        "d1/d3": 6.53
+      }
+    },
+    {
+      "brush": "marker",
+      "densities": {
+        "1": {
+          "points": 12018,
+          "pointDraws": 1,
+          "diameterP10": 1.7,
+          "diameterMedian": 1.789,
+          "diameterP90": 2.331,
+          "subpixelFraction": 0.001,
+          "darkness": 61.2,
+          "width": 2
+        },
+        "2": {
+          "points": 12018,
+          "pointDraws": 1,
+          "diameterP10": 3.4,
+          "diameterMedian": 3.578,
+          "diameterP90": 4.663,
+          "subpixelFraction": 0,
+          "darkness": 66,
+          "width": 1
+        },
+        "3": {
+          "points": 12018,
+          "pointDraws": 1,
+          "diameterP10": 5.1,
+          "diameterMedian": 5.366,
+          "diameterP90": 6.994,
+          "subpixelFraction": 0,
+          "darkness": 69.2,
+          "width": 1.33
+        }
+      },
+      "darknessRatio": {
+        "d1/d2": 0.93,
+        "d1/d3": 0.88
+      }
+    }
+  ]
+}
