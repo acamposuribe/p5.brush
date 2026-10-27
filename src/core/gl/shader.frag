@@ -307,6 +307,8 @@ uniform vec4 u_wcDrop;  // wet-in-wet drop: centre.xy, radius, strength
 uniform vec4 u_wcPool;  // pooled side: direction.xy, reach, strength
 uniform float u_wcPigment; // fill opacity, 0..1
 
+#pragma glslify: latticeHash = require(./lattice_hash.glsl)
+
 float fbm(vec2 q, uint seed) {
     return (0.5 * paperNoise(q, seed)
           + 0.25 * paperNoise(q * 2.03 + 17.1, seed + 1u)
@@ -315,14 +317,14 @@ float fbm(vec2 q, uint seed) {
 }
 
 // Cell walls of a jittered grid (Worley F2 − F1): 1 on a wall, 0 at a cell
-// centre. Value noise sampled at integer points is a plain hash.
+// centre. Cell points are hashed from the lattice (as value noise is).
 float cellWalls(vec2 p, uint seed) {
     vec2 i = floor(p);
     float f1 = 9.0, f2 = 9.0;
     for (int y = -1; y <= 1; y++) {
         for (int x = -1; x <= 1; x++) {
             vec2 c = i + vec2(float(x), float(y));
-            vec2 o = vec2(paperNoise(c, seed), paperNoise(c, seed + 1u));
+            vec2 o = vec2(latticeHash(c, seed), latticeHash(c, seed + 1u));
             float d = length(c + 0.15 + 0.7 * o - p);
             if (d < f1) { f2 = f1; f1 = d; }
             else if (d < f2) f2 = d;
