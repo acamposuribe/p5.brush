@@ -205,6 +205,8 @@
               <button type="button" class="shape-btn" data-shape="rect">rect</button>
               <button type="button" class="shape-btn" data-shape="blob">blob</button>
               <button type="button" class="shape-btn" data-shape="grid">grid</button>
+              <button type="button" class="shape-btn" data-shape="dots">dots</button>
+              <button type="button" class="shape-btn" data-shape="swatches">swatches</button>
             </div>
           </div>
 
@@ -266,7 +268,10 @@
       const STROKE = "#111111";
       const CW = 800, CH = 800;
 
-      const SHAPES = ["circle", "rect", "blob", "grid"];
+      const SHAPES = ["circle", "rect", "blob", "grid", "dots", "swatches"];
+      // Compositions of round washes, after watercolour dot studies: a loose,
+      // overlapping cluster and a swatch grid. Colours skip the palette's white.
+      const DOT_COLORS = ["#002185", "#003c32", "#fcd300", "#ff2702", "#6b9404", "#d6336c", "#f08c00", "#1c7ed6"];
 
       const state = {
         bleed:   0.3,
@@ -380,6 +385,12 @@
         brush.set("HB", STROKE, 0.5);
         if (state.shape === "grid") {
           drawGrid(CW, CH);
+        } else if (state.shape === "dots") {
+          brush.noStroke();
+          drawDots(CW, CH);
+        } else if (state.shape === "swatches") {
+          brush.noStroke();
+          drawSwatches(CW, CH);
         } else {
           brush.fill(state.color, state.opacity);
           brush.fillBleed(state.bleed, "out");
@@ -391,6 +402,57 @@
         brush.pop();
         brush.render();
         window.reportStandaloneFirstFrame?.("fill_circle_explorer");
+      }
+
+      // Small seeded generator for layouts, independent of brush's own RNG.
+      function layoutRandom(seed) {
+        let a = seed >>> 0;
+        return () => {
+          a = (a + 0x6d2b79f5) >>> 0;
+          let t = Math.imul(a ^ (a >>> 15), 1 | a);
+          t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+          return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+        };
+      }
+
+      function washDot(color, x, y, d, opacity) {
+        brush.fill(color, opacity);
+        brush.fillBleed(state.bleed, "out");
+        brush.fillTexture(state.texture, state.border);
+        brush.circle(x, y, d / 2);
+        brush.noFill();
+      }
+
+      function drawDots(w, h) {
+        const rand = layoutRandom(state.seed);
+        const dots = [];
+        for (let tries = 0; dots.length < 26 && tries < 400; tries++) {
+          const d = 50 + rand() * rand() * 110;
+          const x = w * 0.12 + rand() * w * 0.76;
+          const y = h * 0.12 + rand() * h * 0.76;
+          // Allow overlaps, but not dots buried inside others.
+          if (dots.some((o) => Math.hypot(o.x - x, o.y - y) < (o.d + d) * 0.32)) continue;
+          dots.push({ x, y, d });
+        }
+        for (const { x, y, d } of dots) {
+          const color = DOT_COLORS[Math.floor(rand() * DOT_COLORS.length)];
+          washDot(color, x, y, d, Math.round(state.opacity * (0.5 + rand())));
+        }
+      }
+
+      function drawSwatches(w, h) {
+        const rand = layoutRandom(state.seed);
+        const COLS = 4, ROWS = 5;
+        const cell = Math.min(w / COLS, h / ROWS);
+        const x0 = (w - cell * COLS) / 2, y0 = (h - cell * ROWS) / 2;
+        for (let r = 0; r < ROWS; r++) {
+          for (let c = 0; c < COLS; c++) {
+            const color = DOT_COLORS[(r * COLS + c) % DOT_COLORS.length];
+            const jitter = () => (rand() - 0.5) * cell * 0.06;
+            washDot(color, x0 + cell * (c + 0.5) + jitter(), y0 + cell * (r + 0.5) + jitter(),
+              cell * (0.68 + rand() * 0.08), Math.round(state.opacity * (0.7 + rand() * 0.6)));
+          }
+        }
       }
 
       function drawGrid(w, h) {

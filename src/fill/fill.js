@@ -755,8 +755,8 @@ class FillPoly {
     // (log-domain paint in the mask's silhouette channel).
     const level = -2.2 * Math.log1p(-Math.min(int / 100, 0.9999));
     const radius = size * Math.sqrt(Math.abs(a * d - b * c));
-    // Blur σ for the rim band and body, in mask px.
-    const sigma = constrain(radius * 0.035, 1.5 * Density, 9 * Density);
+    // Blur σ for the rim band and body, in mask px (the silhouette uses half).
+    const sigma = constrain(radius * 0.07, 3 * Density, 18 * Density);
     // Each feature appears on some fills only, more often when wetter.
     const wet = constrain(bleed * 2, 0.15, 1);
     const tex = State.fill.texture_strength;
@@ -767,8 +767,8 @@ class FillPoly {
     };
     // Pigment pools downstream when the fill flows, anywhere otherwise.
     const [px, py] = flow === 1 ? [tx / len, ty / len] : cossin(rr(0, 360));
-    const pool = rr(0, 1) < 0.25 + 0.3 * wet ? [px, py, rr(0.1, 0.5), rr(1, 3)] : [0, 0, 0, 0];
-    const drop = rr(0, 1) < 0.15 + 0.35 * wet ? [...at(0, 0.5), rr(0.12, 0.3), rr(1.5, 4)] : [0, 0, 0, 0];
+    const pool = rr(0, 1) < 0.25 + 0.3 * wet ? [px, py, rr(0.1, 0.5), rr(0.8, 2.5)] : [0, 0, 0, 0];
+    const drop = rr(0, 1) < 0.15 + 0.35 * wet ? [...at(0, 0.5), rr(0.15, 0.32), rr(0.7, 1.8)] : [0, 0, 0, 0];
     const bloom = rr(0, 1) < 0.5 * (wet - 0.15) ? [...at(0.2, 0.6), rr(0.2, 0.4), rr(0.5, 1)] : [0, 0, 0, 0];
     const uniforms = {
       u_paper: [paper.strength, paper.grain, Density, paper.seed],
@@ -787,6 +787,7 @@ class FillPoly {
       u_wcBloom: bloom,
       u_wcDrop: drop,
       u_wcPool: pool,
+      u_wcPigment: map(State.fill.opacity, 0, 255, 0, 1, true),
       // Some fills lose part of their edge, more often when wetter.
       u_wcFlow: [(flow * tx) / len, (flow * ty) / len, level, rr(0, 1) < 0.3 + 0.5 * wet ? rr(0.6, 1) : 0],
     };

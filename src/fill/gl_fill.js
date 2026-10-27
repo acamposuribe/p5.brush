@@ -53,7 +53,7 @@ const JITTER = {
 let gl = null;
 const fan = { program: null, vao: null, buffer: null, uMatrix: null, uWeight: null, uJitter: null, uShape: null };
 const capsule = { program: null, vao: null, buffer: null, uMatrix: null, uPixel: null };
-const blur = { program: null, vao: null, uSrc: null, uDstSize: null, uStep: null, uLevel: null };
+const blur = { program: null, vao: null };
 const wet = { program: null, vao: null };
 
 let fanData = new Float32Array(4096 * FAN_WORDS);
@@ -118,7 +118,7 @@ function ensureGl() {
   ], CAPSULE_WORDS, 1);
   blur.program = createProgram(gl, fullscreenVertSrc, blurFragSrc);
   blur.vao = gl.createVertexArray();
-  for (const name of ["u_src", "u_dstSize", "u_step", "u_level"]) {
+  for (const name of ["u_src", "u_dstSize", "u_step", "u_level", "u_ratio"]) {
     blur[name] = gl.getUniformLocation(blur.program, name);
   }
   wet.program = createProgram(gl, fullscreenVertSrc, wetFragSrc);
@@ -449,7 +449,8 @@ function ensureBlurTargets() {
 /**
  * Blurs the fill mask's paint bounds into a half-resolution target for the
  * watercolour composite (see blur.frag). Queued layers are drawn first.
- * @param {number} sigma - Gaussian σ in mask pixels.
+ * @param {number} sigma - Gaussian σ of the paint and share inside, in mask
+ *   pixels; the silhouette uses half of it.
  * @param {number} level - Silhouette edge level (log-domain paint).
  * @returns {object|null} The blurred target, or null when nothing is painted.
  */
@@ -485,6 +486,7 @@ export function blurFillMask(sigma, level) {
   gl.bindVertexArray(blur.vao);
   gl.uniform1i(blur.u_src, 0);
   gl.uniform2f(blur.u_dstSize, w, h);
+  gl.uniform1f(blur.u_ratio, 2);
   gl.activeTexture(gl.TEXTURE0);
   for (const [src, dst, step, passLevel, py0, py1] of passes) {
     const state = beginDirectMaskDraw(Renderer, gl, dst);

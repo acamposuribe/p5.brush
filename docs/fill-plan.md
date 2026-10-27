@@ -260,6 +260,14 @@ Fills that touch a wash that is still wet lose their edge there, and their pigme
 
 The large single fill is now slightly slower than classic: the composite's noise work (edge, lost edges, wetness, reticulation) outweighs having one pass instead of four. Step 4 can trim it if needed.
 
+**Tuning after review (2026-10-27).**
+
+- **Opacity.** Paint density's floor and the rim scale with the fill's opacity (`u_wcPigment`), so a low opacity gives a faint wash, rim and all. Overall density is 0.6 of the first version: 0.45 was too pale.
+- **Rim.** Real edges form by the coffee-ring effect: pigment concentration rises toward the pinned edge as the wash dries. The rim is now a band that rises toward the edge, not a 1–2 px line. The band is wide and strong along some stretches and faint along others, heavier downstream, and absent on lost edges, with a slightly depleted zone inside it. To give it room, the blur uses two widths in one pass: the share inside and the paint use σ ≈ 7% of the shape, the silhouette σ/2.
+- **Drops.** 15–32% of the shape's radius, strength 0.7–1.8.
+- **Explorer.** Two compositions after real dot studies: `dots` (a loose, overlapping cluster) and `swatches` (a grid of circles).
+- **Rejected.** A cold-press paper structure with white sparkle ("bullshit realism"). Also rejected: weakening the darker layer and trims, broad pooling fronts, and per-fill rings with paler centres. Reference dot studies show the opposite: rich washes, darker on one side and fading to the other. The Hobbs darker layer is what produces that.
+
 ### 4. Composite collapse
 
 - Collapse glazes in KS space (P4): one composite evaluates about 2 mix-equivalents instead of 4.

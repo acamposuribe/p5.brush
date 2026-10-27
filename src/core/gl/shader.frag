@@ -277,6 +277,7 @@ uniform vec4 u_wetInfo;
 uniform vec4 u_wcBloom; // backrun: centre.xy, radius, strength
 uniform vec4 u_wcDrop;  // wet-in-wet drop: centre.xy, radius, strength
 uniform vec4 u_wcPool;  // pooled side: direction.xy, reach, strength
+uniform float u_wcPigment; // fill opacity, 0..1
 
 float fbm(vec2 q, uint seed) {
     return (0.5 * paperNoise(q, seed)
@@ -301,6 +302,7 @@ float cellWalls(vec2 p, uint seed) {
     }
     return 1.0 - smoothstep(0.0, 0.35, f2 - f1);
 }
+
 
 // Watercolour from the paint field. The silhouette is the iso-line where the
 // outline layers reach the edge level: a crisp dried edge instead of a halo,
@@ -362,12 +364,25 @@ vec2 watercolor(vec2 uv, float coverage) {
     float inside = mix(hard, mix(soft * soft, creep, wetEdge), lost);
     if (inside <= 0.0) return vec2(0.0);
 
-    // The rim: a thin dark line that follows the actual edge, teeth and all,
-    // over a faint band that fades inward (from the blurred share inside:
-    // 0 deep inside, about 0.5 on the edge).
-    float edge = clamp(1.0 - blurred.a, 0.0, 1.0);
-    float line = 1.0 - smoothstep(0.0, 1.8 * density, edgeDist);
-    float rim = (0.7 * line + 0.3 * smoothstep(0.0, 0.5, edge)) * (1.0 - lost);
+    // The rim: pigment carried to the pinned edge as the wash dried (the
+    // coffee-ring effect). Concentration rises smoothly toward the edge over
+    // a band 1–5% of the shape across; it is wide and strong along some
+    // stretches, faint along others, heavier downstream, and gone on lost
+    // edges. Only where the band is strong does it end in a crisp darker
+    // pixel or two at the edge itself, and just inside the band the wash is
+    // a little depleted.
+    //
+    // The band's profile comes from the blurred share of the neighbourhood
+    // outside the shape, which rises smoothly over about 7% of the shape
+    // toward the edge; a power narrows it along some stretches.
+    float along = fbm(q * 2.2 + 3.0, seed + 83u);
+    float downstream = dot(q / max(length(q), 1e-3), u_wcFlow.xy);
+    float bandStrength = (0.3 + 0.7 * smoothstep(0.3, 0.7, along)) * max(0.0, 1.0 + 0.8 * downstream);
+    float outside = clamp(2.0 * (1.0 - blurred.a), 0.0, 1.0); // 0 deep inside, 1 at the edge
+    float band = pow(outside, mix(4.0, 1.2, along));
+    float pinned = 1.0 - smoothstep(0.0, 1.2 * density, max(edgeDist, 0.0));
+    float rim = bandStrength * (0.8 * band + 0.2 * pinned * bandStrength) * (1.0 - lost);
+    float depleted = bandStrength * smoothstep(0.05, 0.25, outside) * (1.0 - smoothstep(0.3, 0.6, outside)) * (1.0 - lost);
 
     // Body: the blurred inside paint softens the stack's hard internal steps
     // without fading toward the edge.
@@ -376,7 +391,9 @@ vec2 watercolor(vec2 uv, float coverage) {
     // so the tone there comes from the inside mean alone: no pale fringe.
     float nearEdge = 1.0 - smoothstep(0.0, 4.0 * density, edgeDist);
     float paint = -log(max(1.0 - mix(coverage, body0, max(0.8, nearEdge)), 1e-4));
-    float body = max(paint, 0.12);
+    // Every term below scales this body, so a low opacity gives a faint wash,
+    // rim and all. The floor keeps thin areas from vanishing inside the edge.
+    float body = 0.6 * max(paint, 0.2 * u_wcPigment);
     float thick = 1.0;
 
     // Drift: low-frequency variation plus a gradient along the flow.
@@ -400,9 +417,9 @@ vec2 watercolor(vec2 uv, float coverage) {
         float branch = fbm(dq * 4.0 + 3.1, seed + 37u) - 0.5;
         float twig = fbm(dq * 13.0, seed + 39u) - 0.5;
         float d = lr + (0.3 + 0.7 * smoothstep(0.3, 1.2, lr)) * branch + 0.25 * twig * lr;
-        float core = 1.0 - smoothstep(0.2, 1.0, d);
+        float core = 1.0 - smoothstep(0.3, 1.0, d);
         drop = core;
-        thick *= 1.0 + u_wcDrop.w * core * core;
+        thick *= 1.0 + u_wcDrop.w * core * sqrt(core);
     }
 
     // Bloom: water flowing back into the drying wash from one point. The
@@ -421,12 +438,14 @@ vec2 watercolor(vec2 uv, float coverage) {
         thick *= 1.0 + 0.9 * u_wcBloom.w * front;
     }
 
+    // The rim is relative too: a pale wash has a pale ring.
+    thick *= (1.0 + u_wcLook.x * 1.8 * rim) * (1.0 - 0.15 * u_wcLook.x * depleted);
+
     float factor = 1.0 - exp(-body * thick);
 
     // Granulation: paper valleys hold pigment, and flocculated clumps several
     // grains across give the mottle a second, coarser scale.
     if (u_wcLook.y > 0.0) {
-        float grain = density * u_paper.y;
         float h = paperHeight(px / (grain * 1.3), uint(u_paper.w));
         float clumps = fbm(mat2(0.8, 0.6, -0.6, 0.8) * px / (grain * 9.0), seed + 23u);
         float settle = (0.5 - h) * 0.7 + (clumps - 0.5) * 1.1;
@@ -444,7 +463,6 @@ vec2 watercolor(vec2 uv, float coverage) {
     }
 
     float strength = 1.0 + u_wcLook.x * 1.1 * rim;
-    factor = clamp(factor + u_wcLook.x * 0.45 * rim * (1.0 - factor), 0.0, 1.0);
     return vec2(factor * inside, strength);
 }
 #endif
