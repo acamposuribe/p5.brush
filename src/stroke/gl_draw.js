@@ -2,9 +2,14 @@
 // Module: GL Draw
 // =============================================================================
 /**
- * The GL Draw module batches brush primitives for WebGL2 rendering. It initializes
- * the shader programs and buffers used by circle-based brushes and image-tip brushes,
- * then flushes those queues into the shared framebuffer-backed brush mask.
+ * The GL Draw module renders brush strokes on the GPU. Strokes are queued as
+ * path segments; shaders expand each segment into the brush's dots (dots.vert)
+ * or textured stamps (stamps.vert) and draw them into the shared
+ * framebuffer-backed brush mask.
+ *
+ * Consecutive strokes that share brush, colour, transform, clip and target are
+ * drawn together in one call. The queue is flushed when that state changes
+ * and before the brush mask is cleared or composited.
  */
 
 import { Cwidth, Cheight, Density, Renderer } from "../core/target.js";
@@ -21,28 +26,34 @@ import {
 } from "../core/renderer_runtime.js";
 import { getAffineMatrix } from "../core/runtime.js";
 import { CLIP_UNIFORMS, setClipUniforms } from "./clip.js";
-import vertSrc from "./shader.vert";
-import fragSrc from "./shader.frag";
-import imgVertSrc from "./image.vert";
-import imgFragSrc from "./image.frag";
-import gpuDotsVertSrc from "./gpu_dots.vert";
+import dotsVertSrc from "./dots.vert";
+import dotsFragSrc from "./dots.frag";
+import stampsVertSrc from "./stamps.vert";
+import stampsFragSrc from "./stamps.frag";
 
 // =============================================================================
-// Section: Initialization and Setup
+// Section: State
 // =============================================================================
 
-// Module state
+/** Fine brush steps per queued path segment. */
+export const SUBSTEPS = 40;
+
+const DOT_TYPES = { default: 0, spray: 1, marker: 2 };
+const ROTATE_MODES = { random: 1, natural: 2 };
+
 let isLoaded = false,
   gl,
-  framebufferProjMatrix,
-  vao,
-  buf,
-  program;
+  framebufferProjMatrix;
 let loadedWidth = 0,
   loadedHeight = 0;
-let brushMaskTarget = null;
-const Attr = {},
-  Frag = {};
+
+const dots = { program: null, vao: null, attr: {}, uni: {} };
+const stamps = { program: null, vao: null, attr: {}, uni: {} };
+let segBuf = null;
+let segGpuSize = 0;
+
+// Texture cache: tip key → WebGLTexture (cleared whenever the GL context changes)
+const texCache = new Map();
 
 // Cached matrix values — snapshotted once per stroke in snapshotMatrix()
 let _affineCircle = false;
@@ -57,6 +68,21 @@ let _ma = 1,
   _halfH = 0,
   _scale = 1,
   _density = 1;
+
+// Segment layout (13 words): startX, startY, endX, endY, cos, sin,
+// pressure0, pressure1, count, alpha, segIndex, naturalAngle, seed (uint)
+const SEG_WORDS = 13;
+let segData = new Float32Array(1024 * SEG_WORDS);
+let segSeeds = new Uint32Array(segData.buffer);
+let segCount = 0;
+let segDirtyRect = null;
+let perStep = 1; // spray dots per step needed by the current batch
+
+// The stroke being queued, and the batch it belongs to. Everything the shaders
+// read as a uniform is captured in the batch, because by the time it is
+// flushed the live transform, colour or clip may belong to a later stroke.
+const stroke = { seed: 0, alpha: 0, index: 0, start: 0, param: null, weight: 1 };
+let batch = null;
 
 /**
  * Snapshots the current runtime affine transform. Call once at the start of each stroke.
@@ -85,115 +111,20 @@ export function snapshotMatrix() {
   _density = Density;
 }
 
-// Pre-allocated flat buffer for circle data (x, y, radius, alpha per circle)
-const INITIAL_CAPACITY = 2048;
-let circleData = new Float32Array(INITIAL_CAPACITY * 4);
-let circleCount = 0;
-let bufferCapacity = INITIAL_CAPACITY;
-let gpuBufferSize = INITIAL_CAPACITY * 4 * 4; // bytes allocated on GPU
-let circleDirtyRect = null;
+// Draw queued strokes before the composite reads or clears the brush mask.
+Mix.beforeBrushMaskAccess = () => flushStrokes();
 
-// ---------------------------------------------------------------------------
-// Image instancing state
-// ---------------------------------------------------------------------------
-let imgProgram = null;
-let imgVao = null;
-let imgCornerBuf = null;
-let imgInstanceBuf = null;
-const imgAttr = {};
-const imgFrag = {};
-let imgGpuSize = 0;
-
-const IMG_FLOATS = 5;    // screenX, screenY, halfSize, angle, alpha — per stamp
-const IMG_INIT_CAP = 256;
-let imgData = new Float32Array(IMG_INIT_CAP * IMG_FLOATS);
-let imgCount = 0;
-let imgCapacity = IMG_INIT_CAP;
-let imgDirtyRect = null;
-
-// Texture cache: src string → WebGLTexture (cleared whenever the GL context changes)
-const texCache = new Map();
-
-// Static unit-quad corners for gl.TRIANGLE_STRIP in quad-local space.
-const QUAD_CORNERS = new Float32Array([-1, -1,  1, -1,  -1, 1,  1, 1]);
-
-// ---------------------------------------------------------------------------
-// EXPERIMENTAL: GPU dot generation state
-//
-// Default-type brushes can queue path segments instead of circles. Each
-// segment covers gpuSubsteps fine steps; the vertex shader expands it into
-// dots (see gpu_dots.vert). Toggle with setGpuDots().
-// ---------------------------------------------------------------------------
-let gpuSubsteps = 40;
-// startX, startY, endX, endY, cos, sin, pressure, count, alpha, segIndex,
-// seed (uint), endPressure
-const SEG_FLOATS = 12;
-let gpuDotsEnabled = false;
-let segProgram = null;
-let segVao = null;
-let segBuf = null;
-let segGpuSize = 0;
-const segAttr = {};
-const segFrag = {};
-let segData = new Float32Array(1024 * SEG_FLOATS);
-let segSeeds = new Uint32Array(segData.buffer);
-let segCount = 0;
-let segDirtyRect = null;
-// Per-stroke values (seed, alpha, segment index) travel as vertex data, so
-// consecutive strokes share one draw. Everything still sent as uniforms is
-// captured in segBatch; a stroke that changes any of it flushes first.
-const segStroke = { seed: 0, alpha: 0, index: 0, weight: 0, scatter: 0, sharpness: 0, grain: 0, strokeWeight: 0 };
-let segBatch = null;
-
-/**
- * @param {boolean} enabled
- * @param {object} [options]
- * @param {number} [options.substeps] - Fine steps per CPU path segment (default 40).
- */
-export function setGpuDots(enabled, options = {}) {
-  gpuDotsEnabled = !!enabled;
-  if (options.substeps !== undefined) {
-    const n = Math.round(options.substeps);
-    if (!(n >= 1 && n <= 1024)) throw new Error("substeps must be between 1 and 1024.");
-    gpuSubsteps = n;
-  }
-}
-
-export function getGpuSubsteps() {
-  return gpuSubsteps;
-}
-
-Mix.beforeBrushMaskAccess = () => glDrawGpuDots();
-
-export function isGpuDotsEnabled() {
-  return gpuDotsEnabled;
-}
-
-export function discardPendingStamps() {
-  circleCount = imgCount = segCount = 0;
-  circleDirtyRect = imgDirtyRect = segDirtyRect = null;
-}
+// =============================================================================
+// Section: Initialization and Setup
+// =============================================================================
 
 function ensureBrushMaskTarget() {
   const rendererMask = Renderer?.glMask;
   if (!rendererMask) return null;
-  brushMaskTarget = rendererMask;
-  brushMaskTarget.dirtyRect ??= null;
-  brushMaskTarget.isDrawn ??= false;
-  Mix.glMask = brushMaskTarget;
-  return brushMaskTarget;
-}
-
-function getProjectionMatrix() {
-  return framebufferProjMatrix;
-}
-
-function beginMaskTarget() {
-  return beginDirectMaskDraw(Renderer, gl, Mix.glMask);
-}
-
-function endMaskTarget(state) {
-  endDirectMaskDraw(Renderer, gl, state);
+  rendererMask.dirtyRect ??= null;
+  rendererMask.isDrawn ??= false;
+  Mix.glMask = rendererMask;
+  return rendererMask;
 }
 
 function accumulateDirtyRect(currentRect, minX, minY, maxX, maxY) {
@@ -216,33 +147,48 @@ function releaseGlResources() {
     return;
   }
   const activeProgram = gl.getParameter(gl.CURRENT_PROGRAM);
-  if (activeProgram === program || activeProgram === imgProgram || activeProgram === segProgram) gl.useProgram(null);
+  if (activeProgram === dots.program || activeProgram === stamps.program) gl.useProgram(null);
   for (const tex of texCache.values()) gl.deleteTexture(tex);
   texCache.clear();
-  if (program) gl.deleteProgram(program);
-  if (vao) gl.deleteVertexArray(vao);
-  if (buf) gl.deleteBuffer(buf);
-  if (imgProgram) gl.deleteProgram(imgProgram);
-  if (imgVao) gl.deleteVertexArray(imgVao);
-  if (imgCornerBuf) gl.deleteBuffer(imgCornerBuf);
-  if (imgInstanceBuf) gl.deleteBuffer(imgInstanceBuf);
-  if (segProgram) gl.deleteProgram(segProgram);
-  if (segVao) gl.deleteVertexArray(segVao);
+  for (const p of [dots, stamps]) {
+    if (p.program) gl.deleteProgram(p.program);
+    if (p.vao) gl.deleteVertexArray(p.vao);
+    p.program = p.vao = null;
+  }
   if (segBuf) gl.deleteBuffer(segBuf);
-  program = vao = buf = null;
-  imgProgram = imgVao = imgCornerBuf = imgInstanceBuf = null;
-  segProgram = segVao = segBuf = null;
-  gpuBufferSize = 0;
-  imgGpuSize = 0;
+  segBuf = null;
   segGpuSize = 0;
+}
+
+/**
+ * Compiles a program, records its locations, and builds a VAO over the shared
+ * segment buffer. `divisor` is 0 for per-vertex segments (dots) and SUBSTEPS
+ * for per-instance segments (stamps).
+ */
+function setupProgram(target, vertSrc, fragSrc, attributes, uniforms, divisor) {
+  target.program = createProgram(gl, vertSrc, fragSrc);
+  for (const n of uniforms) target.uni[n] = gl.getUniformLocation(target.program, n);
+  target.vao = gl.createVertexArray();
+  gl.bindVertexArray(target.vao);
+  gl.bindBuffer(gl.ARRAY_BUFFER, segBuf);
+  const stride = SEG_WORDS * 4;
+  for (const [name, size, offset] of attributes) {
+    const loc = gl.getAttribLocation(target.program, name);
+    if (loc < 0) continue;
+    gl.enableVertexAttribArray(loc);
+    if (name === "a_seed") gl.vertexAttribIPointer(loc, 1, gl.UNSIGNED_INT, stride, offset);
+    else gl.vertexAttribPointer(loc, size, gl.FLOAT, false, stride, offset);
+    gl.vertexAttribDivisor(loc, divisor);
+  }
+  gl.bindVertexArray(null);
 }
 
 /**
  * Initializes WebGL objects if not done already.
  */
 export function isReady() {
-  // EXPERIMENTAL: draw queued GPU dots on their own context before switching.
-  if (segCount > 0 && gl && Renderer.drawingContext !== gl) glDrawGpuDots();
+  // Draw queued strokes on their own context before switching.
+  if (segCount > 0 && gl && Renderer.drawingContext !== gl) flushStrokes();
   isMixReady();
   ensureBrushMaskTarget();
 
@@ -253,22 +199,10 @@ export function isReady() {
 
   if (needsProjectionRefresh) {
     framebufferProjMatrix = new Float32Array([
-      2 / Cwidth,
-      0,
-      0,
-      0,
-      0,
-      2 / Cheight,
-      0,
-      0,
-      0,
-      0,
-      1,
-      0,
-      -1,
-      -1,
-      0,
-      1,
+      2 / Cwidth, 0, 0, 0,
+      0, 2 / Cheight, 0, 0,
+      0, 0, 1, 0,
+      -1, -1, 0, 1,
     ]);
     loadedWidth = Cwidth;
     loadedHeight = Cheight;
@@ -279,369 +213,145 @@ export function isReady() {
   releaseGlResources();
   gl = nextGl;
 
-  // Create shader program and initialize
-  program = createProgram(gl, vertSrc, fragSrc);
-  gl.useProgram(program);
-  gl.enable(gl.BLEND);
-  gl.blendFunc(gl.ONE_MINUS_DST_ALPHA, gl.ONE);
-
-  // Cache attribute and uniform locations
-  ["a_position", "a_radius", "a_alpha"].forEach(
-    (n) => (Attr[n] = gl.getAttribLocation(program, n)),
-  );
-  ["u_matrix", "u_color", "u_affineCircle", "u_tipInverse", ...CLIP_UNIFORMS].forEach(
-    (n) => (Frag[n] = gl.getUniformLocation(program, n)),
-  );
-
-  // Create persistent VAO and VBO
-  vao = gl.createVertexArray();
-  gl.bindVertexArray(vao);
-
-  buf = gl.createBuffer();
-  gl.bindBuffer(gl.ARRAY_BUFFER, buf);
-  gl.bufferData(gl.ARRAY_BUFFER, circleData.byteLength, gl.DYNAMIC_DRAW);
-  gpuBufferSize = circleData.byteLength;
-
-  // Set up vertex attributes (only needs to happen once with persistent VAO)
-  const stride = 16; // 4 floats × 4 bytes
-  gl.enableVertexAttribArray(Attr.a_position);
-  gl.vertexAttribPointer(Attr.a_position, 2, gl.FLOAT, false, stride, 0);
-  gl.enableVertexAttribArray(Attr.a_radius);
-  gl.vertexAttribPointer(Attr.a_radius, 1, gl.FLOAT, false, stride, 8);
-  gl.enableVertexAttribArray(Attr.a_alpha);
-  gl.vertexAttribPointer(Attr.a_alpha, 1, gl.FLOAT, false, stride, 12);
-
-  gl.bindVertexArray(null);
-
-  // ------------------------------------------------------------------
-  // Image-tip instancing program
-  // ------------------------------------------------------------------
-  imgProgram = createProgram(gl, imgVertSrc, imgFragSrc);
-  ["a_corner", "a_pos", "a_size", "a_angle", "a_alpha"].forEach(
-    (n) => (imgAttr[n] = gl.getAttribLocation(imgProgram, n)),
-  );
-  ["u_proj", "u_color", "u_tex", "u_tipLinear", ...CLIP_UNIFORMS].forEach(
-    (n) => (imgFrag[n] = gl.getUniformLocation(imgProgram, n)),
-  );
-
-  imgVao = gl.createVertexArray();
-  gl.bindVertexArray(imgVao);
-
-  // Static corner VBO (per-vertex, no divisor)
-  imgCornerBuf = gl.createBuffer();
-  gl.bindBuffer(gl.ARRAY_BUFFER, imgCornerBuf);
-  gl.bufferData(gl.ARRAY_BUFFER, QUAD_CORNERS, gl.STATIC_DRAW);
-  gl.enableVertexAttribArray(imgAttr.a_corner);
-  gl.vertexAttribPointer(imgAttr.a_corner, 2, gl.FLOAT, false, 0, 0);
-
-  // Instance data VBO (per-instance)
-  imgInstanceBuf = gl.createBuffer();
-  gl.bindBuffer(gl.ARRAY_BUFFER, imgInstanceBuf);
-  gl.bufferData(gl.ARRAY_BUFFER, imgData.byteLength, gl.DYNAMIC_DRAW);
-  imgGpuSize = imgData.byteLength;
-
-  const istride = IMG_FLOATS * 4; // 20 bytes
-  gl.enableVertexAttribArray(imgAttr.a_pos);
-  gl.vertexAttribPointer(imgAttr.a_pos, 2, gl.FLOAT, false, istride, 0);
-  gl.vertexAttribDivisor(imgAttr.a_pos, 1);
-
-  gl.enableVertexAttribArray(imgAttr.a_size);
-  gl.vertexAttribPointer(imgAttr.a_size, 1, gl.FLOAT, false, istride, 8);
-  gl.vertexAttribDivisor(imgAttr.a_size, 1);
-
-  gl.enableVertexAttribArray(imgAttr.a_angle);
-  gl.vertexAttribPointer(imgAttr.a_angle, 1, gl.FLOAT, false, istride, 12);
-  gl.vertexAttribDivisor(imgAttr.a_angle, 1);
-
-  gl.enableVertexAttribArray(imgAttr.a_alpha);
-  gl.vertexAttribPointer(imgAttr.a_alpha, 1, gl.FLOAT, false, istride, 16);
-  gl.vertexAttribDivisor(imgAttr.a_alpha, 1);
-
-  gl.bindVertexArray(null);
-
-  // ------------------------------------------------------------------
-  // EXPERIMENTAL: GPU dot generation program (shares the circle fragment shader)
-  // ------------------------------------------------------------------
-  segProgram = createProgram(gl, gpuDotsVertSrc, fragSrc);
-  ["a_start", "a_end", "a_dir", "a_pressure", "a_stroke", "a_seed", "a_pressureEnd"].forEach(
-    (n) => (segAttr[n] = gl.getAttribLocation(segProgram, n)),
-  );
-  [
-    "u_matrix", "u_affine", "u_translate", "u_half", "u_sizeScale",
-    "u_brush", "u_strokeWeight",
-    "u_color", "u_affineCircle", "u_tipInverse", ...CLIP_UNIFORMS,
-  ].forEach((n) => (segFrag[n] = gl.getUniformLocation(segProgram, n)));
-
-  segVao = gl.createVertexArray();
-  gl.bindVertexArray(segVao);
   segBuf = gl.createBuffer();
   gl.bindBuffer(gl.ARRAY_BUFFER, segBuf);
   gl.bufferData(gl.ARRAY_BUFFER, segData.byteLength, gl.DYNAMIC_DRAW);
   segGpuSize = segData.byteLength;
-  const sstride = SEG_FLOATS * 4;
-  [["a_start", 0], ["a_end", 8], ["a_dir", 16], ["a_pressure", 24], ["a_stroke", 32]].forEach(([n, off]) => {
-    gl.enableVertexAttribArray(segAttr[n]);
-    gl.vertexAttribPointer(segAttr[n], 2, gl.FLOAT, false, sstride, off);
-  });
-  gl.enableVertexAttribArray(segAttr.a_seed);
-  gl.vertexAttribIPointer(segAttr.a_seed, 1, gl.UNSIGNED_INT, sstride, 40);
-  gl.enableVertexAttribArray(segAttr.a_pressureEnd);
-  gl.vertexAttribPointer(segAttr.a_pressureEnd, 1, gl.FLOAT, false, sstride, 44);
-  gl.bindVertexArray(null);
+
+  const attributes = [
+    ["a_start", 2, 0], ["a_end", 2, 8], ["a_dir", 2, 16],
+    ["a_pressure", 2, 24], ["a_info", 4, 32], ["a_seed", 1, 48],
+  ];
+  setupProgram(dots, dotsVertSrc, dotsFragSrc, attributes, [
+    "u_matrix", "u_affine", "u_translate", "u_half", "u_sizeScale",
+    "u_type", "u_perStep", "u_brush", "u_strokeWeight",
+    "u_color", "u_affineCircle", "u_tipInverse", ...CLIP_UNIFORMS,
+  ], 0);
+  setupProgram(stamps, stampsVertSrc, stampsFragSrc, attributes, [
+    "u_proj", "u_tipLinear", "u_translate", "u_half", "u_substeps",
+    "u_rotate", "u_brush", "u_strokeWeight", "u_color", "u_tex", ...CLIP_UNIFORMS,
+  ], SUBSTEPS);
 
   isLoaded = true;
 }
 
 // =============================================================================
-// Section: Drawing Primitives
+// Section: Stroke Queue
 // =============================================================================
 
 /**
- * Queue a circle to be drawn with the specified parameters.
- * Data is written directly into a flat Float32Array to avoid object allocation.
- * Applies the full 2D affine transform (rotation + scale + translation) from
- * the current runtime transform so that brush.rotate() and brush.scale() work correctly.
+ * Starts queueing a stroke. Flushes the current batch first if this stroke
+ * needs different brush, colour, transform, clip or target state.
+ * @param {number} seed - Per-stroke random seed in [0, 999999).
+ * @param {number} alpha - Stroke opacity [0..255].
+ * @param {object} param - Brush parameters.
+ * @param {object|null} tip - Preprocessed tip ({ key, image }) for image/custom brushes.
  */
-export function circle(x, y, diameter, alpha) {
-  if (_scale === 0 || diameter <= 0) return;
-  // Grow buffer if needed
-  if (circleCount >= bufferCapacity) {
-    bufferCapacity *= 2;
-    const newData = new Float32Array(bufferCapacity * 4);
-    newData.set(circleData);
-    circleData = newData;
-  }
-
-  // x/y arrive in "position space": user coords + (Cwidth/2, Cheight/2).
-  // Subtract the offset to recover user coords, apply the full matrix, then re-add
-  // the offset so the result is in screen pixel space [0..Cwidth, 0..Cheight].
-  const px = x - _halfW;
-  const py = y - _halfH;
-
-  const offset = circleCount * 4;
-  const screenX = _ma * px + _mc * py + _mx + _halfW;
-  const screenY = _mb * px + _md * py + _my + _halfH;
-  const radius = (_density * diameter * _scale) / 2;
-
-  circleData[offset] = screenX;
-  circleData[offset + 1] = screenY;
-  // Scale the diameter by the matrix's scale factor (length of the transformed x-axis)
-  circleData[offset + 2] = radius;
-  circleData[offset + 3] = alpha / 255;
-
-  const dScreenX = screenX * _density;
-  const dScreenY = screenY * _density;
-  circleDirtyRect = accumulateDirtyRect(
-    circleDirtyRect,
-    dScreenX - radius - 1,
-    dScreenY - radius - 1,
-    dScreenX + radius + 1,
-    dScreenY + radius + 1,
-  );
-
-  circleCount++;
-}
-
-/**
- * Queue an image stamp to be drawn with instanced rendering.
- * Accepts the same coordinate conventions as circle(): x/y in position space
- * (user coords + Cwidth/2, Cheight/2), size in user-coord units, alpha in [0..255].
- * @param {number} x     - X in position space.
- * @param {number} y     - Y in position space.
- * @param {number} size  - Full stamp diameter in user-coord units.
- * @param {number} angle - Rotation in radians.
- * @param {number} alpha - Opacity [0..255].
- * @param {number} [extraPadding=0] - Conservative extra padding in user units.
- */
-export function stampImage(x, y, size, angle, alpha, extraPadding = 0) {
-  if (size <= 0) return;
-  if (imgCount >= imgCapacity) {
-    imgCapacity *= 2;
-    const next = new Float32Array(imgCapacity * IMG_FLOATS);
-    next.set(imgData);
-    imgData = next;
-  }
-
-  const px = x - _halfW;
-  const py = y - _halfH;
-  const screenX  = _ma * px + _mc * py + _mx + _halfW;
-  const screenY  = _mb * px + _md * py + _my + _halfH;
-  // Quad geometry and projection both use logical units. Density belongs only
-  // in the viewport and physical dirty bounds, unlike gl_PointSize.
-  const halfSize = size / 2;
-  const extraRadius = _density * extraPadding * _scale;
-
-  const base = imgCount * IMG_FLOATS;
-  imgData[base]     = screenX;
-  imgData[base + 1] = screenY;
-  imgData[base + 2] = halfSize;
-  imgData[base + 3] = angle;
-  imgData[base + 4] = alpha / 255;
-
-  // Bounding box: rotated square worst-case = circle of radius halfSize * √2
-  const dScreenX = screenX * _density;
-  const dScreenY = screenY * _density;
-  const c = Math.cos(angle), s = Math.sin(angle);
-  const reachX = _density * halfSize * (Math.abs(_ma * c + _mc * s) + Math.abs(-_ma * s + _mc * c)) + extraRadius;
-  const reachY = _density * halfSize * (Math.abs(_mb * c + _md * s) + Math.abs(-_mb * s + _md * c)) + extraRadius;
-  imgDirtyRect = accumulateDirtyRect(
-    imgDirtyRect,
-    dScreenX - reachX - 1,
-    dScreenY - reachY - 1,
-    dScreenX + reachX + 1,
-    dScreenY + reachY + 1,
-  );
-
-  imgCount++;
-}
-
-/**
- * Flush all queued image stamps in a single instanced draw call.
- * @param {object} p5img - The preprocessed brush-tip image/canvas (from T.tips).
- * @param {string}   src   - The image src string, used as the texture cache key.
- */
-export function glDrawImages(p5img, src) {
-  if (imgCount === 0) return;
-
-  Mix.glMask.isDrawn = true;
-  const targetState = beginMaskTarget();
-
-  // Lazy-create the WebGL texture from the tip canvas on first use.
-  let tex = texCache.get(src);
-  if (!tex) {
-    tex = gl.createTexture();
-    gl.bindTexture(gl.TEXTURE_2D, tex);
-    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, p5img.canvas);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-    texCache.set(src, tex);
-  }
-
-  gl.useProgram(imgProgram);
-  gl.enable(gl.BLEND);
-  gl.blendFunc(gl.ONE_MINUS_DST_ALPHA, gl.ONE);
-
-  gl.activeTexture(gl.TEXTURE0);
-  gl.bindTexture(gl.TEXTURE_2D, tex);
-  gl.uniform1i(imgFrag.u_tex, 0);
-
+export function beginStroke(seed, alpha, param, tip = null) {
   const color = State.stroke.color._array;
-  gl.uniform4f(imgFrag.u_color, ...color);
-  gl.uniformMatrix4fv(imgFrag.u_proj, false, getProjectionMatrix());
-  gl.uniformMatrix2fv(imgFrag.u_tipLinear, false, [_ma, _mb, _mc, _md]);
-  setClipUniforms(gl, imgFrag);
-
-  gl.bindVertexArray(imgVao);
-  gl.bindBuffer(gl.ARRAY_BUFFER, imgInstanceBuf);
-
-  const byteCount = imgCount * IMG_FLOATS * 4;
-  const dataView  = imgData.subarray(0, imgCount * IMG_FLOATS);
-  if (byteCount > imgGpuSize) {
-    gl.bufferData(gl.ARRAY_BUFFER, imgData, gl.DYNAMIC_DRAW);
-    imgGpuSize = imgData.byteLength;
-  } else {
-    gl.bufferSubData(gl.ARRAY_BUFFER, 0, dataView);
-  }
-
-  gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, imgCount);
-
-  gl.bindVertexArray(null);
-  gl.bindTexture(gl.TEXTURE_2D, null);
-  endMaskTarget(targetState);
-
-  if (imgDirtyRect) {
-    Mix.markDirtyRect(Mix.glMask, imgDirtyRect);
-    imgDirtyRect = null;
-  }
-
-  imgCount = 0;
-
-  // Let the host adapter know we changed the active program.
-  resetDirectShaderTracking(Renderer, gl);
-}
-
-// =============================================================================
-// Section: EXPERIMENTAL GPU dot generation
-// =============================================================================
-
-/**
- * Starts a GPU-generated stroke. Captures the per-stroke values that
- * drawDefault() reads from the brush and stroke state.
- */
-export function beginGpuStroke(seed, alpha, param, strokeWeight) {
-  // Everything drawn as a uniform is captured here, because by the time the
-  // batch is flushed the live transform, colour, or clip may belong to a
-  // later stroke (or be cleared by noStroke()/noClip()).
-  const color = State.stroke.color._array;
+  const strokeWeight = State.stroke.weight;
   const key = [
-    gl, Mix.glMask, getProjectionMatrix(), State.stroke.clip, color[0], color[1], color[2], color[3],
+    gl, Mix.glMask, framebufferProjMatrix, State.stroke.clip, tip?.key,
+    color[0], color[1], color[2], color[3],
     _ma, _mb, _mc, _md, _mx, _my, _halfW, _halfH, _density, _scale, _affineCircle, ..._tipInverse,
-    param.weight, param.scatter, param.sharpness, param.grain, strokeWeight, gpuSubsteps,
+    param.type, param.rotate, param.weight, param.scatter, param.sharpness, param.grain, strokeWeight,
   ];
-  if (segCount > 0 && (!segBatch || key.some((v, i) => v !== segBatch.key[i]))) glDrawGpuDots();
-  segBatch = {
-    key,
-    projection: getProjectionMatrix(),
-    color: [...color],
-    clip: State.stroke.clip,
-    affine: [_ma, _mb, _mc, _md],
-    translate: [_mx, _my],
-    half: [_halfW, _halfH],
-    sizeScale: _density * _scale,
-    affineCircle: _affineCircle,
-    tipInverse: new Float32Array(_tipInverse),
-    brush: [param.weight, param.scatter, param.sharpness, param.grain],
-    strokeWeight,
-    substeps: gpuSubsteps,
-  };
-  segStroke.seed = Math.floor(seed * 4294.967) >>> 0; // seed is in [0, 999999)
-  segStroke.alpha = alpha;
-  segStroke.index = 0;
-  segStroke.weight = param.weight;
-  segStroke.scatter = param.scatter;
-  segStroke.sharpness = param.sharpness;
-  segStroke.grain = param.grain;
-  segStroke.strokeWeight = strokeWeight;
+  if (segCount > 0 && (!batch || key.some((v, i) => v !== batch.key[i]))) flushStrokes();
+  if (segCount === 0) {
+    batch = {
+      key,
+      tip,
+      projection: framebufferProjMatrix,
+      color: [...color],
+      clip: State.stroke.clip,
+      affine: [_ma, _mb, _mc, _md],
+      translate: [_mx, _my],
+      half: [_halfW, _halfH],
+      sizeScale: _density * _scale,
+      affineCircle: _affineCircle,
+      tipInverse: new Float32Array(_tipInverse),
+      param,
+      strokeWeight,
+    };
+  }
+  stroke.seed = Math.floor(seed * 4294.967) >>> 0;
+  stroke.alpha = alpha;
+  stroke.index = 0;
+  stroke.start = segCount;
+  stroke.param = param;
+  stroke.weight = strokeWeight;
 }
 
 /**
- * Queues one path segment of up to getGpuSubsteps() fine steps.
- * Coordinates are in position space, as for circle(). Pressure is
- * interpolated from `pressure` to `endPressure` along the segment.
+ * Drops the segments of the stroke being queued (e.g. after it threw),
+ * keeping earlier strokes in the batch.
  */
-export function queueDotSegment(x0, y0, x1, y1, cs, sn, pressure, endPressure, count) {
+export function discardStroke() {
+  segCount = Math.min(segCount, stroke.start);
+}
+
+/**
+ * Queues one path segment of up to SUBSTEPS fine steps, in position space
+ * (user coords + Cwidth/2, Cheight/2). Pressure is interpolated from p0 to p1
+ * along the segment. `alphaScale` brightens marker/tip segments.
+ */
+export function queueSegment(x0, y0, x1, y1, cs, sn, p0, p1, count, naturalAngle = 0, alphaScale = 1) {
   if (_scale === 0 || count <= 0) return;
-  if ((segCount + 1) * SEG_FLOATS > segData.length) {
+  const pMax = Math.max(p0, p1);
+  if (pMax <= 0) return;
+  const param = stroke.param;
+  const sw = stroke.weight;
+
+  if (param.type === "spray") {
+    // Every step needs ceil(grain / p) dots; size the batch for the densest step.
+    let pMin = Infinity;
+    for (let s = 0; s < count; s++) {
+      const p = p0 + (p1 - p0) * (s / count);
+      if (p > 0 && p < pMin) pMin = p;
+    }
+    const needed = Math.ceil(param.grain / pMin);
+    if (!Number.isFinite(needed) || needed > 1_000_000) {
+      throw new Error("Spray pressure/grain must produce a bounded number of dots.");
+    }
+    if (needed > perStep) perStep = needed;
+  }
+
+  if ((segCount + 1) * SEG_WORDS > segData.length) {
     const next = new Float32Array(segData.length * 2);
     next.set(segData);
     segData = next;
     segSeeds = new Uint32Array(segData.buffer);
   }
-  const o = segCount * SEG_FLOATS;
+  const o = segCount * SEG_WORDS;
   segData[o] = x0;
   segData[o + 1] = y0;
   segData[o + 2] = x1;
   segData[o + 3] = y1;
   segData[o + 4] = cs;
   segData[o + 5] = sn;
-  segData[o + 6] = pressure;
-  segData[o + 7] = count;
-  segData[o + 8] = segStroke.alpha;
-  segData[o + 9] = segStroke.index++;
-  segSeeds[o + 10] = segStroke.seed;
-  segData[o + 11] = endPressure;
+  segData[o + 6] = p0;
+  segData[o + 7] = p1;
+  segData[o + 8] = count;
+  segData[o + 9] = stroke.alpha * alphaScale;
+  segData[o + 10] = stroke.index++;
+  segData[o + 11] = naturalAngle;
+  segSeeds[o + 12] = stroke.seed;
   segCount++;
 
-  // Conservative bounds: Box-Muller from 24-bit uniforms stays below 6 sigma.
-  // Vibration grows as pressure falls, so bound with the smaller end.
-  const pMin = Math.min(pressure, endPressure);
-  const pMax = Math.max(pressure, endPressure);
-  if (pMax <= 0) return;
-  const st = segStroke;
-  const vib = st.strokeWeight * st.scatter * (st.sharpness + ((1 - st.sharpness) * 6) / Math.max(pMin, 1e-3));
-  const reach = vib * 1.05 + pMax * pMax * st.weight * 1.15 * st.strokeWeight;
+  // Conservative reach in logical units. Box-Muller from 24-bit uniforms
+  // stays below 6 sigma.
+  let reach;
+  if (param.type === "spray") {
+    reach = 1.1 * sw * param.scatter * (pMax + 2) + param.weight * 0.55;
+  } else if (param.type === "marker") {
+    reach = sw * param.scatter * 1.5 + sw * param.weight * pMax * 0.5;
+  } else if (param.type === "image" || param.type === "custom") {
+    reach = sw * param.scatter * 1.5 + sw * param.weight * pMax * 0.75 + stroke.overscan;
+  } else {
+    const pMin = Math.max(Math.min(p0, p1), 1e-3);
+    reach = sw * param.scatter * (param.sharpness + ((1 - param.sharpness) * 6) / pMin) * 1.05
+      + pMax * pMax * param.weight * 1.15 * sw;
+  }
   const r = reach * _scale * _density + 1;
   const ax = (_ma * (x0 - _halfW) + _mc * (y0 - _halfH) + _mx + _halfW) * _density;
   const ay = (_mb * (x0 - _halfW) + _md * (y0 - _halfH) + _my + _halfH) * _density;
@@ -657,60 +367,110 @@ export function queueDotSegment(x0, y0, x1, y1, cs, sn, pressure, endPressure, c
 }
 
 /**
- * Expands all queued segments into dots in one instanced draw.
+ * Sets the conservative image-tip padding (logical units) for the current stroke.
  */
-export function glDrawGpuDots() {
+export function setStrokeOverscan(overscan) {
+  stroke.overscan = overscan;
+}
+
+/**
+ * Draws all queued segments in one call and clears the queue.
+ */
+export function flushStrokes() {
   if (segCount === 0) return;
-  // The mask may have been replaced since the batch started (e.g. target switch).
-  if (!gl || gl.isContextLost?.() || !Mix.glMask) {
+  const b = batch;
+  // The context may have been lost since the batch started.
+  if (!gl || gl.isContextLost?.() || !Mix.glMask || !b) {
     segCount = 0;
     segDirtyRect = null;
+    perStep = 1;
     return;
   }
 
   Mix.glMask.isDrawn = true;
-  const targetState = beginMaskTarget();
+  const targetState = beginDirectMaskDraw(Renderer, gl, Mix.glMask);
+  const isStamp = b.param.type === "image" || b.param.type === "custom";
+  const prog = isStamp ? stamps : dots;
+  const u = prog.uni;
 
-  gl.useProgram(segProgram);
+  gl.useProgram(prog.program);
   gl.enable(gl.BLEND);
   gl.blendFunc(gl.ONE_MINUS_DST_ALPHA, gl.ONE);
-  gl.bindVertexArray(segVao);
+  gl.bindVertexArray(prog.vao);
   gl.bindBuffer(gl.ARRAY_BUFFER, segBuf);
-
-  const byteCount = segCount * SEG_FLOATS * 4;
-  if (byteCount > segGpuSize) {
+  if (segCount * SEG_WORDS * 4 > segGpuSize) {
     gl.bufferData(gl.ARRAY_BUFFER, segData, gl.DYNAMIC_DRAW);
     segGpuSize = segData.byteLength;
   } else {
-    gl.bufferSubData(gl.ARRAY_BUFFER, 0, segData.subarray(0, segCount * SEG_FLOATS));
+    gl.bufferSubData(gl.ARRAY_BUFFER, 0, segData.subarray(0, segCount * SEG_WORDS));
   }
 
-  const b = segBatch;
-  gl.uniform4f(segFrag.u_color, ...b.color);
-  gl.uniformMatrix4fv(segFrag.u_matrix, false, b.projection);
-  gl.uniform4f(segFrag.u_affine, ...b.affine);
-  gl.uniform2f(segFrag.u_translate, ...b.translate);
-  gl.uniform2f(segFrag.u_half, ...b.half);
-  gl.uniform1f(segFrag.u_sizeScale, b.sizeScale);
-  gl.uniform4f(segFrag.u_brush, ...b.brush);
-  gl.uniform1f(segFrag.u_strokeWeight, b.strokeWeight);
-  gl.uniform1i(segFrag.u_affineCircle, b.affineCircle);
-  gl.uniformMatrix2fv(segFrag.u_tipInverse, false, b.tipInverse);
+  gl.uniform4f(u.u_color, ...b.color);
+  gl.uniform2f(u.u_translate, ...b.translate);
+  gl.uniform2f(u.u_half, ...b.half);
+  gl.uniform1f(u.u_strokeWeight, b.strokeWeight);
   const liveClip = State.stroke.clip;
   State.stroke.clip = b.clip;
-  setClipUniforms(gl, segFrag);
+  setClipUniforms(gl, u);
   State.stroke.clip = liveClip;
-  gl.drawArraysInstanced(gl.POINTS, 0, segCount, b.substeps);
+
+  if (isStamp) {
+    gl.activeTexture(gl.TEXTURE0);
+    gl.bindTexture(gl.TEXTURE_2D, getTipTexture(b.tip));
+    gl.uniform1i(u.u_tex, 0);
+    gl.uniformMatrix4fv(u.u_proj, false, b.projection);
+    gl.uniformMatrix2fv(u.u_tipLinear, false, b.affine);
+    gl.uniform1i(u.u_substeps, SUBSTEPS);
+    gl.uniform1i(u.u_rotate, ROTATE_MODES[b.param.rotate] ?? 0);
+    gl.uniform2f(u.u_brush, b.param.weight, b.param.scatter);
+    gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, segCount * SUBSTEPS);
+    gl.bindTexture(gl.TEXTURE_2D, null);
+  } else {
+    gl.uniformMatrix4fv(u.u_matrix, false, b.projection);
+    gl.uniform4f(u.u_affine, ...b.affine);
+    gl.uniform1f(u.u_sizeScale, b.sizeScale);
+    gl.uniform1i(u.u_type, DOT_TYPES[b.param.type] ?? 0);
+    gl.uniform1i(u.u_perStep, perStep);
+    gl.uniform4f(u.u_brush, b.param.weight, b.param.scatter, b.param.sharpness ?? 0, b.param.grain ?? 0);
+    gl.uniform1i(u.u_affineCircle, b.affineCircle);
+    gl.uniformMatrix2fv(u.u_tipInverse, false, b.tipInverse);
+    gl.drawArraysInstanced(gl.POINTS, 0, segCount, SUBSTEPS * perStep);
+  }
 
   gl.bindVertexArray(null);
-  endMaskTarget(targetState);
+  endDirectMaskDraw(Renderer, gl, targetState);
 
   if (segDirtyRect) {
     Mix.markDirtyRect(Mix.glMask, segDirtyRect);
     segDirtyRect = null;
   }
   segCount = 0;
+  perStep = 1;
+
+  // We called gl.useProgram() directly, bypassing host shader tracking.
+  // Reset it so the host is forced to re-activate its own shader next time
+  // it draws — otherwise it may skip gl.useProgram() and set uniforms on the
+  // wrong active program, causing "location is not from the associated program".
   resetDirectShaderTracking(Renderer, gl);
+}
+
+/**
+ * Returns the WebGL texture for a tip, uploading it on first use.
+ * @param {{ key: string, image: object }} tip
+ */
+function getTipTexture(tip) {
+  let tex = texCache.get(tip.key);
+  if (!tex) {
+    tex = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, tex);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, tip.image.canvas);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    texCache.set(tip.key, tex);
+  }
+  return tex;
 }
 
 /**
@@ -718,62 +478,8 @@ export function glDrawGpuDots() {
  * Call this when a custom tip function changes after brush.add().
  */
 export function invalidateTexEntry(key) {
+  if (batch?.tip?.key === key) flushStrokes();
   const tex = texCache.get(key);
   if (tex && gl) gl.deleteTexture(tex);
   texCache.delete(key);
-}
-
-/**
- * Draw all queued circles using WebGL
- */
-export function glDraw() {
-  if (circleCount === 0) return;
-
-  Mix.glMask.isDrawn = true;
-  const targetState = beginMaskTarget();
-
-  const color = State.stroke.color._array;
-
-  // Re-activate our shader in case host drawing switched programs.
-  gl.useProgram(program);
-  gl.enable(gl.BLEND);
-  gl.blendFunc(gl.ONE_MINUS_DST_ALPHA, gl.ONE);
-
-  gl.bindVertexArray(vao);
-  gl.bindBuffer(gl.ARRAY_BUFFER, buf);
-
-  // Upload vertex data — reallocate GPU buffer only if needed
-  const byteCount = circleCount * 16; // 4 floats × 4 bytes
-  const dataView = circleData.subarray(0, circleCount * 4);
-  if (byteCount > gpuBufferSize) {
-    gl.bufferData(gl.ARRAY_BUFFER, circleData, gl.DYNAMIC_DRAW);
-    gpuBufferSize = circleData.byteLength;
-  } else {
-    gl.bufferSubData(gl.ARRAY_BUFFER, 0, dataView);
-  }
-
-  // Set uniforms and draw
-  gl.uniform4f(Frag.u_color, ...color);
-  gl.uniformMatrix4fv(Frag.u_matrix, false, getProjectionMatrix());
-  gl.uniform1i(Frag.u_affineCircle, _affineCircle);
-  gl.uniformMatrix2fv(Frag.u_tipInverse, false, _tipInverse);
-  setClipUniforms(gl, Frag);
-  gl.drawArrays(gl.POINTS, 0, circleCount);
-
-  gl.bindVertexArray(null);
-  endMaskTarget(targetState);
-
-  if (circleDirtyRect) {
-    Mix.markDirtyRect(Mix.glMask, circleDirtyRect);
-    circleDirtyRect = null;
-  }
-
-  // Reset queue (no deallocation)
-  circleCount = 0;
-
-  // We called gl.useProgram() directly, bypassing host shader tracking.
-  // Reset it so the host is forced to re-activate its own shader next time
-  // it draws — otherwise it may skip gl.useProgram() and set uniforms on the
-  // wrong active program, causing "location is not from the associated program".
-  resetDirectShaderTracking(Renderer, gl);
 }

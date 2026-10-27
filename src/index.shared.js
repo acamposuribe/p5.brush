@@ -56,9 +56,6 @@ export {
   flowLine,
 } from "./stroke/stroke.js";
 
-// EXPERIMENTAL (experiment/gpu-dots branch): GPU dot generation toggle
-export { setGpuDots as experimentalGpuDots } from "./stroke/gl_draw.js";
-
 // Section: Hatching
 export {
   hatch,

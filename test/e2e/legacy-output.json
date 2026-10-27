@@ -1,7 +1,13 @@
 {
   "capturedFrom": "43ac6d5",
   "intentionalChanges": {
-    "field": "Updated for B24 floor-based signed integer sampling; seeded changes approved by user."
+    "field": "Updated for B24 floor-based signed integer sampling; seeded changes approved by user. Then: Brush dots and stamps are now generated on the GPU from hashed randomness: same distribution and ink (within ~2% of 2.3.0), different seeded realization. Approved by user 2026-10-27.",
+    "standardBrushes": "Brush dots and stamps are now generated on the GPU from hashed randomness: same distribution and ink (within ~2% of 2.3.0), different seeded realization. Approved by user 2026-10-27.",
+    "curves": "Brush dots and stamps are now generated on the GPU from hashed randomness: same distribution and ink (within ~2% of 2.3.0), different seeded realization. Approved by user 2026-10-27.",
+    "hatch": "Brush dots and stamps are now generated on the GPU from hashed randomness: same distribution and ink (within ~2% of 2.3.0), different seeded realization. Approved by user 2026-10-27.",
+    "mass": "Brush dots and stamps are now generated on the GPU from hashed randomness: same distribution and ink (within ~2% of 2.3.0), different seeded realization. Approved by user 2026-10-27.",
+    "massArray": "Brush dots and stamps are now generated on the GPU from hashed randomness: same distribution and ink (within ~2% of 2.3.0), different seeded realization. Approved by user 2026-10-27.",
+    "straightAngles": "Brush dots and stamps are now generated on the GPU from hashed randomness: same distribution and ink (within ~2% of 2.3.0), different seeded realization. Approved by user 2026-10-27."
   },
   "addedCases": {
     "massArray": "Post-B24, pre-optimization build",
@@ -9,14 +15,14 @@
     "washSequence": "Post-B24, pre-optimization build"
   },
   "hashes": {
-    "standardBrushes": "59c00a4b7f0b81e62b494bfa2233d85df085f6d7fc9c16f61a1529f53d2a8561",
-    "curves": "a12e89f851e17c746b7aa2820bb4de079ba9c4ee4397aecced5c4197bd5b7e78",
+    "standardBrushes": "6715c345266b53e88c7e06c661cff8ce49de686604ae9d4eaefd4e10940d9cd4",
+    "curves": "8b0ca5e9a7e095cc0515f97de3897d506edc32b00cd547a07f68ff5f653fd410",
     "wash": "bee159e6d3bf1f869aa2a3474e4694e2f9ea920b00293afe197c3352eff04e2a",
-    "hatch": "e7618012cb190cdcd8babd12173fb46f5a423693fa1568a6160270839a08a2aa",
-    "mass": "d51d1fbc8abb6cb9a302331ba7de9489c34be9f5176f3b77361d374c71d99d16",
-    "field": "d89f4264723b527aeeacc254a70fedb21c0bda0bd05eccd2cf24f8d962db0326",
-    "massArray": "6ed31c2796d2c61f0569d2b4082edb2cfee66a458cb8a3d24375320b36c402c6",
-    "straightAngles": "05f7ae97e096650c02c5f82d4c2517ba932087ba36f1e52d8da7d233a5e9eb2b",
+    "hatch": "3ba16000d654131950a0b1a325fd93957f9e2b4956dfa7bd02125bc6354866e7",
+    "mass": "8401cbfcf5e95862da5cf3366a8b7c75c4c72f37fa1a4b8bc0765549561db837",
+    "field": "87d00a752dcae33a742245ec180adbc1dc2870b50deee40d8a91685c68699220",
+    "massArray": "1d78168d9f8b9c04d0e72276e654cfecd5f7ba8fb0e84a45bf92c61fd5c2159c",
+    "straightAngles": "c8c66f202506a1e31e5312f31aca9fcd3cf90140288e07ff50f3ab2f9ea4630a",
     "washSequence": "9e6df5e63ccf30717a478b99dc9b22c9a915f00a433e36900c71d037e1b45d04"
   }
 }

@@ -187,12 +187,12 @@
               Outline
             </label>
 
-            <!-- EXPERIMENTAL (experiment/gpu-dots): needs npm run build:exp -->
+            <!-- experiment/gpu-dots branch: compares dist/ (2.3.0) with dist-exp/ (npm run build:exp) -->
             <label id="dotsRow" hidden>
-              Dots <small style="color:#8a9aa8;">(press G to flip)</small>
+              Build <small style="color:#8a9aa8;">(press G to flip)</small>
               <select id="dots">
-                <option value="cpu">CPU (current)</option>
-                <option value="gpu">GPU (experimental)</option>
+                <option value="cpu">2.3.0 · CPU dots (dist/)</option>
+                <option value="gpu">New · GPU dots (dist-exp/)</option>
               </select>
             </label>
             <div id="renderTime" class="val" style="font-variant-numeric:tabular-nums;" hidden></div>
@@ -205,23 +205,26 @@
 
     <script src="./standalone_profiler.js"></script>
     <script type="module">
-      // EXPERIMENTAL (experiment/gpu-dots): prefer the experimental build when
-      // present so CPU and GPU dot generation can be compared live.
-      let brush;
+      // experiment/gpu-dots branch: when dist-exp/ exists, load it alongside
+      // dist/ so the two builds can be compared live. Each module copy keeps
+      // its own state and draws on its own canvas.
+      const builds = { cpu: await import("../../dist/brush.esm.js") };
       try {
-        brush = await import("../../dist-exp/brush.esm.js");
-      } catch {
-        brush = await import("../../dist/brush.esm.js");
-      }
-      const hasGpuDots = typeof brush.experimentalGpuDots === "function";
+        builds.gpu = await import("../../dist-exp/brush.esm.js");
+      } catch {}
+      const hasGpuDots = !!builds.gpu;
+      let brush = builds.cpu;
 
       const PAPER = "#fffceb";
       const PALETTE = ["#002185", "#003c32", "#fcd300", "#ff2702", "#6b9404"];
       const CW = 600, CH = 600;
 
       const pixelDensity = window.devicePixelRatio || 1;
-      brush.createCanvas(CW, CH, { id: "brush-canvas", parent: "#canvas-host", pixelDensity });
-      brush.scaleBrushes(3);
+      const canvases = {};
+      for (const [mode, b] of Object.entries(builds)) {
+        canvases[mode] = b.createCanvas(CW, CH, { id: `brush-canvas-${mode}`, parent: "#canvas-host", pixelDensity });
+        b.scaleBrushes(3);
+      }
 
       let currentSeed = Math.floor(Math.random() * 900000) + 100000;
 
@@ -286,7 +289,9 @@
 
       function renderScene() {
         syncReadouts();
-        if (hasGpuDots) brush.experimentalGpuDots(state.dots === "gpu");
+        const mode = hasGpuDots ? state.dots : "cpu";
+        brush = builds[mode];
+        for (const [m, c] of Object.entries(canvases)) c.style.display = m === mode ? "" : "none";
         const t0 = performance.now();
 
         const rng = mkRng(currentSeed);
@@ -320,11 +325,11 @@
         if (hasGpuDots) {
           const t1 = performance.now();
           // A 1×1 readback waits for queued GPU work, so the second figure includes it.
-          const gl = document.getElementById("brush-canvas").getContext("webgl2");
+          const gl = canvases[mode].getContext("webgl2");
           gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array(4));
           const t2 = performance.now();
           controls.renderTime.textContent =
-            `${state.dots.toUpperCase()} dots: ${(t1 - t0).toFixed(1)} ms CPU · ${(t2 - t0).toFixed(1)} ms incl. GPU`;
+            `${mode === "gpu" ? "New" : "2.3.0"}: ${(t1 - t0).toFixed(1)} ms CPU · ${(t2 - t0).toFixed(1)} ms incl. GPU`;
         }
         window.reportStandaloneFirstFrame?.("pastel_hatching_test");
       }

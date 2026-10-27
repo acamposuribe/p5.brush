@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>GPU dots comparison</title>
+<title>Dots comparison</title>
 <style>
   :root {
     --bg: #f4f1ea;
@@ -63,8 +63,8 @@
 </head>
 <body>
 <header>
-  <h1>CPU vs GPU dot generation</h1>
-  <p class="lede">Each row is one brush line drawn with the same seed in both modes, so pressure profiles match; only which dots are drawn differs. The block at the bottom is a seeded <code>mass("HB")</code> rectangle. Built from <code>dist-exp/</code> on the <code>experiment/gpu-dots</code> branch.</p>
+  <h1>2.3.0 vs new build</h1>
+  <p class="lede">Each row is one brush line drawn with the same seed by the 2.3.0 build (<code>dist/</code>, CPU dots) and the new build (<code>dist-exp/</code>, GPU dots), so pressure profiles match; only which dots are drawn differs. The block at the bottom is a seeded <code>mass("HB")</code> rectangle.</p>
   <div class="controls">
     <label>Density <select id="density"><option>1</option><option selected>2</option><option>3</option></select></label>
     <label>Zoom <select id="zoom"><option value="1" selected>1×</option><option value="2">2×</option><option value="4">4×</option></select></label>
@@ -73,15 +73,18 @@
   </div>
 </header>
 <main>
-  <section class="card"><h2>CPU (current)</h2><div class="stats" id="stats-cpu"></div><div class="frame" id="frame-cpu"></div></section>
-  <section class="card"><h2>GPU (experimental)</h2><div class="stats" id="stats-gpu"></div><div class="frame" id="frame-gpu"></div></section>
-  <section class="card wide"><h2>Darkness per row</h2><div class="stats">Integrated darkness over white, per logical px². Ratio near 1.00 means the GPU path deposits the same amount of ink.</div><div id="table"></div></section>
+  <section class="card"><h2>2.3.0 · CPU dots</h2><div class="stats" id="stats-cpu"></div><div class="frame" id="frame-cpu"></div></section>
+  <section class="card"><h2>New · GPU dots</h2><div class="stats" id="stats-gpu"></div><div class="frame" id="frame-gpu"></div></section>
+  <section class="card wide"><h2>Darkness per row</h2><div class="stats">Integrated darkness over white, per logical px². Ratio near 1.00 means the new build deposits the same amount of ink.</div><div id="table"></div></section>
 </main>
 
 <script type="module">
-import * as brush from "/dist-exp/brush.esm.js";
+// Two module copies from different URLs keep separate library state.
+import * as cpuBrush from "/dist/brush.esm.js";
+import * as gpuBrush from "/dist-exp/brush.esm.js";
+let brush = cpuBrush;
 
-const BRUSHES = ["pen", "rotring", "2B", "HB", "2H", "cpencil", "pastel", "crayon", "charcoal"];
+const BRUSHES = ["pen", "rotring", "2B", "HB", "2H", "cpencil", "pastel", "crayon", "charcoal", "spray", "marker"];
 const W = 640, ROW = 44, TOP = 34, MASS_H = 230;
 const H = TOP + BRUSHES.length * ROW + MASS_H;
 const params = new URLSearchParams(location.search);
@@ -113,7 +116,7 @@ function drawMass(seed) {
 }
 
 function renderMode(gpu, density, seed, zoom) {
-  brush.experimentalGpuDots(gpu);
+  brush = gpu ? gpuBrush : cpuBrush;
   const frame = $(gpu ? "frame-gpu" : "frame-cpu");
   frame.replaceChildren();
   const canvas = brush.createCanvas(W, H, { parent: frame, pixelDensity: density, id: gpu ? "c-gpu" : "c-cpu" });
@@ -179,7 +182,7 @@ function render() {
     const g = gpu.rows[i].dark;
     return `<tr><td>${r.name}</td><td>${r.dark.toFixed(1)}</td><td>${g.toFixed(1)}</td><td>${(g / r.dark).toFixed(2)}</td></tr>`;
   }).join("");
-  $("table").innerHTML = `<table><thead><tr><th>Row</th><th>CPU</th><th>GPU</th><th>GPU / CPU</th></tr></thead><tbody>${rows}</tbody></table>`;
+  $("table").innerHTML = `<table><thead><tr><th>Row</th><th>2.3.0</th><th>New</th><th>New / 2.3.0</th></tr></thead><tbody>${rows}</tbody></table>`;
   window.__result = { density, seed, cpu: { cpu: cpu.cpu, total: cpu.total, rows: cpu.rows }, gpu: { cpu: gpu.cpu, total: gpu.total, rows: gpu.rows } };
 }
 
@@ -187,7 +190,7 @@ function bench() {
   const density = Number($("density").value);
   const out = {};
   for (const gpu of [false, true]) {
-    brush.experimentalGpuDots(gpu);
+    brush = gpu ? gpuBrush : cpuBrush;
     const c = brush.createCanvas(W, H, { parent: null, pixelDensity: density });
     const gl = c.getContext("webgl2");
     const px = new Uint8Array(4);

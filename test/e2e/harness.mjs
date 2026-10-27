@@ -15,11 +15,8 @@ import { dirname, extname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 export const REPO_ROOT = resolve(fileURLToPath(import.meta.url), "../../..");
-// BRUSH_BUNDLE overrides the bundle (e.g. dist-exp/brush.esm.js on the
-// experiment/gpu-dots branch); BRUSH_GPU_DOTS=1 enables experimental GPU dots.
+// BRUSH_BUNDLE overrides the bundle under test (e.g. dist-exp/brush.esm.js).
 export const BUNDLE_PATH = process.env.BRUSH_BUNDLE ?? "dist/brush.esm.js";
-const GPU_DOTS = process.env.BRUSH_GPU_DOTS === "1";
-const GPU_SUBSTEPS = process.env.BRUSH_GPU_SUBSTEPS ? Number(process.env.BRUSH_GPU_SUBSTEPS) : undefined;
 
 const MIME = {
   ".html": "text/html",
@@ -148,10 +145,9 @@ export async function newPage(browser, baseUrl) {
   page.on("pageerror", (err) => errors.push(err.message));
   await page.addInitScript(installInstrumentation);
   await page.goto(`${baseUrl}/__blank`);
-  await page.evaluate(async ({ bundle, gpuDots, substeps }) => {
+  await page.evaluate(async (bundle) => {
     window.brush = await import(`/${bundle}`);
-    if (gpuDots) window.brush.experimentalGpuDots(true, substeps ? { substeps } : {});
-  }, { bundle: BUNDLE_PATH, gpuDots: GPU_DOTS, substeps: GPU_SUBSTEPS });
+  }, BUNDLE_PATH);
   page.harnessErrors = errors;
   return page;
 }
@@ -193,8 +189,6 @@ export async function collectMetadata(browser, page, opts) {
     commit: git("rev-parse HEAD"),
     libraryDirty: dirty === null ? null : dirty.length > 0,
     bundle: BUNDLE_PATH,
-    gpuDots: GPU_DOTS,
-    gpuSubsteps: GPU_DOTS ? (GPU_SUBSTEPS ?? 10) : null,
     bundleSha256: createHash("sha256").update(bundle).digest("hex"),
     node: process.version,
     platform: `${process.platform}-${process.arch}`,

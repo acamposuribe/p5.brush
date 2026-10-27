@@ -21,13 +21,10 @@ import {
   rr,
   map,
   dist,
-  randInt,
   calcAngle,
   toDegrees,
   gaussian,
-  rArray,
   noise,
-  _onSeed, 
   cos,
   sin,
   cossin,
@@ -41,18 +38,14 @@ import { createTipSurface, loadImageTip } from "./runtime.js";
 // Internal module imports
 import { initStrokeComposite } from "./composite.js";
 import {
+  SUBSTEPS,
   isReady,
-  glDraw,
-  glDrawImages,
-  circle,
-  stampImage,
   invalidateTexEntry,
   snapshotMatrix,
-  discardPendingStamps,
-  getGpuSubsteps,
-  isGpuDotsEnabled,
-  beginGpuStroke,
-  queueDotSegment,
+  beginStroke,
+  queueSegment,
+  discardStroke,
+  setStrokeOverscan,
 } from "./gl_draw.js";
 
 initStrokeComposite(); // Register the stroke composite system for offscreen mask rendering and compositing.
@@ -361,12 +354,6 @@ function initializeDrawingState(x, y, length, plot = false) {
   if (_plot) _plot.calcIndex(0);
 }
 
-const gaussians = [];
-
-_onSeed(() => {
-  gaussians.length = 0;
-});
-
 /**
  * Executes the drawing operation.
  * @param {number} angleScale - Angle (in degrees) or scaling factor.
@@ -384,60 +371,37 @@ function draw(angleScale, isPlot) {
   if (!isPlot) _dir = angleScale;
   try {
     saveState();
-    current.pressureCount = 10;
-    current.cachedPressure = undefined;
-
-    const neededGaussians = totalSteps * 2;
-    while (gaussians.length < neededGaussians) {
-      gaussians.push(gaussian());
-    }
-
-    let stepX = 0, stepY = 0;
-    if (!isPlot) {
-      const direction = cossin(-angleScale);
-      stepX = stepSize * direction[0];
-      stepY = stepSize * direction[1];
-    }
-
-    if (isGpuDotsEnabled() && current.drawFn === drawDefault) {
-      drawGpuSegments(totalSteps, stepSize, isPlot, angleScale, stepX, stepY);
-    } else for (let i = 0; i < totalSteps; i++) {
-      if (isPlot) _cachedPlotAngle = _plot.angle(_position.plotted);
-      tip();
-      if (isPlot) {
-        _position.plotTo(_plot, stepSize, stepSize, angleScale, _cachedPlotAngle);
-      } else if (!State.field.isActive) {
-        // Retain repeated additions (not start + i * step) for identical rounding.
-        _position.x += stepX;
-        _position.y += stepY;
-        _position.plotted += stepSize;
-      } else {
-        _position._moveToDegrees(angleScale, stepSize, stepSize);
-      }
-    }
-    restoreState();
+    drawSegments(totalSteps, stepSize, isPlot, angleScale);
+    markerTip();
   } catch (error) {
-    discardPendingStamps();
-    current.cachedPressure = undefined;
-    current.pressureCount = 10;
+    discardStroke();
     throw error;
   }
 }
 
+// Longest path segment (logical px) drawn as a straight chord.
+const SEGMENT_LENGTH = 4;
+
 /**
- * EXPERIMENTAL: walks the path in segments of getGpuSubsteps() fine steps and
- * queues them for GPU dot generation, instead of calling tip() every step.
- * Pressure is evaluated at segment ends and interpolated on the GPU.
+ * Walks the path in segments of up to SEGMENT_LENGTH logical px (and at most
+ * SUBSTEPS fine steps) and queues them for the GPU, which expands each
+ * segment into the brush's dots or stamps. Pressure is evaluated at segment
+ * ends and interpolated along each segment.
  */
-function drawGpuSegments(totalSteps, stepSize, isPlot, angleScale, stepX, stepY) {
-  const substeps = getGpuSubsteps();
-  beginGpuStroke(current.seed, current.alpha, current.p, State.stroke.weight);
-  current.pressureCount = substeps;
+function drawSegments(totalSteps, stepSize, isPlot, angleScale) {
+  const steps = Math.max(1, Math.min(SUBSTEPS, Math.round(SEGMENT_LENGTH / stepSize)));
+  let stepX = 0, stepY = 0;
+  if (!isPlot) {
+    const direction = cossin(-angleScale);
+    stepX = stepSize * direction[0];
+    stepY = stepSize * direction[1];
+  }
   let pressure = calculatePressure();
-  for (let i = 0; i < totalSteps; i += substeps) {
-    const n = Math.min(substeps, totalSteps - i);
+  for (let i = 0; i < totalSteps; i += steps) {
+    const n = Math.min(steps, totalSteps - i);
     const len = stepSize * n;
     const x0 = _position.x, y0 = _position.y;
+    const natural = naturalAngle(isPlot ? _plot.angle(_position.plotted) : _dir);
     let cs = current.cos, sn = current.sin;
     if (isPlot) {
       // Use the direction at the segment midpoint: start-of-segment
@@ -453,11 +417,20 @@ function drawGpuSegments(totalSteps, stepSize, isPlot, angleScale, stepX, stepY)
     } else {
       _position._moveToDegrees(angleScale, len, len);
     }
-    current.pressureCount = substeps;
     const endPressure = calculatePressure();
-    queueDotSegment(x0, y0, _position.x, _position.y, cs, sn, pressure, endPressure, n);
+    queueSegment(x0, y0, _position.x, _position.y, cs, sn, pressure, endPressure, n, natural);
     pressure = endPressure;
   }
+}
+
+/**
+ * Stamp rotation (radians) for "natural" image tips: the stroke direction
+ * plus the flow-field angle at the current position.
+ * @param {number} pathAngle - Plot angle or line direction, in degrees.
+ */
+function naturalAngle(pathAngle) {
+  if (current.p.rotate !== "natural") return 0;
+  return (-pathAngle + _position.angle()) * (Math.PI / 180);
 }
 
 /**
@@ -488,8 +461,6 @@ function saveState() {
   }
   [current.min, current.max] = pressure.min_max;
 
-
-
   // Cache stroke direction for direction-aware dispersion (non-plot strokes only)
   if (!_plot) {
     current.cos = cos(_dir);
@@ -503,7 +474,6 @@ function saveState() {
   if (switchingToBrush) Mix.justChanged = true;
   Mix.blend(State.stroke.color);
 
-  // Set additional state values
   // Stroke-level noise: modulate alpha once per stroke so whole strokes are
   // subtly lighter or darker — organic variation without per-tip cost.
   const baseAlpha = calculateAlpha();
@@ -511,36 +481,12 @@ function saveState() {
   current.alpha = noiseStrength > 0
     ? Math.max(0, baseAlpha * (1 + gaussian(0, noiseStrength)))
     : baseAlpha;
-  current.overscan = getImageTipOverscan();
-  current.drawFn =
-    current.p.type === "spray"  ? drawSpray :
-    current.p.type === "marker" ? drawMarker :
-    (current.p.type === "custom" || current.p.type === "image") ? drawImageTip :
-    drawDefault;
+
+  const tipKey = param.type === "image" ? param.image.src : param.type === "custom" ? param.tipKey : null;
+  beginStroke(current.seed, current.alpha, param, tipKey ? { key: tipKey, image: T.tips.get(tipKey) } : null);
+  setStrokeOverscan(getImageTipOverscan());
 
   markerTip();
-}
-
-/**
- * Restores drawing state after completing a stroke.
- */
-function restoreState() {
-  markerTip();
-  glDraw();
-  // EXPERIMENTAL: GPU dot segments stay queued across strokes; they are drawn
-  // when batch state changes or before the brush mask is cleared or composited.
-  const type = current.p?.type;
-  if (type === "image") glDrawImages(T.tips.get(current.p.image.src), current.p.image.src);
-  else if (type === "custom") glDrawImages(T.tips.get(current.p.tipKey), current.p.tipKey);
-}
-
-/**
- * Renders the brush tip based on current pressure and position.
- */
-function tip() {
-  const pressure = calculatePressure();
-
-  current.drawFn(pressure);
 }
 
 /**
@@ -548,17 +494,13 @@ function tip() {
  * @returns {number} The calculated pressure.
  */
 function calculatePressure() {
-  if (current.pressureCount >= 10 || current.cachedPressure === undefined) {
-    current.cachedPressure = _plot
-      ? simPressure() * _plot.pressure(_position.plotted)
-      : simPressure();
-    current.pressureCount = 0;
-  }
-  current.pressureCount++;
-  if (!Number.isFinite(current.cachedPressure)) {
+  const pressure = _plot
+    ? simPressure() * _plot.pressure(_position.plotted)
+    : simPressure();
+  if (!Number.isFinite(pressure)) {
     throw new Error("Brush pressure must be finite.");
   }
-  return current.cachedPressure;
+  return pressure;
 }
 
 /**
@@ -634,140 +576,29 @@ function getImageTipOverscan() {
 }
 
 // ---------------------------------------------------------------------------
-// Brush Tip Rendering Methods
+// Brush Tips
 // ---------------------------------------------------------------------------
 
 /**
- * Draws the spray tip effect.
- * @param {number} pressure - Current pressure.
- */
-function drawSpray(pressure) {
-  if (pressure <= 0) return;
-  const iterations = Math.ceil(current.p.grain / pressure);
-  if (!Number.isFinite(iterations) || iterations > 1_000_000) {
-    throw new Error("Spray pressure/grain must produce a bounded number of dots.");
-  }
-  const vibration =
-    State.stroke.weight * current.p.scatter * pressure +
-    (State.stroke.weight * rArray(gaussians) * current.p.scatter) / 3;
-  const sw = current.p.weight * rr(0.9, 1.1);
-  for (let j = 0; j < iterations; j++) {
-    const r = rr(0.9, 1.1);
-    const rX = r * vibration * rr(-1, 1);
-    const yRandomFactor = rr(-1, 1);
-    const sqrtPart = Math.sqrt((r * vibration) ** 2 - rX ** 2);
-    circle(
-      _position.x + rX,
-      _position.y + yRandomFactor * sqrtPart,
-      sw,
-      current.alpha,
-    );
-  }
-}
-
-/**
- * Draws the marker tip effect.
- * @param {number} pressure - Current pressure.
- * @param {boolean} [vibrate=true] - Whether to apply vibration.
- */
-function drawMarker(pressure, vibrate = true, alpha = current.alpha) {
-  const vibration = vibrate ? State.stroke.weight * current.p.scatter : 0;
-  const rx = vibrate ? vibration * rr(-1, 1) : 0;
-  const ry = vibrate ? vibration * rr(-1, 1) : 0;
-  circle(
-    _position.x + rx,
-    _position.y + ry,
-    State.stroke.weight * current.p.weight * pressure,
-    alpha * Math.max(0.8, pressure) * rr(0.9,1.1),
-  );
-}
-
-/**
- * Queues a stamp for instanced GL rendering.
- * Handles both "image" and "custom" tip types.
- * @param {number} pressure - Current pressure.
- * @param {number} alpha - Opacity [0..255].
- */
-function drawImageTip(pressure, alpha = current.alpha) {
-  const vibration = State.stroke.weight * current.p.scatter;
-  const rx = vibration * rr(-1, 1);
-  const ry = vibration * rr(-1, 1);
-  const size = current.p.weight * State.stroke.weight * pressure;
-  const overscan = current.overscan;
-  let angle = 0;
-  if (current.p.rotate === "random") {
-    angle = randInt(0, 360) * (Math.PI / 180);
-  } else if (current.p.rotate === "natural") {
-    angle = ((_plot ? -_cachedPlotAngle : -_dir) + _position.angle()) * (Math.PI / 180);
-  }
-  stampImage(
-    _position.x + rx,
-    _position.y + ry,
-    size,
-    angle,
-    alpha * Math.max(0.8, pressure) * rr(0.9, 1.1),
-    overscan,
-  );
-}
-
-/**
- * Draws the default brush tip.
- * @param {number} pressure - Current pressure.
- */
-function drawDefault(pressure) {
-  if (rr(0, 1) >= current.p.grain * pressure) return;
-  const vibration =
-    State.stroke.weight *
-    current.p.scatter *
-    (current.p.sharpness +
-      ((1 - current.p.sharpness) * rArray(gaussians)) / pressure);
-    let dx, dy;
-    if (_plot) {
-      const plotAngle = _cachedPlotAngle;
-      const plotCos = cos(plotAngle);
-      const plotSin = sin(plotAngle);
-      const perp = vibration * rr(-1, 1);
-      const along = 0.3 * vibration * rr(-1, 1);
-      dx = perp * plotSin + along * plotCos;
-      dy = perp * plotCos - along * plotSin;
-    } else {
-      const perp = vibration * rr(-1, 1);
-      const along = 0.3 * vibration * rr(-1, 1);
-      dx = perp * current.sin + along * current.cos;
-      dy = perp * current.cos - along * current.sin;
-    }
-    const diameter =
-      pressure *
-      pressure *
-      current.p.weight *
-      rr(0.85, 1.15) *
-      State.stroke.weight;
-    const alpha = Math.max(0.9, pressure) * current.alpha * rr(0.75, 1.1);
-    circle(
-      _position.x + dx,
-      _position.y + dy,
-      diameter,
-      alpha,
-    );
-  
-}
-
-/**
- * Draws the marker tip with a blend effect.
+ * Draws the blended end cap for marker and image/custom brushes: a short
+ * burst of stamps at the current position with rising pressure. Queued as a
+ * zero-length segment whose pressure ramps from 0.1 to 0.9 (marker, 9 dots
+ * at 8× alpha) or 0.1 to 0.4 (image tips, 4 stamps at 2× alpha) of the tip
+ * pressure.
  */
 function markerTip() {
   if (current.p.markerTip === false) return;
-  let pressure = calculatePressure();
-  let alpha = current.alpha;
-  if (current.p.type === "marker") {
-    for (let s = 1; s < 10; s++) {
-      drawMarker((pressure * s) / 10, true, alpha * 8);
-    }
-  } else if (current.p.type === "custom" || current.p.type === "image") {
-    for (let s = 1; s < 5; s++) {
-      drawImageTip((pressure * s) / 10, alpha * 2);
-    }
-  }
+  const isMarker = current.p.type === "marker";
+  if (!isMarker && current.p.type !== "custom" && current.p.type !== "image") return;
+  const pressure = calculatePressure();
+  const count = isMarker ? 9 : 4;
+  const angle = naturalAngle(_plot ? _plot.angle(_position.plotted) : _dir);
+  queueSegment(
+    _position.x, _position.y, _position.x, _position.y,
+    current.cos ?? 1, current.sin ?? 0,
+    pressure * 0.1, pressure * 0.1 * (count + 1), count,
+    angle, isMarker ? 8 : 2,
+  );
 }
 
 // ---------------------------------------------------------------------------
