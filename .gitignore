@@ -3,5 +3,3 @@ workspace/*
 !workspace/performance-and-bug-audit.md
 
 .DS_Store
-dist-exp/
-dist-prof/

@@ -187,7 +187,7 @@
               Outline
             </label>
 
-            <!-- experiment/gpu-dots branch: prototype mass styles (new build only) -->
+            <!-- Experimental: scribble mass style -->
             <label>
               Style
               <select id="style">
@@ -212,15 +212,7 @@
               </div>
             </label>
 
-            <!-- experiment/gpu-dots branch: compares dist/ (2.3.0) with dist-exp/ (npm run build:exp) -->
-            <label id="dotsRow" hidden>
-              Build <small style="color:#8a9aa8;">(press G to flip)</small>
-              <select id="dots">
-                <option value="cpu">2.3.0 · CPU dots (dist/)</option>
-                <option value="gpu">New · GPU dots (dist-exp/)</option>
-              </select>
-            </label>
-            <div id="renderTime" class="val" style="font-variant-numeric:tabular-nums;" hidden></div>
+            <div id="renderTime" class="val" style="font-variant-numeric:tabular-nums;"></div>
           </div>
         </div>
 
@@ -230,26 +222,15 @@
 
     <script src="./standalone_profiler.js"></script>
     <script type="module">
-      // experiment/gpu-dots branch: when dist-exp/ exists, load it alongside
-      // dist/ so the two builds can be compared live. Each module copy keeps
-      // its own state and draws on its own canvas.
-      const builds = { cpu: await import("../../dist/brush.esm.js") };
-      try {
-        builds.gpu = await import("../../dist-exp/brush.esm.js");
-      } catch {}
-      const hasGpuDots = !!builds.gpu;
-      let brush = builds.cpu;
+      import * as brush from "../../dist/brush.esm.js";
 
       const PAPER = "#fffceb";
       const PALETTE = ["#002185", "#003c32", "#fcd300", "#ff2702", "#6b9404"];
       const CW = 600, CH = 600;
 
       const pixelDensity = window.devicePixelRatio || 1;
-      const canvases = {};
-      for (const [mode, b] of Object.entries(builds)) {
-        canvases[mode] = b.createCanvas(CW, CH, { id: `brush-canvas-${mode}`, parent: "#canvas-host", pixelDensity });
-        b.scaleBrushes(3);
-      }
+      const canvas = brush.createCanvas(CW, CH, { id: "brush-canvas", parent: "#canvas-host", pixelDensity });
+      brush.scaleBrushes(3);
 
       let currentSeed = Number(new URLSearchParams(location.search).get("seed")) || Math.floor(Math.random() * 900000) + 100000;
 
@@ -262,7 +243,6 @@
         style:     new URLSearchParams(location.search).get("style") ?? "arcs",
         follow:    0.25,
         length:    0,
-        dots:      new URLSearchParams(location.search).get("dots") === "gpu" ? "gpu" : "cpu",
       };
 
       const controls = {
@@ -279,15 +259,8 @@
         style:        document.getElementById("style"),
         followVal:    document.getElementById("followVal"),
         lengthVal:    document.getElementById("lengthVal"),
-        dotsRow:      document.getElementById("dotsRow"),
-        dots:         document.getElementById("dots"),
         renderTime:   document.getElementById("renderTime"),
       };
-      if (hasGpuDots) {
-        controls.dotsRow.hidden = false;
-        controls.renderTime.hidden = false;
-        controls.dots.value = state.dots;
-      }
 
       // Mulberry32 seeded PRNG — mirrors p5's randomSeed behavior
       function mkRng(seed) {
@@ -322,9 +295,6 @@
 
       function renderScene() {
         syncReadouts();
-        const mode = hasGpuDots ? state.dots : "cpu";
-        brush = builds[mode];
-        for (const [m, c] of Object.entries(canvases)) c.style.display = m === mode ? "" : "none";
         const t0 = performance.now();
 
         const rng = mkRng(currentSeed);
@@ -358,15 +328,13 @@
 
         brush.pop();
         brush.render();
-        if (hasGpuDots) {
-          const t1 = performance.now();
-          // A 1×1 readback waits for queued GPU work, so the second figure includes it.
-          const gl = canvases[mode].getContext("webgl2");
-          gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array(4));
-          const t2 = performance.now();
-          controls.renderTime.textContent =
-            `${mode === "gpu" ? "New" : "2.3.0"}: ${(t1 - t0).toFixed(1)} ms CPU · ${(t2 - t0).toFixed(1)} ms incl. GPU`;
-        }
+        const t1 = performance.now();
+        // A 1×1 readback waits for queued GPU work, so the second figure includes it.
+        const gl = canvas.getContext("webgl2");
+        gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array(4));
+        const t2 = performance.now();
+        controls.renderTime.textContent =
+          `Render: ${(t1 - t0).toFixed(1)} ms CPU · ${(t2 - t0).toFixed(1)} ms incl. GPU`;
         window.reportStandaloneFirstFrame?.("pastel_hatching_test");
       }
 
@@ -397,17 +365,6 @@
       controls.outline.addEventListener("change", () => {
         state.outline = controls.outline.checked;
         queueRender();
-      });
-
-      function setDots(mode) {
-        state.dots = mode;
-        controls.dots.value = mode;
-        queueRender();
-      }
-      controls.dots.addEventListener("change", () => setDots(controls.dots.value));
-      window.addEventListener("keydown", (e) => {
-        if (!hasGpuDots || e.key.toLowerCase() !== "g" || e.target.matches("input, select")) return;
-        setDots(state.dots === "gpu" ? "cpu" : "gpu");
       });
 
       controls.refreshSeed.addEventListener("click", () => {

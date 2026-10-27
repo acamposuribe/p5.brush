@@ -23,7 +23,7 @@
     "measure:density": "npm run build && node test/e2e/density.mjs",
     "measure:bench": "npm run build && node test/e2e/bench.mjs",
     "build": "rollup --config",
-    "build:exp": "rollup --config rollup.experiment.config.js"
+    "serve": "node test/serve.mjs"
   },
   "files": [
     "dist",
