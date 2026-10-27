@@ -427,7 +427,7 @@ function drawRun(run) {
  * across the shape, optionally follow its outline, and are cut where they
  * leave it. Tone comes from how much the marks overlap.
  * @param {Polygon|Polygon[]} shape
- * @param {object} o - { gap, strength, gradient, follow, baseAngle }
+ * @param {object} o - { gap, strength, gradient, follow, maxLength, baseAngle }
  */
 function drawScribbleMass(shape, o) {
   const bounds = getPolygonBounds(shape);
@@ -436,8 +436,12 @@ function drawScribbleMass(shape, o) {
   const gap = o.gap;
   const sample = Math.max(1, gap * 0.75);
 
-  // Mark size: a fraction of the shape, but always several brush widths long.
-  const meanLength = Math.max(gap * 8, Math.min(size * 0.12, gap * 40));
+  // Mark size: a fraction of the shape, but always several brush widths long,
+  // unless the caller sets a maximum mark length.
+  const maxLength = o.maxLength > 0 ? o.maxLength : Infinity;
+  const meanLength = Number.isFinite(maxLength)
+    ? maxLength * 0.6
+    : Math.max(gap * 8, Math.min(size * 0.12, gap * 40));
   const meanWidth = gap * 7;
   // Marks overlap ~1-3 times on average depending on strength.
   const overlap = 1 + 2 * o.strength;
@@ -466,7 +470,7 @@ function drawScribbleMass(shape, o) {
         const ay = (1 - f) * Math.sin(2 * angle) + f * Math.sin(2 * edge.angle);
         angle = Math.atan2(ay, ax) / 2;
       }
-      const length = meanLength * (0.6 + 0.8 * (n2 * 0.5 + 0.5)) * rr2(0.8, 1.2);
+      const length = Math.min(maxLength, meanLength * (0.6 + 0.8 * (n2 * 0.5 + 0.5)) * rr2(0.8, 1.2));
       const passes = Math.round(rr2(3, 7));
       const ux = Math.cos(angle), uy = Math.sin(angle); // along the mark
       const vx = -uy, vy = ux; // sideways
@@ -553,6 +557,7 @@ export function createMass(shape, x, y, scale) {
         strength,
         gradient,
         follow: State.mass.options?.follow ?? 0.5,
+        maxLength: State.mass.options?.length,
         baseAngle,
       });
       return;

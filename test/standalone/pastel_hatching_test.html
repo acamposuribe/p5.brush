@@ -197,6 +197,14 @@
             </label>
 
             <label>
+              Max length <small style="color:#8a9aa8;">(scribble, 0 = auto)</small>
+              <div class="slider-row">
+                <input type="range" id="length" min="0" max="200" step="1" value="0" />
+                <span class="val" id="lengthVal">auto</span>
+              </div>
+            </label>
+
+            <label>
               Follow edges
               <div class="slider-row">
                 <input type="range" id="follow" min="0" max="1" step="0.01" value="0.5" />
@@ -253,6 +261,7 @@
         outline:   false,
         style:     new URLSearchParams(location.search).get("style") ?? "arcs",
         follow:    0.5,
+        length:    0,
         dots:      new URLSearchParams(location.search).get("dots") === "gpu" ? "gpu" : "cpu",
       };
 
@@ -269,6 +278,7 @@
         outline:      document.getElementById("outline"),
         style:        document.getElementById("style"),
         followVal:    document.getElementById("followVal"),
+        lengthVal:    document.getElementById("lengthVal"),
         dotsRow:      document.getElementById("dotsRow"),
         dots:         document.getElementById("dots"),
         renderTime:   document.getElementById("renderTime"),
@@ -300,6 +310,7 @@
         controls.strengthVal.textContent  = formatValue(state.strength);
         controls.gradientVal.textContent  = formatValue(state.gradient);
         controls.followVal.textContent    = formatValue(state.follow);
+        controls.lengthVal.textContent    = state.length ? `${state.length}px` : "auto";
       }
 
       let renderQueued = false;
@@ -336,7 +347,9 @@
             strength:  state.strength,
             gradient:  state.gradient,
             outline:   state.outline,
-            ...(state.style === "scribble" ? { style: "scribble", follow: state.follow } : {}),
+            ...(state.style === "scribble"
+              ? { style: "scribble", follow: state.follow, ...(state.length ? { length: state.length } : {}) }
+              : {}),
           });
           brush.set("pen", "black", 1);
           brush.circle(x, y, r);
@@ -369,6 +382,7 @@
       bindSlider("strength",  "strength");
       bindSlider("gradient",  "gradient");
       bindSlider("follow",    "follow");
+      bindSlider("length",    "length");
       controls.style.value = state.style;
       controls.style.addEventListener("change", () => {
         state.style = controls.style.value;
