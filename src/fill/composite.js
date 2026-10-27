@@ -39,7 +39,7 @@ function needsFillMaskFramebuffer(Renderer, Cwidth, Cheight, Density) {
  * @param {number} Cwidth - Target width in sketch units.
  * @param {number} Cheight - Target height in sketch units.
  * @param {number} Density - Active pixel density.
- * @returns {{mask: object, ctx: null}} Fill mask resources.
+ * @returns {{mask: object}} Fill mask resources.
  */
 export function ensureFillCompositeResources(Renderer, Cwidth, Cheight, Density) {
   if (needsFillMaskFramebuffer(Renderer, Cwidth, Cheight, Density)) {
@@ -61,7 +61,7 @@ export function ensureFillCompositeResources(Renderer, Cwidth, Cheight, Density)
   const mask = Renderer.fillMaskFramebuffer;
   mask.dirtyRect ??= null;
   mask.isDrawn ??= false;
-  return { mask, ctx: null };
+  return { mask };
 }
 
 // =============================================================================

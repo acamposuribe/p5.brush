@@ -237,11 +237,7 @@ export const Mix = {
       Cwidth,
       Cheight,
       Density,
-      clearTarget,
-    ) ?? {
-      mask: null,
-      ctx: null,
-    };
+    ) ?? { mask: null };
 
     if (needsBlendSourceFramebuffer) {
       Renderer.blendSourceFramebuffer = ensureBlendSourceFramebuffer(
@@ -254,7 +250,6 @@ export const Mix = {
     }
 
     this.mask = fillResources.mask;
-    this.ctx = fillResources.ctx;
   },
 
   // =============================================================================

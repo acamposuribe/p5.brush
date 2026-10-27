@@ -237,8 +237,7 @@ export function flushFill() {
     (2 * e) / w - 1, (2 * f) / h - 1, 1,
   ]);
 
-  // Every write is confined to the mask's paint bounds: erasing outside
-  // painted pixels cannot change the result, and the clear can then be
+  // Every write is confined to the mask's paint bounds, so the clear can be
   // confined to the same region.
   if (dirtyRect) Mix.markDirtyRect(mask, dirtyRect);
   dirtyRect = null;
@@ -431,7 +430,7 @@ const WET_MAX_INDEX = 1000;
 const wetState = { index: 0, target: null, dirty: false };
 
 // Dry all paint drawn so far.
-export function dryFills() {
+function dryFills() {
   wetState.index = 0;
 }
 Mix.afterFlush = dryFills;
