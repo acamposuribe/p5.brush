@@ -187,6 +187,24 @@
               Outline
             </label>
 
+            <!-- experiment/gpu-dots branch: prototype mass styles (new build only) -->
+            <label>
+              Style
+              <select id="style">
+                <option value="arcs">Arcs (current)</option>
+                <option value="scribble">Scribble</option>
+                <option value="loops">Loops</option>
+              </select>
+            </label>
+
+            <label>
+              Follow edges
+              <div class="slider-row">
+                <input type="range" id="follow" min="0" max="1" step="0.01" value="0.5" />
+                <span class="val" id="followVal">0.5</span>
+              </div>
+            </label>
+
             <!-- experiment/gpu-dots branch: compares dist/ (2.3.0) with dist-exp/ (npm run build:exp) -->
             <label id="dotsRow" hidden>
               Build <small style="color:#8a9aa8;">(press G to flip)</small>
@@ -226,7 +244,7 @@
         b.scaleBrushes(3);
       }
 
-      let currentSeed = Math.floor(Math.random() * 900000) + 100000;
+      let currentSeed = Number(new URLSearchParams(location.search).get("seed")) || Math.floor(Math.random() * 900000) + 100000;
 
       const state = {
         brushType: "pastel",
@@ -234,6 +252,8 @@
         strength:  0.6,
         gradient:  0.1,
         outline:   false,
+        style:     new URLSearchParams(location.search).get("style") ?? "arcs",
+        follow:    0.5,
         dots:      new URLSearchParams(location.search).get("dots") === "gpu" ? "gpu" : "cpu",
       };
 
@@ -248,6 +268,8 @@
         gradient:     document.getElementById("gradient"),
         gradientVal:  document.getElementById("gradientVal"),
         outline:      document.getElementById("outline"),
+        style:        document.getElementById("style"),
+        followVal:    document.getElementById("followVal"),
         dotsRow:      document.getElementById("dotsRow"),
         dots:         document.getElementById("dots"),
         renderTime:   document.getElementById("renderTime"),
@@ -278,6 +300,7 @@
         controls.precisionVal.textContent = formatValue(state.precision);
         controls.strengthVal.textContent  = formatValue(state.strength);
         controls.gradientVal.textContent  = formatValue(state.gradient);
+        controls.followVal.textContent    = formatValue(state.follow);
       }
 
       let renderQueued = false;
@@ -314,6 +337,11 @@
             strength:  state.strength,
             gradient:  state.gradient,
             outline:   state.outline,
+            ...(state.style === "arcs" ? {} : {
+              style:   "scribble",
+              gesture: state.style === "loops" ? "loops" : "zigzag",
+              follow:  state.follow,
+            }),
           });
           brush.set("pen", "black", 1);
           brush.circle(x, y, r);
@@ -345,6 +373,12 @@
       bindSlider("precision", "precision");
       bindSlider("strength",  "strength");
       bindSlider("gradient",  "gradient");
+      bindSlider("follow",    "follow");
+      controls.style.value = state.style;
+      controls.style.addEventListener("change", () => {
+        state.style = controls.style.value;
+        queueRender();
+      });
 
       controls.brushType.addEventListener("change", () => {
         state.brushType = controls.brushType.value;

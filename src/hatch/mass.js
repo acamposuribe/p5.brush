@@ -6,7 +6,7 @@ import { State } from "../core/color.js";
 import { arc } from "../core/primitives.js";
 import { Polygon } from "../core/polygon.js";
 import { Plot } from "../core/plot.js";
-import { rr2, dist, calcAngle } from "../core/utils.js";
+import { rr2, dist, calcAngle, noise } from "../core/utils.js";
 import { fromDegrees, usesRadians } from "../core/runtime.js";
 import { HatchState, HatchSetState, hatch, getHatchLines } from "./hatch.js";
 import { BrushState, BrushSetState, getBrushParams, set } from "../stroke/stroke.js";
@@ -375,6 +375,127 @@ function drawMassArcs(polygon, pivotBias, toAngleUnit, toDegreesUnit) {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Scribble Style (EXPERIMENTAL)
+// ---------------------------------------------------------------------------
+
+/**
+ * Direction (radians, y down) of the shape's outline near a point — edge
+ * directions weighted by inverse squared distance, averaged as doubled angles
+ * so opposite edge orientations agree — and the distance to the nearest edge.
+ */
+function edgeDirection(shape, x, y) {
+  const rings = Array.isArray(shape) ? shape.map((p) => p.a) : [shape.a];
+  let cx = 0, cy = 0, nearest = Infinity;
+  for (const ring of rings) {
+    for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+      const [x0, y0] = ring[j], [x1, y1] = ring[i];
+      const dx = x1 - x0, dy = y1 - y0;
+      const len2 = dx * dx + dy * dy;
+      if (!len2) continue;
+      const t = Math.max(0, Math.min(1, ((x - x0) * dx + (y - y0) * dy) / len2));
+      const ex = x0 + t * dx - x, ey = y0 + t * dy - y;
+      const d2 = ex * ex + ey * ey;
+      if (d2 < nearest) nearest = d2;
+      const w = 1 / (d2 + 1);
+      const a = 2 * Math.atan2(dy, dx);
+      cx += w * Math.cos(a);
+      cy += w * Math.sin(a);
+    }
+  }
+  return { angle: Math.atan2(cy, cx) / 2, distance: Math.sqrt(nearest) };
+}
+
+/**
+ * Draws one polyline run (points [x, y, pressure]) as a brush stroke.
+ */
+function drawRun(run) {
+  if (run.length < 2) return;
+  const plot = new Plot("segments");
+  for (let i = 0; i < run.length - 1; i++) {
+    const [x0, y0, p0] = run[i], [x1, y1] = run[i + 1];
+    plot.addSegment(calcAngle(x0, y0, x1, y1), dist(x0, y0, x1, y1), p0, true);
+  }
+  const last = run[run.length - 1], prev = run[run.length - 2];
+  plot.endPlot(calcAngle(prev[0], prev[1], last[0], last[1]), last[2], true);
+  plot.draw(run[0][0], run[0][1], 1);
+}
+
+/**
+ * Builds a mass from many short hand-like scribbles instead of edge-to-edge
+ * arcs: marks start at evenly scattered points, drift in direction and size
+ * across the shape, optionally follow its outline, and are cut where they
+ * leave it. Tone comes from how much the marks overlap.
+ * @param {Polygon|Polygon[]} shape
+ * @param {object} o - { gap, strength, gradient, follow, gesture, baseAngle }
+ */
+function drawScribbleMass(shape, o) {
+  const bounds = getPolygonBounds(shape);
+  const size = Math.max(bounds.size, 1);
+  const base = (-o.baseAngle * Math.PI) / 180; // degrees (y up) → radians (y down)
+  const gap = o.gap;
+  const sample = Math.max(1, gap * 0.75);
+
+  // Mark size: a fraction of the shape, but always several brush widths long.
+  const meanLength = Math.max(gap * 8, Math.min(size * 0.12, gap * 40));
+  const meanWidth = gap * 7;
+  // Marks overlap ~1-3 times on average depending on strength.
+  const overlap = 1 + 2 * o.strength;
+  const cell = Math.sqrt((meanLength * meanWidth) / overlap);
+  const freq = 2.5 / size; // slow variation: a few cycles across the shape
+
+  for (let gy = bounds.minY; gy <= bounds.maxY; gy += cell) {
+    for (let gx = bounds.minX; gx <= bounds.maxX; gx += cell) {
+      const x = gx + rr2(0, cell), y = gy + rr2(0, cell);
+      if (!pointInMassShape(shape, x, y)) continue;
+
+      // Gradient: fewer marks further across the shape, perpendicular to the base angle.
+      const across = ((x - bounds.cx) * -Math.sin(base) + (y - bounds.cy) * Math.cos(base)) / size + 0.5;
+      if (rr2() < o.gradient * 1.5 * across) continue;
+
+      const n1 = noise(x * freq, y * freq);
+      const n2 = noise(x * freq + 40, y * freq + 40);
+      let angle = base + n1 * 0.6 + rr2(-0.12, 0.12);
+      if (o.follow > 0) {
+        // Follow the outline near edges, fading to the base direction inside,
+        // where nearby edges point every way and their average means little.
+        const edge = edgeDirection(shape, x, y);
+        const f = o.follow * Math.exp(-edge.distance / (0.15 * size));
+        // Blend as doubled angles so the edge direction has no preferred sign.
+        const ax = (1 - f) * Math.cos(2 * angle) + f * Math.cos(2 * edge.angle);
+        const ay = (1 - f) * Math.sin(2 * angle) + f * Math.sin(2 * edge.angle);
+        angle = Math.atan2(ay, ax) / 2;
+      }
+      const length = meanLength * (0.6 + 0.8 * (n2 * 0.5 + 0.5)) * rr2(0.8, 1.2);
+      const passes = Math.round(rr2(3, 7));
+      const ux = Math.cos(angle), uy = Math.sin(angle); // along the mark
+      const vx = -uy, vy = ux; // sideways
+      const loops = o.gesture === "loops";
+
+      // The hand sweeps back and forth (or loops) while creeping sideways.
+      const tEnd = passes * Math.PI;
+      const steps = Math.max(8, Math.ceil((passes * length * (loops ? 1.6 : 1)) / sample));
+      const phase = rr2(0, Math.PI * 2);
+      let run = [];
+      for (let k = 0; k <= steps; k++) {
+        const t = (k / steps) * tEnd;
+        const a = (length / 2) * Math.sin(t + phase);
+        // Loops add a sideways swing a third of the mark length: oval scribbles.
+        const side = gap * 1.5 * (t / Math.PI) - (passes * gap * 0.75) + (loops ? (length / 3) * Math.cos(t + phase) : 0);
+        const px = x + ux * a + vx * side;
+        const py = y + uy * a + vy * side;
+        if (pointInMassShape(shape, px, py)) {
+          run.push([px, py, 0.75 + 0.35 * Math.abs(Math.cos(t + phase))]);
+        } else {
+          drawRun(run);
+          run = [];
+        }
+      }
+      drawRun(run);
+    }
+  }
+}
+
 /**
  * Configures a hatch pass and immediately reinterprets the generated lines as arcs.
  * @param {Polygon|Polygon[]} polygon
@@ -425,6 +546,20 @@ export function createMass(shape, x, y, scale) {
 
   try {
     set(State.mass.brush, State.mass.color, 1);
+    if (State.mass.options?.style === "scribble") {
+      // Field off: scribbles get their organic drift from their own layout.
+      State.field = { ...State.field, isActive: false };
+      if (outline) drawMassOutline(pols[0]);
+      drawScribbleMass(pols[0], {
+        gap: hatchDist,
+        strength,
+        gradient,
+        follow: State.mass.options?.follow ?? 0.5,
+        gesture: State.mass.options?.gesture ?? "zigzag",
+        baseAngle,
+      });
+      return;
+    }
     wiggle(2 - precision);
     if (outline) drawMassOutline(pols[0]);
 
