@@ -2,7 +2,8 @@
 // p5.brush workload benchmark
 //
 // Runs the lines, hatch, mass, and fill workloads from
-// docs/rendering-model-audit.md §3.2 / §10.3, each on its own page.
+// docs/rendering-model-audit.md §3.2 / §10.3, plus the fill workloads from
+// docs/fill-plan.md step 0, each on its own page.
 // Per workload: WARMUP unmeasured runs, then RUNS measured runs, each
 // ending with brush.render() and a synchronous 1×1 readPixels(). Reports
 // median and p90 for two intervals, plus WebGL call counts from the final
@@ -29,7 +30,8 @@ const DENSITY = 1;
 const WARMUP = 2;
 const RUNS = 10;
 
-// Workload bodies run inside the page, with `brush` in scope.
+// Workload bodies run inside the page, with `brush` in scope. A workload is
+// either a body string (drawn on CANVAS at DENSITY) or { canvas, density, body }.
 const WORKLOADS = {
   lines: `
     brush.set("2B", "#222", 1);
@@ -55,9 +57,55 @@ const WORKLOADS = {
     brush.rect(-150, -150, 300, 300);
     brush.noFill();
   `,
+  // docs/fill-plan.md step 0: large, many-small, wash, and high-bleed fills.
+  fillLarge: { canvas: [1200, 1200], density: 2, body: `
+    brush.noStroke();
+    brush.fill("#2a6fb0", 150);
+    brush.fillBleed(0.3);
+    brush.fillTexture(0.6, 0.4);
+    brush.circle(0, 0, 450);
+    brush.noFill();
+  ` },
+  fillMany: { canvas: [1000, 1000], density: 2, body: `
+    brush.noStroke();
+    brush.fillBleed(0.25);
+    brush.fillTexture(0.5, 0.4);
+    const colors = ["#2a6fb0", "#d0402a", "#e8b030", "#3a9a50"];
+    for (let i = 0; i < 40; i++) {
+      brush.fill(colors[i % 4], 120);
+      brush.circle(-400 + (i % 8) * 110, -350 + Math.floor(i / 8) * 150, 60);
+    }
+    brush.noFill();
+  ` },
+  wash: { canvas: [1200, 1200], density: 2, body: `
+    brush.noStroke();
+    for (let i = 0; i < 4; i++) {
+      brush.wash(i % 2 ? "#2a6fb0" : "#b02a2a", 40);
+      brush.circle(0, 0, 450);
+    }
+    brush.noWash();
+  ` },
+  fillHighBleed: { canvas: [1000, 1000], density: 2, body: `
+    brush.noStroke();
+    brush.fillBleed(0.6);
+    brush.fillTexture(0.8, 0.6);
+    const colors = ["#2a6fb0", "#d0402a", "#e8b030", "#3a9a50"];
+    for (let i = 0; i < 8; i++) {
+      brush.fill(colors[i % 4], 140);
+      brush.rect(-400 + (i % 4) * 200, -300 + Math.floor(i / 4) * 300, 160, 240);
+    }
+    brush.noFill();
+  ` },
 };
 
-async function runWorkload(page, body) {
+// The density-2 fill workloads take seconds per run on SwiftShader, so they
+// use fewer runs there.
+const SOFTWARE_HEAVY = { warmup: 1, runs: 3 };
+
+const workloadSpec = (w) =>
+  typeof w === "string" ? { canvas: CANVAS, density: DENSITY, body: w } : w;
+
+async function runWorkload(page, { canvas: CANVAS, density: DENSITY, body }, WARMUP, RUNS) {
   return page.evaluate(({ body, CANVAS, DENSITY, WARMUP, RUNS }) => {
     const { brush } = window;
     const draw = new Function("brush", body);
@@ -107,10 +155,15 @@ try {
   console.log(`${meta.browser} · ${meta.gpu?.renderer}\n`);
 
   const results = {};
-  for (const [name, body] of Object.entries(WORKLOADS)) {
+  for (const [name, workload] of Object.entries(WORKLOADS)) {
     const page = await newPage(browser, baseUrl);
     try {
-      const r = await runWorkload(page, body);
+      const heavy = opts.angle === "swiftshader" && typeof workload !== "string";
+      const { warmup, runs } = heavy ? SOFTWARE_HEAVY : { warmup: WARMUP, runs: RUNS };
+      process.stdout.write(`${name} (${warmup}+${runs} runs)… `);
+      const t0 = Date.now();
+      const r = await runWorkload(page, workloadSpec(workload), warmup, runs);
+      console.log(`${((Date.now() - t0) / 1000).toFixed(1)} s`);
       if (page.harnessErrors.length) throw new Error(page.harnessErrors.join("\n"));
       const stats = (xs) => {
         const s = xs.slice().sort((a, b) => a - b);
@@ -149,7 +202,7 @@ try {
 
   await writeResults(opts.out, {
     meta,
-    setup: { canvas: CANVAS, density: DENSITY, warmup: WARMUP, runs: RUNS, seed: 1, noiseSeed: 1, workloads: WORKLOADS },
+    setup: { canvas: CANVAS, density: DENSITY, warmup: WARMUP, runs: RUNS, heavyRuns: opts.angle === "swiftshader" ? SOFTWARE_HEAVY : null, seed: 1, noiseSeed: 1, workloads: Object.fromEntries(Object.entries(WORKLOADS).map(([k, w]) => [k, workloadSpec(w)])) },
     results,
   });
 } catch (err) {
