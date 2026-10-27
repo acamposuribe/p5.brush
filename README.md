@@ -810,6 +810,9 @@ These functions control hatching and massing inside shapes, using repeated lines
       - `strength`: `0` to `1`. Controls how many of the three internal layers are drawn.
       - `gradient`: `0` to `1`. Passed through to hatch generation for spacing variation.
       - `outline`: `true` or `false`. If true, the first polygon is also outlined.
+      - `style`: `"arcs"` (default) or `"scribble"` (experimental). Arcs sweep across the whole shape in a few layers. Scribble builds the fill from many short, hand-like back-and-forth gestures that start at evenly scattered points, drift in direction and size, and are cut where they leave the shape. With scribble, `strength` sets how much the gestures overlap, `gradient` makes them lighter and shorter across the shape, and `precision` is not used.
+      - `length` (scribble only): the longest a single gesture can be, in canvas pixels. Gestures vary between about 40% and 100% of it. When omitted, gestures are sized to the shape.
+      - `follow` (scribble only): `0` to `1`. How much gestures near the outline turn to run along it. Default `0.25`.
   - **Usage**:
     ```javascript
     brush.mass("pastel", "#4b6cb7", {
@@ -819,6 +822,10 @@ These functions control hatching and massing inside shapes, using repeated lines
       outline: true,
     });
     brush.circle(width / 2, height / 2, 180);
+
+    // Experimental scribble style
+    brush.mass("HB", "#2a2a2a", { style: "scribble", length: 60, follow: 0.3 });
+    brush.rect(100, 100, 200, 150);
     ```
 
 ---
