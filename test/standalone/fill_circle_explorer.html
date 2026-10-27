@@ -244,8 +244,8 @@
             <label>
               Pigment split <span style="color:#8a9aa8">(C toggles 0)</span>
               <div class="slider-row">
-                <input type="range" id="shift" min="0" max="1" step="0.05" value="0.25" />
-                <span class="val" id="shiftVal">0.25</span>
+                <input type="range" id="shift" min="0" max="1" step="0.05" value="0.2" />
+                <span class="val" id="shiftVal">0.2</span>
               </div>
             </label>
             <label>
@@ -290,7 +290,7 @@
         seed:    100000 + Math.floor(Math.random() * 900000),
         shape:   "circle",
         style:   "classic",
-        shift:   0.25,
+        shift:   0.2,
       };
 
       const urlParams = new URLSearchParams(location.search);
@@ -685,7 +685,7 @@
       bindSlider("border",  controls.border,  controls.borderVal);
       bindSlider("shift",   controls.shift,   controls.shiftVal);
       // C flips the colour shift off and back to its last non-zero value.
-      let lastShift = state.shift || 0.25;
+      let lastShift = state.shift || 0.2;
       addEventListener("keydown", (e) => {
         if (e.key !== "c" && e.key !== "C") return;
         if (state.shift > 0) { lastShift = state.shift; state.shift = 0; }

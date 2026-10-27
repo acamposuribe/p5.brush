@@ -76,7 +76,7 @@ State.fill = {
   angle: null,
   scatter: true,
   style: "classic",
-  colorShift: 0.25,
+  colorShift: 0.2,
   isActive: false,
 };
 
@@ -137,11 +137,11 @@ export function fillTexture(_texture = 0.4, _border = 0.4, _scatter = true) {
  * with stronger bleed, blooms.
  * @param {"classic"|"watercolor"} [style="classic"]
  * @param {object} [options]
- * @param {number} [options.colorShift=0.25] - Watercolour only: how far the
+ * @param {number} [options.colorShift=0.2] - Watercolour only: how far the
  *   paint separates into a warmer and a cooler pigment across a wash, 0 (one
  *   pigment) to 1.
  */
-export function fillStyle(style = "classic", { colorShift = 0.25 } = {}) {
+export function fillStyle(style = "classic", { colorShift = 0.2 } = {}) {
   if (style !== "classic" && style !== "watercolor") {
     throw new Error('fillStyle() takes "classic" or "watercolor".');
   }
