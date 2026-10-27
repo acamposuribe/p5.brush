@@ -20,6 +20,7 @@ import {
   resetDirectShaderTracking,
 } from "../core/renderer_runtime.js";
 import { getAffineMatrix } from "../core/runtime.js";
+import { CLIP_UNIFORMS, setClipUniforms } from "./clip.js";
 import vertSrc from "./shader.vert";
 import fragSrc from "./shader.frag";
 import imgVertSrc from "./image.vert";
@@ -43,6 +44,8 @@ const Attr = {},
   Frag = {};
 
 // Cached matrix values — snapshotted once per stroke in snapshotMatrix()
+let _affineCircle = false;
+const _tipInverse = new Float32Array([1, 0, 0, 1]);
 let _ma = 1,
   _mb = 0,
   _mc = 0,
@@ -68,6 +71,16 @@ export function snapshotMatrix() {
   _halfW = Cwidth / 2;
   _halfH = Cheight / 2;
   _scale = Math.sqrt(_ma * _ma + _mb * _mb);
+  const xx = _ma * _ma + _mb * _mb;
+  const yy = _mc * _mc + _md * _md;
+  const xy = _ma * _mc + _mb * _md;
+  _affineCircle = Math.abs(xx - yy) > 1e-10 * Math.max(1, xx, yy) || Math.abs(xy) > 1e-10 * Math.max(1, xx, yy);
+  if (_affineCircle) {
+    _scale = Math.sqrt((xx + yy + Math.hypot(xx - yy, 2 * xy)) / 2);
+    const det = _ma * _md - _mb * _mc;
+    if (det) _tipInverse.set([_scale * _md / det, -_scale * _mb / det, -_scale * _mc / det, _scale * _ma / det]);
+    else _scale = 0; // A singular transform has no drawable circle area.
+  }
   _density = Density;
 }
 
@@ -102,6 +115,11 @@ const texCache = new Map();
 
 // Static unit-quad corners for gl.TRIANGLE_STRIP in quad-local space.
 const QUAD_CORNERS = new Float32Array([-1, -1,  1, -1,  -1, 1,  1, 1]);
+
+export function discardPendingStamps() {
+  circleCount = imgCount = 0;
+  circleDirtyRect = imgDirtyRect = null;
+}
 
 function ensureBrushMaskTarget() {
   const rendererMask = Renderer?.glMask;
@@ -144,6 +162,8 @@ function releaseGlResources() {
     texCache.clear();
     return;
   }
+  const activeProgram = gl.getParameter(gl.CURRENT_PROGRAM);
+  if (activeProgram === program || activeProgram === imgProgram) gl.useProgram(null);
   for (const tex of texCache.values()) gl.deleteTexture(tex);
   texCache.clear();
   if (program) gl.deleteProgram(program);
@@ -209,7 +229,7 @@ export function isReady() {
   ["a_position", "a_radius", "a_alpha"].forEach(
     (n) => (Attr[n] = gl.getAttribLocation(program, n)),
   );
-  ["u_matrix", "u_color"].forEach(
+  ["u_matrix", "u_color", "u_affineCircle", "u_tipInverse", ...CLIP_UNIFORMS].forEach(
     (n) => (Frag[n] = gl.getUniformLocation(program, n)),
   );
 
@@ -240,7 +260,7 @@ export function isReady() {
   ["a_corner", "a_pos", "a_size", "a_angle", "a_alpha"].forEach(
     (n) => (imgAttr[n] = gl.getAttribLocation(imgProgram, n)),
   );
-  ["u_proj", "u_color", "u_tex"].forEach(
+  ["u_proj", "u_color", "u_tex", "u_tipLinear", ...CLIP_UNIFORMS].forEach(
     (n) => (imgFrag[n] = gl.getUniformLocation(imgProgram, n)),
   );
 
@@ -293,6 +313,7 @@ export function isReady() {
  * the current runtime transform so that brush.rotate() and brush.scale() work correctly.
  */
 export function circle(x, y, diameter, alpha) {
+  if (_scale === 0 || diameter <= 0) return;
   // Grow buffer if needed
   if (circleCount >= bufferCapacity) {
     bufferCapacity *= 2;
@@ -343,6 +364,7 @@ export function circle(x, y, diameter, alpha) {
  * @param {number} [extraPadding=0] - Conservative extra padding in user units.
  */
 export function stampImage(x, y, size, angle, alpha, extraPadding = 0) {
+  if (size <= 0) return;
   if (imgCount >= imgCapacity) {
     imgCapacity *= 2;
     const next = new Float32Array(imgCapacity * IMG_FLOATS);
@@ -354,7 +376,9 @@ export function stampImage(x, y, size, angle, alpha, extraPadding = 0) {
   const py = y - _halfH;
   const screenX  = _ma * px + _mc * py + _mx + _halfW;
   const screenY  = _mb * px + _md * py + _my + _halfH;
-  const halfSize = (_density * size * _scale) / 2;
+  // Quad geometry and projection both use logical units. Density belongs only
+  // in the viewport and physical dirty bounds, unlike gl_PointSize.
+  const halfSize = size / 2;
   const extraRadius = _density * extraPadding * _scale;
 
   const base = imgCount * IMG_FLOATS;
@@ -367,13 +391,15 @@ export function stampImage(x, y, size, angle, alpha, extraPadding = 0) {
   // Bounding box: rotated square worst-case = circle of radius halfSize * √2
   const dScreenX = screenX * _density;
   const dScreenY = screenY * _density;
-  const boundsRadius = halfSize * 1.42 + extraRadius;
+  const c = Math.cos(angle), s = Math.sin(angle);
+  const reachX = _density * halfSize * (Math.abs(_ma * c + _mc * s) + Math.abs(-_ma * s + _mc * c)) + extraRadius;
+  const reachY = _density * halfSize * (Math.abs(_mb * c + _md * s) + Math.abs(-_mb * s + _md * c)) + extraRadius;
   imgDirtyRect = accumulateDirtyRect(
     imgDirtyRect,
-    dScreenX - boundsRadius - 1,
-    dScreenY - boundsRadius - 1,
-    dScreenX + boundsRadius + 1,
-    dScreenY + boundsRadius + 1,
+    dScreenX - reachX - 1,
+    dScreenY - reachY - 1,
+    dScreenX + reachX + 1,
+    dScreenY + reachY + 1,
   );
 
   imgCount++;
@@ -414,6 +440,8 @@ export function glDrawImages(p5img, src) {
   const color = State.stroke.color._array;
   gl.uniform4f(imgFrag.u_color, ...color);
   gl.uniformMatrix4fv(imgFrag.u_proj, false, getProjectionMatrix());
+  gl.uniformMatrix2fv(imgFrag.u_tipLinear, false, [_ma, _mb, _mc, _md]);
+  setClipUniforms(gl, imgFrag);
 
   gl.bindVertexArray(imgVao);
   gl.bindBuffer(gl.ARRAY_BUFFER, imgInstanceBuf);
@@ -486,6 +514,9 @@ export function glDraw() {
   // Set uniforms and draw
   gl.uniform4f(Frag.u_color, ...color);
   gl.uniformMatrix4fv(Frag.u_matrix, false, getProjectionMatrix());
+  gl.uniform1i(Frag.u_affineCircle, _affineCircle);
+  gl.uniformMatrix2fv(Frag.u_tipInverse, false, _tipInverse);
+  setClipUniforms(gl, Frag);
   gl.drawArrays(gl.POINTS, 0, circleCount);
 
   gl.bindVertexArray(null);

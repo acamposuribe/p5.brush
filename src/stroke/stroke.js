@@ -29,9 +29,10 @@ import {
   noise,
   _onSeed, 
   cos,
-  sin
+  sin,
+  cossin,
 } from "../core/utils.js";
-import { createColor } from "../core/runtime.js";
+import { createColor, getAffineMatrix } from "../core/runtime.js";
 import { Position, isFieldReady } from "../core/flowfield.js";
 import { Polygon } from "../core/polygon.js";
 import { Plot } from "../core/plot.js";
@@ -47,6 +48,7 @@ import {
   stampImage,
   invalidateTexEntry,
   snapshotMatrix,
+  discardPendingStamps,
 } from "./gl_draw.js";
 
 initStrokeComposite(); // Register the stroke composite system for offscreen mask rendering and compositing.
@@ -64,6 +66,7 @@ State.stroke = {
   type: "HB",
   isActive: false,
   opacity: 1,
+  clip: null,
 };
 
 let list = new Map();
@@ -165,6 +168,9 @@ export function normalizePressure(p) {
 }
 
 export function add(name, params) {
+  if (params.spacing !== undefined && (!Number.isFinite(params.spacing) || params.spacing <= 0)) {
+    throw new Error(`Brush "${name}" spacing must be finite and greater than zero.`);
+  }
   const validTypes = ["marker", "custom", "image", "spray"];
   params.type = validTypes.includes(params.type) ? params.type : "default";
   if (params.markerTip === undefined) params.markerTip = true;
@@ -195,8 +201,11 @@ export function add(name, params) {
     g.translate(250, 250); // centre origin
     g.scale(5); // 100 user units → 500 px
     g.noStroke();
-    params.tip(g);
-    g.pop();
+    try {
+      params.tip(g);
+    } finally {
+      g.pop();
+    }
     T.imageToWhite(g); // dark → high alpha, RGB → white for tint
     T.tips.set(key, g);
     params.tipKey = key;
@@ -233,6 +242,9 @@ export function getBrushParams(brushName) {
  * @param {number} scaleFactor - The scaling factor to apply.
  */
 export function scaleBrushes(scaleFactor) {
+  if (!Number.isFinite(scaleFactor) || scaleFactor <= 0) {
+    throw new Error("scaleBrushes() factor must be finite and greater than zero.");
+  }
   for (const { param } of list.values()) {
     if (param) {
       param.weight *= scaleFactor;
@@ -302,6 +314,14 @@ export function noStroke() {
  */
 export function clip(region) {
   isCanvasReady();
+  if (!Array.isArray(region) || region.length !== 4 || !region.every(Number.isFinite)) {
+    throw new Error("clip() requires four finite coordinates [x1, y1, x2, y2].");
+  }
+  const [x1, y1, x2, y2] = region;
+  State.stroke.clip = {
+    bounds: [Math.min(x1, x2), Math.min(y1, y2), Math.max(x1, x2), Math.max(y1, y2)],
+    matrix: { ...getAffineMatrix() },
+  };
   return region;
 }
 
@@ -309,7 +329,7 @@ export function clip(region) {
  * Disables the clipping region.
  */
 export function noClip() {
-  return;
+  State.stroke.clip = null;
 }
 
 // ---------------------------------------------------------------------------
@@ -327,6 +347,9 @@ const current = {};
  * @param {Plot|false} [plot=false] - Plot object for path-following strokes.
  */
 function initializeDrawingState(x, y, length, plot = false) {
+  if (![x, y, length].every(Number.isFinite) || length < 0) {
+    throw new Error("Stroke coordinates and length must be finite, with a non-negative length.");
+  }
   snapshotMatrix();
   _position = new Position(x + Cwidth / 2, y + Cheight / 2);
   _length = length;
@@ -346,31 +369,53 @@ _onSeed(() => {
  * @param {boolean} isPlot - True if plotting a shape.
  */
 function draw(angleScale, isPlot) {
+  if (!Number.isFinite(angleScale) || (isPlot && angleScale <= 0)) {
+    throw new Error("Stroke direction/scale must be finite, with a positive plot scale.");
+  }
+  const stepSize = list.get(State.stroke.type)?.param.spacing ?? 1;
+  const totalSteps = Math.round((_length * (isPlot ? angleScale : 1)) / stepSize);
+  if (!Number.isFinite(stepSize) || stepSize <= 0 || !Number.isFinite(totalSteps) || totalSteps > 10_000_000) {
+    throw new Error("Stroke spacing must be positive and produce a bounded number of steps.");
+  }
   if (!isPlot) _dir = angleScale;
-  saveState();
+  try {
+    saveState();
+    current.pressureCount = 10;
+    current.cachedPressure = undefined;
 
-  const stepSize = spacing();
-  const totalSteps = Math.round(
-    (_length * (isPlot ? angleScale : 1)) / stepSize,
-  );
-  current.pressureCount = 10;
-  current.cachedPressure = undefined;
-
-  const neededGaussians = totalSteps * 2;
-  while (gaussians.length < neededGaussians) {
-    gaussians.push(gaussian());
-  }
-
-  for (let i = 0; i < totalSteps; i++) {
-    if (isPlot) _cachedPlotAngle = _plot.angle(_position.plotted);
-    tip();
-    if (isPlot) {
-      _position.plotTo(_plot, stepSize, stepSize, angleScale, _cachedPlotAngle);
-    } else {
-      _position._moveToDegrees(angleScale, stepSize, stepSize);
+    const neededGaussians = totalSteps * 2;
+    while (gaussians.length < neededGaussians) {
+      gaussians.push(gaussian());
     }
+
+    let stepX = 0, stepY = 0;
+    if (!isPlot) {
+      const direction = cossin(-angleScale);
+      stepX = stepSize * direction[0];
+      stepY = stepSize * direction[1];
+    }
+
+    for (let i = 0; i < totalSteps; i++) {
+      if (isPlot) _cachedPlotAngle = _plot.angle(_position.plotted);
+      tip();
+      if (isPlot) {
+        _position.plotTo(_plot, stepSize, stepSize, angleScale, _cachedPlotAngle);
+      } else if (!State.field.isActive) {
+        // Retain repeated additions (not start + i * step) for identical rounding.
+        _position.x += stepX;
+        _position.y += stepY;
+        _position.plotted += stepSize;
+      } else {
+        _position._moveToDegrees(angleScale, stepSize, stepSize);
+      }
+    }
+    restoreState();
+  } catch (error) {
+    discardPendingStamps();
+    current.cachedPressure = undefined;
+    current.pressureCount = 10;
+    throw error;
   }
-  restoreState();
 }
 
 /**
@@ -379,7 +424,7 @@ function draw(angleScale, isPlot) {
 function saveState() {
   current.seed = rr() * 999999;
   const { param } = list.get(State.stroke.type) ?? {};
-  if (!param) return;
+  if (!param) throw new Error(`Brush "${State.stroke.type}" is not registered.`);
   current.p = param;
 
   // Set pressure values for the stroke
@@ -466,6 +511,9 @@ function calculatePressure() {
     current.pressureCount = 0;
   }
   current.pressureCount++;
+  if (!Number.isFinite(current.cachedPressure)) {
+    throw new Error("Brush pressure must be finite.");
+  }
   return current.cachedPressure;
 }
 
@@ -530,14 +578,6 @@ function calculateAlpha() {
     : current.p.opacity / Math.min(State.stroke.weight, 1.3);
 }
 
-/**
- * Calculates the step spacing based on the current brush parameters.
- * @returns {number} The spacing value.
- */
-function spacing() {
-  return current.p?.spacing ?? 1;
-}
-
 function getImageTipOverscan() {
   const maxPressure = Math.max(1, current.max ?? 1);
   const scatterReach = State.stroke.weight * current.p.scatter;
@@ -558,11 +598,15 @@ function getImageTipOverscan() {
  * @param {number} pressure - Current pressure.
  */
 function drawSpray(pressure) {
+  if (pressure <= 0) return;
+  const iterations = Math.ceil(current.p.grain / pressure);
+  if (!Number.isFinite(iterations) || iterations > 1_000_000) {
+    throw new Error("Spray pressure/grain must produce a bounded number of dots.");
+  }
   const vibration =
     State.stroke.weight * current.p.scatter * pressure +
     (State.stroke.weight * rArray(gaussians) * current.p.scatter) / 3;
   const sw = current.p.weight * rr(0.9, 1.1);
-  const iterations = Math.ceil(current.p.grain / pressure);
   for (let j = 0; j < iterations; j++) {
     const r = rr(0.9, 1.1);
     const rX = r * vibration * rr(-1, 1);
@@ -878,13 +922,16 @@ for (let s of _standard_brushes) {
  */
 Polygon.prototype.draw = function (_brush = false, _color, _weight) {
   let state = BrushState();
-  if (_brush) set(_brush, _color, _weight);
-  if (state.isActive) {
-    for (let s of this.sides) {
-      line(s[0].x, s[0].y, s[1].x, s[1].y);
+  try {
+    if (_brush) set(_brush, _color, _weight);
+    if (State.stroke.isActive) {
+      for (let s of this.sides) {
+        line(s[0].x, s[0].y, s[1].x, s[1].y);
+      }
     }
+  } finally {
+    BrushSetState(state);
   }
-  BrushSetState(state);
   return this;
 };
 
@@ -937,7 +984,7 @@ const T = {
       let average =
         (image.pixels[i] + image.pixels[i + 1] + image.pixels[i + 2]) / 3;
       image.pixels[i] = image.pixels[i + 1] = image.pixels[i + 2] = 255;
-      image.pixels[i + 3] = 255 - average;
+      image.pixels[i + 3] = (255 - average) * (image.pixels[i + 3] / 255);
     }
     image.updatePixels();
   },
@@ -954,6 +1001,10 @@ const T = {
         (src) =>
           loadImageTip(src, T.imageToWhite).then((p5img) => {
             this.tips.set(src, p5img);
+          }).catch((error) => {
+            // A failed source must not poison all later, unrelated tip loads.
+            if (!this.tips.get(src)) this.tips.delete(src);
+            throw error;
           }),
       ),
     );

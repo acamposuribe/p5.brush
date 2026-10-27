@@ -54,6 +54,12 @@ export function hatch(
   angle = 45,
   options = { rand: false, continuous: false, gradient: false }
 ) {
+  if (!Number.isFinite(dist) || dist <= 0) {
+    throw new Error("hatch() distance must be finite and greater than zero.");
+  }
+  if (!Number.isFinite(angle)) {
+    throw new Error("hatch() angle must be finite.");
+  }
   let s = State.hatch;
   s.isActive = true;
   s.dist = dist;
@@ -171,7 +177,11 @@ function scanlineHatch(polygons, angle, dist, gradient) {
   let Y = minY + dist * 0.5,
     step = dist;
   const useGradient = gradient !== 1;
+  let scanCount = 0;
   while (Y < maxY) {
+    if (++scanCount > 1_000_000 || !(Y + step > Y)) {
+      throw new Error("Hatch spacing is too small to advance safely.");
+    }
     cx.length = 0;
     for (let i = 0; i < eLen; i++) {
       const y1 = _eY1[i], y2 = _eY2[i];
@@ -240,8 +250,11 @@ function getHatchSegments(polygons, dist, angle, gradient) {
  */
 function withHatchStyle(drawFn) {
   const save = BrushState();
-  drawFn();
-  BrushSetState(save);
+  try {
+    drawFn();
+  } finally {
+    BrushSetState(save);
+  }
 }
 
 /**
@@ -354,9 +367,12 @@ export function createHatch(polygons) {
  */
 Polygon.prototype.hatch = function (_dist = false, _angle, _options) {
   let state = HatchState();
-  if (_dist) hatch(_dist, _angle, _options);
-  if (State.hatch.isActive) createHatch(this);
-  HatchSetState(state);
+  try {
+    if (_dist !== false) hatch(_dist, _angle, _options);
+    if (State.hatch.isActive) createHatch(this);
+  } finally {
+    HatchSetState(state);
+  }
   return this;
 };
 

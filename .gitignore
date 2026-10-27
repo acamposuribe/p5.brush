@@ -1,4 +1,5 @@
 node_modules/
-workspace/
+workspace/*
+!workspace/performance-and-bug-audit.md
 
 .DS_Store

@@ -71,12 +71,13 @@ export class Plot {
   /**
    * Calculates the pressure at a given distance along the plot.
    * Inlined for performance — pressure values never need angle wrap-around.
-   * NOTE: relies on this.index / this.suma being set by a prior angle() call.
+   * Public queries may arrive in any order; calcIndex retains its fast cache.
    * @param {number} _d - The distance along the plot.
    * @returns {number} - The interpolated pressure.
    */
   pressure(_d) {
     if (_d > this.length) return this.pres[this.pres.length - 1];
+    this.calcIndex(_d);
     const p0 = this.pres[this.index];
     const p1 = this.pres[this.index + 1]; // always defined: pres.length = segments.length+1
     const seg = this.segments[this.index];
@@ -144,16 +145,18 @@ export class Plot {
     isFieldReady(); // Ensure that the drawing environment is prepared
     const step = _side < 0 ? 4 : 1;
     const vertices = [];
-    const numSteps = Math.round(this.length / step);
+    if (!Number.isFinite(_scale) || _scale <= 0) throw new Error("Plot scale must be finite and greater than zero.");
+    const numSteps = Math.round(this.length * _scale / step);
+    if (!Number.isFinite(numSteps) || numSteps > 10_000_000) throw new Error("Plot is too large to sample safely.");
     const pos = new Position(_x + Cwidth / 2, _y + Cheight / 2);
     let pside = 0;
     let prevIdx = 0;
 
     for (let i = 0; i < numSteps; i++) {
-      pos.plotTo(this, step, step);
+      pos.plotTo(this, step, step, _scale);
       const idx = this.index; // already set by angle() inside plotTo
       pside += step;
-      let maxSize = _side <= 0 ? 8 : Math.max(this.segments[idx] * _side * rr2(0.7, 1.3), 20);
+      let maxSize = _side <= 0 ? 8 : Math.max(this.segments[idx] * _scale * _side * rr2(0.7, 1.3), 20);
       if ((pside >= maxSize || idx >= prevIdx) && pos.x) {
         vertices.push([pos.x - Cwidth / 2, pos.y - Cheight / 2]);
         pside = 0;

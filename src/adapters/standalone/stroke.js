@@ -15,6 +15,7 @@ function cssColor(value) {
 
 function buildTipSurface(canvas) {
   const ctx = get2DContext(canvas, true);
+  const styles = [];
   const surface = {
     canvas,
     drawingContext: ctx,
@@ -43,10 +44,14 @@ function buildTipSurface(canvas) {
 
     push() {
       ctx.save();
+      styles.push([surface._fillStyle, surface._strokeStyle, surface._lineWidth]);
     },
 
     pop() {
+      const saved = styles.pop();
+      if (!saved) return;
       ctx.restore();
+      [surface._fillStyle, surface._strokeStyle, surface._lineWidth] = saved;
     },
 
     translate(x, y) {
@@ -167,12 +172,16 @@ function loadImageTip(src, imageToWhite) {
 
     const nativeImg = new NativeImage();
     nativeImg.onload = () => {
-      const surface = buildTipSurface(
-        create2DCanvas(nativeImg.naturalWidth, nativeImg.naturalHeight, true),
-      );
-      surface.drawingContext.drawImage(nativeImg, 0, 0);
-      imageToWhite(surface);
-      resolve(surface);
+      try {
+        const surface = buildTipSurface(
+          create2DCanvas(nativeImg.naturalWidth, nativeImg.naturalHeight, true),
+        );
+        surface.drawingContext.drawImage(nativeImg, 0, 0);
+        imageToWhite(surface);
+        resolve(surface);
+      } catch (error) {
+        reject(error);
+      }
     };
     nativeImg.onerror = () =>
       reject(new Error(`Failed to load image tip: ${src}`));

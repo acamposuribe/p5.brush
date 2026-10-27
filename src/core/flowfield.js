@@ -21,16 +21,23 @@ import { getAffineMatrix } from "./runtime.js";
 // =============================================================================
 
 let isLoaded = false;
+let fieldWidth = 0, fieldHeight = 0;
 
 /**
  * Ensures the field system is initialized and ready for use.
  * If the field is not loaded, it initializes the mixing system and creates the field.
  */
 export function isFieldReady() {
-  if (!isLoaded) {
-    isMixReady(); // Ensure the mixing system is ready
-    createField(); // Initialize the field
+  if (!isLoaded || fieldWidth !== Cwidth || fieldHeight !== Cheight) {
+    isMixReady();
+    createField();
+    if (!isLoaded) addStandard();
+    else for (const entry of list.values()) entry.field = null;
+    fieldWidth = Cwidth;
+    fieldHeight = Cheight;
     isLoaded = true;
+    const active = list.get(State.field.current);
+    if (State.field.isActive && active && !active.field) active.field = generateField(active, 0);
   }
 }
 
@@ -125,6 +132,9 @@ export class Position {
    * @param {number} _step_length - The length of each step.
    */
   moveTo(_dir, _length, _step_length = 1) {
+    if (![_dir, _length, _step_length].every(Number.isFinite) || _length < 0 || _step_length <= 0 || _length / _step_length > 10_000_000) {
+      throw new Error("Position movement requires finite values, a non-negative length and a positive step.");
+    }
     const dir = toDegreesSigned(_dir);
     if (State.field.isActive) {
       this.movePos(dir, _length, _step_length);
@@ -149,10 +159,6 @@ export class Position {
    * Precomputes trig once and applies dx/dy directly.
    */
   _moveConstant(_dir, _length, _step) {
-    if (!this.isIn()) {
-      this.plotted += _step;
-      return;
-    }
     const steps = _length / _step;
     const _cs = cossin(-_dir);
     const dx = _step * _cs[0],
@@ -189,10 +195,6 @@ export class Position {
     precomputedAngle = undefined,
   ) {
     const scaleFactor = _scale || 1;
-    if (!this.isIn()) {
-      this.plotted += _step / scaleFactor;
-      return;
-    }
     const steps = _length / _step;
     const fieldActive = State.field.isActive;
     const usePlot = !!_scale;
@@ -203,7 +205,7 @@ export class Position {
           : usePlot
             ? _dirPlot.angle(this.plotted)
             : _dirPlot;
-      const angle = (fieldActive ? this.angle(true) : 0) - plotAngle;
+      const angle = (fieldActive ? this.angle() : 0) - plotAngle;
       // Calculate new position — cossin() computes the index once for both cos and sin
       const _cs = cossin(angle);
       this.update(this.x + _step * _cs[0], this.y + _step * _cs[1]);
@@ -273,7 +275,6 @@ function createField() {
   top_y = -0.5 * Cheight; // Top boundary of the field
   num_columns = Math.round((2 * Cwidth) / resolution); // Number of columns in the grid
   num_rows = Math.round((2 * Cheight) / resolution); // Number of columns in the grid
-  addStandard(); // Add default vector field
 }
 
 /**
@@ -324,6 +325,7 @@ export function refreshField(t = 0) {
       "No field is currently active. Call brush.field('name') to activate one before refreshing.",
     );
   }
+  isFieldReady();
   const currentField = list.get(State.field.current);
   currentField.field = generateField(currentField, t);
 }

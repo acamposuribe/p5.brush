@@ -132,15 +132,15 @@ function getAngleInverseConverter() {
  * @returns {{minX:number,minY:number,maxX:number,maxY:number,cx:number,cy:number,size:number}}
  */
 function getPolygonBounds(polygon) {
-  const points = Array.isArray(polygon)
-    ? polygon.flatMap((part) => part?.a ?? [])
-    : polygon?.a ?? [];
+  const polygons = Array.isArray(polygon) ? polygon : [polygon];
   let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-  for (const [x, y] of points) {
-    if (x < minX) minX = x;
-    if (y < minY) minY = y;
-    if (x > maxX) maxX = x;
-    if (y > maxY) maxY = y;
+  for (const part of polygons) {
+    for (const [x, y] of part?.a ?? []) {
+      if (x < minX) minX = x;
+      if (y < minY) minY = y;
+      if (x > maxX) maxX = x;
+      if (y > maxY) maxY = y;
+    }
   }
   return {
     minX,
@@ -176,12 +176,11 @@ function getPivotBias(angleDeg) {
 /**
  * Places the global pivot anchor outside the polygon, along the selected bias.
  * Distance varies per layer while the bias stays fixed for the whole mass.
- * @param {Polygon|Polygon[]} polygon
+ * @param {{cx:number,cy:number,size:number}} bounds
  * @param {[number, number]} bias
  * @returns {{x:number,y:number}}
  */
-function getPivotAnchor(polygon, bias) {
-  const bounds = getPolygonBounds(polygon);
+function getPivotAnchor(bounds, bias) {
   const offset = bounds.size * rr2(0.6, 1.4);
   const [sx, sy] = bias;
   return {
@@ -216,13 +215,13 @@ function projectAnchorToBisector(anchor, x1, y1, x2, y2) {
   };
 }
 
-function biasArrayMassCenter(shape, center, x1, y1, x2, y2) {
+function biasArrayMassCenter(shape, shapeSize, center, x1, y1, x2, y2) {
   if (!Array.isArray(shape)) return center;
 
   const mx = (x1 + x2) / 2;
   const my = (y1 + y2) / 2;
   const chord = Math.hypot(x2 - x1, y2 - y1);
-  const size = Math.max(getPolygonBounds(shape).size, chord, 1);
+  const size = Math.max(shapeSize, chord, 1);
   const shortness = 1 - Math.min(1, chord / (size * 0.42));
   const bias = 0.08 + shortness * 0.18;
 
@@ -344,13 +343,15 @@ function splitSegment(seg) {
  * @param {[number, number]} pivotBias
  */
 function drawMassArcs(polygon, pivotBias, toAngleUnit, toDegreesUnit) {
-  const anchor = getPivotAnchor(polygon, pivotBias);
+  // Geometry is fixed for this pass; avoid rescanning array contours per arc.
+  const bounds = getPolygonBounds(polygon);
+  const anchor = getPivotAnchor(bounds, pivotBias);
   for (const seg of getHatchLines(polygon)) {
     const parts = !seg.isConnector && rr2() < 0.35 ? splitSegment(seg) : [seg];
     for (const part of parts) {
       const projectedCenter = projectAnchorToBisector(anchor, part.x1, part.y1, part.x2, part.y2);
       const center = projectedCenter
-        ? biasArrayMassCenter(polygon, projectedCenter, part.x1, part.y1, part.x2, part.y2)
+        ? biasArrayMassCenter(polygon, bounds.size, projectedCenter, part.x1, part.y1, part.x2, part.y2)
         : null;
       if (!center) continue;
       const radius = dist(center.x, center.y, part.x1, part.y1);
@@ -414,65 +415,70 @@ export function createMass(shape, x, y, scale) {
   const gradient = State.mass.options?.gradient ?? 0.1;
   const outline = State.mass.options?.outline ?? false;
   const scatter = getBrushParams(State.mass.brush)?.scatter ?? 0;
-  const hatchDist = 1.6 * rr2(scatter * 0.65, scatter * 0.85) - 0.4 * gradient;
+  const derivedDist = 1.6 * rr2(scatter * 0.65, scatter * 0.85) - 0.4 * gradient;
+  // Preserve every positive spacing; only replace the values that cannot scan.
+  const hatchDist = Number.isFinite(derivedDist) && derivedDist > 0 ? derivedDist : 0.1;
   const baseAngle = rr2(-90, 90);
   const pivotBias = getPivotBias(baseAngle);
   const toAngleUnit = getAngleConverter();
   const toDegreesUnit = getAngleInverseConverter();
 
-  set(State.mass.brush, State.mass.color, 1);
-  wiggle(2 - precision);
-  if (outline) drawMassOutline(pols[0]);
+  try {
+    set(State.mass.brush, State.mass.color, 1);
+    wiggle(2 - precision);
+    if (outline) drawMassOutline(pols[0]);
 
-  drawMassPass(
-    pols[0],
-    hatchDist * 0.9,
-    fromDegrees(baseAngle),
-    {
-      gradient,
-      rand: 2 - 2 * precision,
-      continuous: true,
-    },
-    pivotBias,
-    toAngleUnit,
-    toDegreesUnit,
-  );
-
-  if (strength > 0.33) {
     drawMassPass(
-      pols[1],
-      hatchDist,
-      fromDegrees(baseAngle + 20 * rr2(-1, 1)),
+      pols[0],
+      hatchDist * 0.9,
+      fromDegrees(baseAngle),
       {
         gradient,
-        rand: 0.6 - 0.6 * precision,
+        rand: 2 - 2 * precision,
         continuous: true,
       },
       pivotBias,
       toAngleUnit,
       toDegreesUnit,
     );
-  }
 
-  if (strength > 0.66) {
-    drawMassPass(
-      pols[2],
-      hatchDist * 0.8,
-      fromDegrees(baseAngle + 15 * rr2(-1, 1)),
-      {
-        gradient,
-        rand: 0.6 - 0.6 * precision,
-        continuous: true,
-      },
-      pivotBias,
-      toAngleUnit,
-      toDegreesUnit,
-    );
-  }
+    if (strength > 0.33) {
+      drawMassPass(
+        pols[1],
+        hatchDist,
+        fromDegrees(baseAngle + 20 * rr2(-1, 1)),
+        {
+          gradient,
+          rand: 0.6 - 0.6 * precision,
+          continuous: true,
+        },
+        pivotBias,
+        toAngleUnit,
+        toDegreesUnit,
+      );
+    }
 
-  BrushSetState(brushState);
-  HatchSetState(hatchState);
-  State.field = { ...fieldState };
+    if (strength > 0.66) {
+      drawMassPass(
+        pols[2],
+        hatchDist * 0.8,
+        fromDegrees(baseAngle + 15 * rr2(-1, 1)),
+        {
+          gradient,
+          rand: 0.6 - 0.6 * precision,
+          continuous: true,
+        },
+        pivotBias,
+        toAngleUnit,
+        toDegreesUnit,
+      );
+    }
+
+  } finally {
+    BrushSetState(brushState);
+    HatchSetState(hatchState);
+    State.field = { ...fieldState };
+  }
 }
 
 export function createMassArray(polygons) {

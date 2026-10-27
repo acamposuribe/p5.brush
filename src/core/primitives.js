@@ -282,6 +282,8 @@ export function spline(_array_points, _curvature = 0.5) {
  * @returns {Plot} - The generated Plot object.
  */
 function _createSpline(points, curvature = 0.5, close = false) {
+  // Two points define a line regardless of the requested curvature.
+  if (points.length === 2) curvature = 0;
   const plotType = curvature === 0 ? "segments" : "curve";
   const p = new Plot(plotType);
   const PI2 = Math.PI * 2;

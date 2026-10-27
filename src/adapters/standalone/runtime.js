@@ -78,11 +78,29 @@ export class Color {
         this.gl = this._array;
         return;
       }
-      this.hex = this.standardize(r);
-      const rgb = this.hexToRgb(this.hex);
-      this.r = rgb.r;
-      this.g = rgb.g;
-      this.b = rgb.b;
+      const parsed = this.standardize(r);
+      if (parsed.startsWith("#")) {
+        const rgb = this.hexToRgb(parsed);
+        this.r = rgb.r;
+        this.g = rgb.g;
+        this.b = rgb.b;
+      } else {
+        const rgba = /^rgba?\(\s*([\d.]+)\s*,\s*([\d.]+)\s*,\s*([\d.]+)\s*(?:,\s*([\d.]+))?\s*\)$/i.exec(parsed);
+        if (rgba) {
+          [this.r, this.g, this.b] = rgba.slice(1, 4).map(Number);
+          alpha = rgba[4] === undefined ? 1 : Number(rgba[4]);
+        } else {
+          // Other browser-supported CSS spaces may not serialize as hex/rgb.
+          const ctx = getColorContext();
+          ctx.clearRect(0, 0, 1, 1);
+          ctx.fillStyle = parsed;
+          ctx.fillRect(0, 0, 1, 1);
+          const pixel = ctx.getImageData(0, 0, 1, 1).data;
+          [this.r, this.g, this.b] = pixel;
+          alpha = pixel[3] / 255;
+        }
+      }
+      this.hex = this.rgbToHex(this.r, this.g, this.b);
     } else {
       // Array form, e.g. [255, 0, 0] or [255, 0, 0, 0.5]. p5's own color()
       // accepts arrays and the p5 adapter forwards its arguments straight to

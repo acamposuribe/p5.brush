@@ -39,6 +39,11 @@ export default [
         sourcemap: true,
       },
       {
+        file: "dist/p5.brush.cjs",
+        format: "cjs",
+        sourcemap: true,
+      },
+      {
         file: "dist/p5.brush.esm.js",
         format: "esm",
         sourcemap: true,
@@ -53,6 +58,11 @@ export default [
         file: "dist/brush.js",
         format: "umd",
         name: "brush",
+        sourcemap: true,
+      },
+      {
+        file: "dist/brush.cjs",
+        format: "cjs",
         sourcemap: true,
       },
       {

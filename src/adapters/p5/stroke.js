@@ -19,18 +19,22 @@ function loadImageTip(src, imageToWhite) {
   return new Promise((resolve, reject) => {
     const nativeImg = new window.Image();
     nativeImg.onload = () => {
-      const factory = getP5BrushFactory();
-      if (!factory?.createImage) {
-        reject(new Error("p5 image tip loading requires an active renderer or instance."));
-        return;
+      try {
+        const factory = getP5BrushFactory();
+        if (!factory?.createImage) {
+          reject(new Error("p5 image tip loading requires an active renderer or instance."));
+          return;
+        }
+        const p5img = factory.createImage(
+          nativeImg.naturalWidth,
+          nativeImg.naturalHeight,
+        );
+        p5img.drawingContext.drawImage(nativeImg, 0, 0);
+        imageToWhite(p5img);
+        resolve(p5img);
+      } catch (error) {
+        reject(error);
       }
-      const p5img = factory.createImage(
-        nativeImg.naturalWidth,
-        nativeImg.naturalHeight,
-      );
-      p5img.drawingContext.drawImage(nativeImg, 0, 0);
-      imageToWhite(p5img);
-      resolve(p5img);
     };
     nativeImg.onerror = () =>
       reject(new Error(`Failed to load image tip: ${src}`));

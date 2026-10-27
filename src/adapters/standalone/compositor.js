@@ -8,24 +8,30 @@ import {
   blitDefaultFramebufferSource,
 } from "../../core/compositor_runtime.js";
 
-function clearTarget(renderer, target, isFramebufferTarget) {
+function clearTarget(renderer, target, isFramebufferTarget, rect = null) {
   if (!target) return;
 
   if (isFramebufferTarget(target)) {
     const gl = renderer.drawingContext;
-    const previousFramebuffer = gl.getParameter(gl.FRAMEBUFFER_BINDING);
-    const previousViewport = gl.getParameter(gl.VIEWPORT);
-    gl.bindFramebuffer(gl.FRAMEBUFFER, target.framebuffer);
-    gl.viewport(0, 0, target.width * target.density, target.height * target.density);
-    gl.clearColor(0, 0, 0, 0);
-    gl.clear(gl.COLOR_BUFFER_BIT);
-    gl.bindFramebuffer(gl.FRAMEBUFFER, previousFramebuffer);
-    gl.viewport(
-      previousViewport[0],
-      previousViewport[1],
-      previousViewport[2],
-      previousViewport[3],
-    );
+    const previousFramebuffer = gl.getParameter(gl.DRAW_FRAMEBUFFER_BINDING);
+    // Clears ignore the viewport. Bind only DRAW so READ state stays untouched.
+    gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, target.framebuffer);
+    const hadScissor = rect && gl.isEnabled(gl.SCISSOR_TEST);
+    const previousScissor = hadScissor ? gl.getParameter(gl.SCISSOR_BOX) : null;
+    if (rect) {
+      gl.enable(gl.SCISSOR_TEST);
+      gl.scissor(rect.minX, rect.minY, rect.maxX - rect.minX, rect.maxY - rect.minY);
+    }
+    try {
+      gl.clearColor(0, 0, 0, 0);
+      gl.clear(gl.COLOR_BUFFER_BIT);
+    } finally {
+      if (rect) {
+        if (hadScissor) gl.scissor(...previousScissor);
+        else gl.disable(gl.SCISSOR_TEST);
+      }
+      gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, previousFramebuffer);
+    }
     return;
   }
 
@@ -83,6 +89,7 @@ function makeShader(gl, vertSrc, fragSrc) {
 
 function ensureBlendShaderProgram(renderer, vertSrc, fragSrc) {
   renderer.shaderProgram ??= makeShader(renderer.drawingContext, vertSrc, fragSrc);
+  renderer.loaded = true;
   return renderer.shaderProgram;
 }
 

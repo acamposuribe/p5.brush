@@ -47,8 +47,8 @@ export const registerFillComposite = (composite) => {
   fillComposite = composite;
 };
 
-const clearTarget = (target) => {
-  clearRenderTarget(Renderer, target, isFramebufferTarget);
+const clearTarget = (target, rect = null) => {
+  clearRenderTarget(Renderer, target, isFramebufferTarget, rect);
 };
 
 // =============================================================================
@@ -176,7 +176,7 @@ export const Mix = {
    * @param {object} target - Mask buffer to reset.
    */
   clearMask(target) {
-    if (!target) return;
+    if (!target || (target.isDrawn === false && !target.dirtyRect)) return;
     const composite = target === this.glMask ? strokeComposite : fillComposite;
     composite?.clearMask?.(target, clearTarget);
   },

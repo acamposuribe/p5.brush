@@ -1,0 +1,22 @@
+{
+  "capturedFrom": "43ac6d5",
+  "intentionalChanges": {
+    "field": "Updated for B24 floor-based signed integer sampling; seeded changes approved by user."
+  },
+  "addedCases": {
+    "massArray": "Post-B24, pre-optimization build",
+    "straightAngles": "Post-B24, pre-optimization build",
+    "washSequence": "Post-B24, pre-optimization build"
+  },
+  "hashes": {
+    "standardBrushes": "59c00a4b7f0b81e62b494bfa2233d85df085f6d7fc9c16f61a1529f53d2a8561",
+    "curves": "a12e89f851e17c746b7aa2820bb4de079ba9c4ee4397aecced5c4197bd5b7e78",
+    "wash": "bee159e6d3bf1f869aa2a3474e4694e2f9ea920b00293afe197c3352eff04e2a",
+    "hatch": "e7618012cb190cdcd8babd12173fb46f5a423693fa1568a6160270839a08a2aa",
+    "mass": "d51d1fbc8abb6cb9a302331ba7de9489c34be9f5176f3b77361d374c71d99d16",
+    "field": "d89f4264723b527aeeacc254a70fedb21c0bda0bd05eccd2cf24f8d962db0326",
+    "massArray": "6ed31c2796d2c61f0569d2b4082edb2cfee66a458cb8a3d24375320b36c402c6",
+    "straightAngles": "05f7ae97e096650c02c5f82d4c2517ba932087ba36f1e52d8da7d233a5e9eb2b",
+    "washSequence": "9e6df5e63ccf30717a478b99dc9b22c9a915f00a433e36900c71d037e1b45d04"
+  }
+}

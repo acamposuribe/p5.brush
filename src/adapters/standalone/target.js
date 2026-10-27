@@ -6,7 +6,9 @@ import {
   setTargetRuntime,
   setTargetState,
 } from "../../core/target.js";
+import { Mix, flushActiveComposite } from "../../core/color.js";
 
+const renderers = new WeakMap();
 let activeTarget = null;
 let isLoaded = false;
 let activeDensity = 1;
@@ -49,17 +51,23 @@ function createRenderer(target, width, height, density) {
     drawingContext,
     width,
     height,
-    pixelDensity: () => density,
+    density,
+    pixelDensity() { return this.density; },
   };
 }
 
 function applyLoadedTarget(target, width, height, density) {
+  // Resolve/validate before disturbing the current drawing session.
+  const renderer = renderers.get(target) ?? createRenderer(target, width, height, density);
+  if (isLoaded) flushActiveComposite();
+  renderer.width = width;
+  renderer.height = height;
+  renderer.density = density;
+  renderers.set(target, renderer);
   activeTarget = target;
   activeWidth = width;
   activeHeight = height;
   activeDensity = density;
-
-  const renderer = createRenderer(target, width, height, density);
   setTargetState({
     Renderer: renderer,
     Cwidth: width,
@@ -67,6 +75,10 @@ function applyLoadedTarget(target, width, height, density) {
     Density: density,
   });
   isLoaded = true;
+  // clear() is legal immediately after load/createCanvas, even before a stroke.
+  Mix.isBrush = null;
+  Mix.justChanged = false;
+  Mix.load();
 }
 
 /**
@@ -75,13 +87,18 @@ function applyLoadedTarget(target, width, height, density) {
  * @param {HTMLCanvasElement|OffscreenCanvas} target
  */
 export function load(target = activeTarget) {
+  if (target === false) target = activeTarget;
   if (!isSupportedTarget(target)) {
     throw new Error(
       "Standalone brush.load(target) requires an HTMLCanvasElement or OffscreenCanvas.",
     );
   }
 
-  applyLoadedTarget(target, target.width, target.height, 1);
+  const cached = renderers.get(target);
+  const density = cached?.density ?? 1;
+  const width = cached && Math.round(cached.width * density) === target.width ? cached.width : target.width / density;
+  const height = cached && Math.round(cached.height * density) === target.height ? cached.height : target.height / density;
+  applyLoadedTarget(target, width, height, density);
 }
 
 /**
@@ -129,7 +146,7 @@ export function createCanvas(width, height, options = {}) {
 /**
  * Refreshes the standalone target density.
  *
- * Standalone targets currently use a fixed density of 1.
+ * Created canvases retain their logical size and configured pixel density.
  *
  * @returns {number}
  */

@@ -4,9 +4,10 @@ import {
   create2DCanvas,
 } from "../core/compositor_runtime.js";
 
-// Small staging canvas used to upload only the dirty fill sub-rect into the
+// Small exact-size staging canvases used to upload the dirty fill sub-rect into the
 // framebuffer-backed mask mirror consumed by the blend shader.
-let FillMaskUploadCanvas = null;
+const fillMaskUploadCanvases = new Map();
+const MAX_UPLOAD_CANVASES = 4;
 let isFillCompositeRegistered = false;
 const DIRTY_FILL_PADDING = 4;
 
@@ -175,15 +176,18 @@ export function getFillShaderMask(
   const uploadWidth = uploadRect.maxX - uploadRect.minX;
   const uploadHeight = uploadRect.maxY - uploadRect.minY;
 
-  if (
-    !FillMaskUploadCanvas ||
-    FillMaskUploadCanvas.width !== uploadWidth ||
-    FillMaskUploadCanvas.height !== uploadHeight
-  ) {
-    FillMaskUploadCanvas = create2DCanvas(uploadWidth, uploadHeight);
+  // Exact-size reuse keeps the existing DOM-source upload/crop semantics.
+  const key = `${uploadWidth}x${uploadHeight}`;
+  let uploadCanvas = fillMaskUploadCanvases.get(key);
+  if (!uploadCanvas) {
+    uploadCanvas = create2DCanvas(uploadWidth, uploadHeight);
+    if (fillMaskUploadCanvases.size === MAX_UPLOAD_CANVASES) {
+      fillMaskUploadCanvases.delete(fillMaskUploadCanvases.keys().next().value);
+    }
+    fillMaskUploadCanvases.set(key, uploadCanvas);
   }
 
-  const uploadContext = FillMaskUploadCanvas.drawingContext;
+  const uploadContext = uploadCanvas.drawingContext;
   uploadContext.clearRect(0, 0, uploadWidth, uploadHeight);
   uploadContext.drawImage(
     mask,
@@ -197,7 +201,9 @@ export function getFillShaderMask(
     uploadHeight,
   );
 
-  clearTarget(target);
+  // The mirror starts transparent. Only the previous upload can leave pixels
+  // outside the new crop; clear that region, not the whole framebuffer.
+  if (target.uploadRect) clearTarget(target, target.uploadRect);
   gl.bindTexture(gl.TEXTURE_2D, target.colorTexture);
   gl.texSubImage2D(
     gl.TEXTURE_2D,
@@ -206,8 +212,9 @@ export function getFillShaderMask(
     uploadRect.minY,
     gl.RGBA,
     gl.UNSIGNED_BYTE,
-    FillMaskUploadCanvas,
+    uploadCanvas,
   );
+  target.uploadRect = uploadRect;
   return target;
 }
 

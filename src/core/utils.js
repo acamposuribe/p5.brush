@@ -128,13 +128,15 @@ export const rr2 = (e = 0, r = 1) => e + rng2() * (r - e);
 export const rArray = (array) => array[~~(rng() * array.length)];
 
 /**
- * Returns a random integer in [min, max).
- * @param {number} min
- * @param {number} max
+ * Returns a uniformly sampled integer in [min, max), for integer bounds.
+ * Floor is required for negative ranges; bitwise truncation biases zero and
+ * also wraps values outside the signed 32-bit range.
+ * @param {number} min - Inclusive integer lower bound.
+ * @param {number} max - Exclusive integer upper bound.
  * @returns {number}
  */
-export const randInt = (e, r) => ~~rr(e, r);
-export const randInt2 = (e, r) => ~~rr2(e, r);
+export const randInt = (e, r) => Math.floor(rr(e, r));
+export const randInt2 = (e, r) => Math.floor(rr2(e, r));
 
 /**
  * Gaussian (normal) random sample N(mean, stdev²).

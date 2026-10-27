@@ -21,6 +21,10 @@ function strokePadding(ctx, matrix) {
  */
 export function drawPolygon(vertices, matrix = null) {
   const ctx = Mix.ctx;
+  if (vertices.length === 0) {
+    ctx.beginPath();
+    return;
+  }
   if (!matrix) matrix = ctx.getTransform();
   // Cache the current 2D transform once so the hot loop can stay numeric and
   // avoid repeated property reads while we build bounds.

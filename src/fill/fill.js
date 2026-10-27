@@ -86,7 +86,7 @@ const FillSetState = (state) => {
  * @param {number} [d] - The opacity.
  */
 export function fill(a, b, c, d) {
-  State.fill.opacity = (arguments.length < 4 ? b : d) || 150;
+  State.fill.opacity = (arguments.length < 4 ? b : d) ?? 150;
   State.fill.color = arguments.length < 3 ? createColor(a) : createColor(a, b, c);
   State.fill.isActive = true;
 }
@@ -199,6 +199,7 @@ export function createFill(polygon) {
       "No fill color set. Call brush.fill(color) before drawing shapes.",
     );
   }
+  if (polygon.vertices.length < 3 || State.fill.opacity === 0) return;
   _polygon = polygon;
   _bbMinX = Infinity; _bbMinY = Infinity; _bbMaxX = -Infinity; _bbMaxY = -Infinity;
   for (const [a] of polygon.sides) {
@@ -473,10 +474,10 @@ class FillPoly {
     let insertedIdx = 0;
     let mod = f === 999 ? rr(0.6, 0.8) : State.fill.bleed_strength;
 
-    // Pre-compute GROW_CAP step — if even step (step=2,4,...), all odd-indexed inserted
-    // vertices will be discarded by downsampling. Skip cossin+rotation, preserve RNG sequence.
+    // Only step=2 keeps all original vertices while discarding every insertion.
+    // Larger steps must also downsample originals, so use the general path.
     const preStep = GROW_CAP && len * 2 > GROW_CAP ? Math.ceil(len * 2 / GROW_CAP) : 1;
-    const skipInserted = preStep >= 2 && (preStep & 1) === 0;
+    const skipInserted = preStep === 2;
 
     if (skipInserted) {
       // Fast path: inserted vertices will be discarded by GROW_CAP step=2.
@@ -591,63 +592,66 @@ class FillPoly {
 
     const m = getAffineMatrix();
     Mix.ctx.save();
-    Mix.ctx.setTransform(
-      Density * m.a,
-      Density * m.b,
-      Density * m.c,
-      Density * m.d,
-      Density * (m.x + Cwidth / 2),
-      Density * (m.y + Cheight / 2),
-    );
+    try {
+      Mix.ctx.setTransform(
+        Density * m.a,
+        Density * m.b,
+        Density * m.c,
+        Density * m.d,
+        Density * (m.x + Cwidth / 2),
+        Density * (m.y + Cheight / 2),
+      );
 
-    const fillColorBase = `rgb(255 0 0 / `;
-    Mix.ctx.strokeStyle = fillColorBase + (State.fill.border_strength * 0.010) + ")";
-    Mix.ctx.lineCap = "round";
+      const fillColorBase = `rgb(255 0 0 / `;
+      Mix.ctx.strokeStyle = fillColorBase + (State.fill.border_strength * 0.010) + ")";
+      Mix.ctx.lineCap = "round";
 
-    GROW_CAP = GROW_MAX_VERTS * Math.max(0.2, 2 * State.fill.bleed_strength);
+      GROW_CAP = GROW_MAX_VERTS * Math.max(0.2, 2 * State.fill.bleed_strength);
 
-    const fillMatrix = Mix.ctx.getTransform();
-    const size = Math.max(this.sizeX, this.sizeY);
-    const darker = rr(0.15, 0.7);
-    let pol = this.grow();
-    const sparse = this.scatter(0.1).grow().scatter(0.75).flipDirs();
-    let pols;
+      const fillMatrix = Mix.ctx.getTransform();
+      const size = Math.max(this.sizeX, this.sizeY);
+      const darker = rr(0.15, 0.7);
+      let pol = this.grow();
+      const sparse = this.scatter(0.1).grow().scatter(0.75).flipDirs();
+      let pols;
 
-    for (let i = 0; i < numLayers; i++) {
-      if (i % 4 === 0) {
-        pol = pol.grow();
-      }
-
-      if (i % 2 === 0) {
-        pols = [
-          pol.grow(1 - 0.0125 * i),
-          pol.grow(0.7 - 0.0125 * i),
-          pol.grow(0.4 - 0.0125 * i),
-        ];
-      }
-
-      for (const p of pols) {
-        const grown = p.grow(999).grow(997);
-        grown.layer(i, size, int, fillMatrix);
-      }
-      if (State.fill.scatter) {
-        const sparseLayer = sparse.grow(999).flipDirs().grow(997);
-        sparseLayer.layer(i, size, int * texture, fillMatrix);
-      }
-      if (i % 2 === 0) {
-        const darkerLayer = pol.grow(darker).grow(999);
-        darkerLayer.layer(i, size, int * 2, fillMatrix);
-      }
-
-      if (i % 8 === 0 || i === numLayers - 1) {
-        if (texture !== 0) {
-          pol.erase(texture * 3, intensity);
+      for (let i = 0; i < numLayers; i++) {
+        if (i % 4 === 0) {
+          pol = pol.grow();
         }
-        Mix.blend(color, true);
-      }
-    }
 
-    Mix.ctx.restore();
+        if (i % 2 === 0) {
+          pols = [
+            pol.grow(1 - 0.0125 * i),
+            pol.grow(0.7 - 0.0125 * i),
+            pol.grow(0.4 - 0.0125 * i),
+          ];
+        }
+
+        for (const p of pols) {
+          const grown = p.grow(999).grow(997);
+          grown.layer(i, size, int, fillMatrix);
+        }
+        if (State.fill.scatter) {
+          const sparseLayer = sparse.grow(999).flipDirs().grow(997);
+          sparseLayer.layer(i, size, int * texture, fillMatrix);
+        }
+        if (i % 2 === 0) {
+          const darkerLayer = pol.grow(darker).grow(999);
+          darkerLayer.layer(i, size, int * 2, fillMatrix);
+        }
+
+        if (i % 8 === 0 || i === numLayers - 1) {
+          if (texture !== 0) {
+            pol.erase(texture * 3, intensity);
+          }
+          Mix.blend(color, true);
+        }
+      }
+
+    } finally {
+      Mix.ctx.restore();
+    }
   }
 
   /**
@@ -729,16 +733,19 @@ Polygon.prototype.fill = function (
   _angle,
 ) {
   let state = FillState();
-  if (_color) {
-    fill(_color, _opacity);
-    fillBleed(_bleed, _direction, _angle);
-    fillTexture(_texture, _border);
+  try {
+    if (_color !== false) {
+      fill(_color, _opacity);
+      if (_bleed !== undefined) fillBleed(_bleed, _direction, _angle);
+      fillTexture(_texture, _border);
+    }
+    if (State.fill.isActive) {
+      isFieldReady();
+      createFill(this);
+    }
+  } finally {
+    FillSetState(state);
   }
-  if (state.isActive) {
-    isFieldReady();
-    createFill(this);
-  }
-  FillSetState(state);
   return this;
 };
 

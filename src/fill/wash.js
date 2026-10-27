@@ -76,28 +76,30 @@ function drawWashPolygon(polygon) {
   
   // Apply transform with Density and centering (exactly like fill does)
   Mix.ctx.save();
-  Mix.ctx.setTransform(
-    Density * m.a,
-    Density * m.b,
-    Density * m.c,
-    Density * m.d,
-    Density * (m.x + Cwidth / 2),
-    Density * (m.y + Cheight / 2),
-  );
+  try {
+    Mix.ctx.setTransform(
+      Density * m.a,
+      Density * m.b,
+      Density * m.c,
+      Density * m.d,
+      Density * (m.x + Cwidth / 2),
+      Density * (m.y + Cheight / 2),
+    );
   
-  // Draw the polygon path to the 2D canvas mask
-  // This will update dirty rects automatically
-  drawPolygon(polygon.vertices);
+    // Draw the polygon path to the 2D canvas mask
+    // This will update dirty rects automatically
+    drawPolygon(polygon.vertices);
   
-  // Set up fill and stroke with wash color (exactly like fill does)
-  const alpha = State.wash.opacity / 255;
-  const washColorBase = `rgb(255 0 0 / `;
-  Mix.ctx.fillStyle = washColorBase + alpha + ")";
+    // Set up fill and stroke with wash color (exactly like fill does)
+    const alpha = State.wash.opacity / 255;
+    const washColorBase = `rgb(255 0 0 / `;
+    Mix.ctx.fillStyle = washColorBase + alpha + ")";
   
-  Mix.ctx.fill();
+    Mix.ctx.fill();
   
-  // Restore the context transform
-  Mix.ctx.restore();
+  } finally {
+    Mix.ctx.restore();
+  }
 }
 
 // =============================================================================
@@ -112,13 +114,12 @@ function drawWashPolygon(polygon) {
  */
 Polygon.prototype.wash = function (_color = false, _opacity) {
   const state = { ...State.wash };
-  if (_color !== false) wash(_color, _opacity);
-
-  if (State.wash.isActive) {
-    drawWashPolygon(this);
+  try {
+    if (_color !== false) wash(_color, _opacity);
+    if (State.wash.isActive) drawWashPolygon(this);
+  } finally {
+    State.wash = { ...state };
   }
-
-  State.wash = { ...state };
   return this;
 };
 
