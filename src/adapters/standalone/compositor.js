@@ -60,6 +60,8 @@ function makeShader(gl, vertSrc, fragSrc) {
   const loc_source = gl.getUniformLocation(program, "u_source");
   const loc_mask = gl.getUniformLocation(program, "u_mask");
   const loc_color = gl.getUniformLocation(program, "u_color");
+  const loc_pigmentKS = gl.getUniformLocation(program, "u_pigmentKS");
+  const loc_pigmentLuminance = gl.getUniformLocation(program, "u_pigmentLuminance");
 
   return {
     program,
@@ -67,6 +69,8 @@ function makeShader(gl, vertSrc, fragSrc) {
     loc_source,
     loc_mask,
     loc_color,
+    loc_pigmentKS,
+    loc_pigmentLuminance,
     setUniform(name, value) {
       const location = getUniformLocation(name);
       if (!location) return;
@@ -87,24 +91,24 @@ function makeShader(gl, vertSrc, fragSrc) {
   };
 }
 
-function ensureBlendShaderProgram(renderer, vertSrc, fragSrc) {
+function ensureBlendShaderProgram(renderer, vertSrc, fragSrc, brushFragSrc) {
   renderer.shaderProgram ??= makeShader(renderer.drawingContext, vertSrc, fragSrc);
+  renderer.brushShaderProgram ??= makeShader(renderer.drawingContext, vertSrc, brushFragSrc);
   renderer.loaded = true;
-  return renderer.shaderProgram;
 }
 
-function createFramebufferTexture(gl, width, height) {
+function createFramebufferTexture(gl, width, height, halfFloat = false) {
   const texture = gl.createTexture();
   gl.bindTexture(gl.TEXTURE_2D, texture);
   gl.texImage2D(
     gl.TEXTURE_2D,
     0,
-    gl.RGBA,
+    halfFloat ? gl.RGBA16F : gl.RGBA,
     width,
     height,
     0,
     gl.RGBA,
-    gl.UNSIGNED_BYTE,
+    halfFloat ? gl.HALF_FLOAT : gl.UNSIGNED_BYTE,
     null,
   );
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
@@ -123,7 +127,13 @@ function createFramebuffer(renderer, options) {
   const height = Math.max(1, options.height);
   const pixelWidth = Math.max(1, Math.round(width * density));
   const pixelHeight = Math.max(1, Math.round(height * density));
-  const colorTexture = createFramebufferTexture(gl, pixelWidth, pixelHeight);
+  const halfFloat = options.format === "half-float";
+  // Rendering to half-float textures needs this extension in WebGL2.
+  if (halfFloat && !gl.getExtension("EXT_color_buffer_float")) {
+    throw new Error("p5.brush fills need WebGL2 with EXT_color_buffer_float.");
+  }
+  const colorTexture = createFramebufferTexture(gl, pixelWidth, pixelHeight, halfFloat);
+  let depthBuffer = null;
 
   gl.bindFramebuffer(gl.FRAMEBUFFER, framebuffer);
   gl.framebufferTexture2D(
@@ -133,6 +143,24 @@ function createFramebuffer(renderer, options) {
     colorTexture,
     0,
   );
+  if (options.depth) {
+    const stencil = !!options.stencil;
+    depthBuffer = gl.createRenderbuffer();
+    gl.bindRenderbuffer(gl.RENDERBUFFER, depthBuffer);
+    gl.renderbufferStorage(
+      gl.RENDERBUFFER,
+      stencil ? gl.DEPTH24_STENCIL8 : gl.DEPTH_COMPONENT24,
+      pixelWidth,
+      pixelHeight,
+    );
+    gl.bindRenderbuffer(gl.RENDERBUFFER, null);
+    gl.framebufferRenderbuffer(
+      gl.FRAMEBUFFER,
+      stencil ? gl.DEPTH_STENCIL_ATTACHMENT : gl.DEPTH_ATTACHMENT,
+      gl.RENDERBUFFER,
+      depthBuffer,
+    );
+  }
   gl.bindFramebuffer(gl.FRAMEBUFFER, null);
 
   return {
@@ -146,6 +174,7 @@ function createFramebuffer(renderer, options) {
     remove() {
       gl.deleteFramebuffer(framebuffer);
       gl.deleteTexture(colorTexture);
+      if (depthBuffer) gl.deleteRenderbuffer(depthBuffer);
     },
   };
 }
@@ -174,7 +203,7 @@ function runBlendShaderPass({
   source,
   mask,
   color,
-  isBrushMask,
+  pigment,
   dirtyRect,
   targetIsFramebuffer,
   withScissor,
@@ -201,8 +230,9 @@ function runBlendShaderPass({
   gl.uniform1i(shader.loc_mask, 1);
 
   shader.setUniform("u_targetIsFramebuffer", targetIsFramebuffer);
-  shader.setUniform("u_isBrush", isBrushMask);
   gl.uniform3f(shader.loc_color, color[0], color[1], color[2]);
+  gl.uniform1fv(shader.loc_pigmentKS, pigment.ks);
+  gl.uniform1f(shader.loc_pigmentLuminance, pigment.luminance);
 
   gl.bindFramebuffer(gl.FRAMEBUFFER, null);
   withScissor(

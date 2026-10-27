@@ -190,7 +190,7 @@ export async function regressions(b) {
     check(pixel(0,0)<100, 'tip pop did not restore its fill style');
   });
   b.render();
-  await run('Optimizations: staging reuse and alternating fill sizes at densities 1/2', () => {
+  await run('Fill mask: no canvas allocation, leaks or GL errors with alternating sizes at densities 1/2', () => {
     for (const density of [1,2]) {
       const target=b.createCanvas(128,128,{pixelDensity:density,parent:null}), context=target.getContext('webgl2');
       const NativeCanvas=window.OffscreenCanvas; let allocations=0;
@@ -202,11 +202,11 @@ export async function regressions(b) {
           if(i%2) b.rect(20,20,10,10); else b.rect(-40,-20,30,30);
           b.render();
         }
-        check(allocations<=2, `repeated fill sizes allocated ${allocations} staging canvases`);
+        check(allocations<=2, `repeated fill sizes allocated ${allocations} 2D canvases`);
         const data=new Uint8Array(4);
         context.readPixels(39*density,69*density,1,1,context.RGBA,context.UNSIGNED_BYTE,data);
-        check(data[0]===255, 'previous upload leaked into cleared destination');
-        check(context.getError()===0, 'GL error after repeated uploads');
+        check(data[0]===255, 'previous fill leaked into cleared destination');
+        check(context.getError()===0, 'GL error after repeated fills');
       } finally { window.OffscreenCanvas=NativeCanvas; }
     }
   });

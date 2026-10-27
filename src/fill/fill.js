@@ -18,7 +18,7 @@ import {
   Mix,
   State,
 } from "../core/color.js";
-import { drawPolygon, circle } from "./mask.js";
+import { setFillTransform, queuePolygon, queueErase, flushFill } from "./gl_fill.js";
 import {
   constrain,
   rr,
@@ -591,24 +591,17 @@ class FillPoly {
     Mix.blend(color);
 
     const m = getAffineMatrix();
-    Mix.ctx.save();
+    setFillTransform([
+      Density * m.a,
+      Density * m.b,
+      Density * m.c,
+      Density * m.d,
+      Density * (m.x + Cwidth / 2),
+      Density * (m.y + Cheight / 2),
+    ]);
     try {
-      Mix.ctx.setTransform(
-        Density * m.a,
-        Density * m.b,
-        Density * m.c,
-        Density * m.d,
-        Density * (m.x + Cwidth / 2),
-        Density * (m.y + Cheight / 2),
-      );
-
-      const fillColorBase = `rgb(255 0 0 / `;
-      Mix.ctx.strokeStyle = fillColorBase + (State.fill.border_strength * 0.010) + ")";
-      Mix.ctx.lineCap = "round";
-
       GROW_CAP = GROW_MAX_VERTS * Math.max(0.2, 2 * State.fill.bleed_strength);
 
-      const fillMatrix = Mix.ctx.getTransform();
       const size = Math.max(this.sizeX, this.sizeY);
       const darker = rr(0.15, 0.7);
       let pol = this.grow();
@@ -630,15 +623,15 @@ class FillPoly {
 
         for (const p of pols) {
           const grown = p.grow(999).grow(997);
-          grown.layer(i, size, int, fillMatrix);
+          grown.layer(i, size, int);
         }
         if (State.fill.scatter) {
           const sparseLayer = sparse.grow(999).flipDirs().grow(997);
-          sparseLayer.layer(i, size, int * texture, fillMatrix);
+          sparseLayer.layer(i, size, int * texture);
         }
         if (i % 2 === 0) {
           const darkerLayer = pol.grow(darker).grow(999);
-          darkerLayer.layer(i, size, int * 2, fillMatrix);
+          darkerLayer.layer(i, size, int * 2);
         }
 
         if (i % 8 === 0 || i === numLayers - 1) {
@@ -650,22 +643,24 @@ class FillPoly {
       }
 
     } finally {
-      Mix.ctx.restore();
+      flushFill();
     }
   }
 
   /**
    * Draws a layer of the fill polygon with stroke and fill.
    * @param {number} i - The layer index.
+   * @param {number} size - Polygon size, for the border width.
+   * @param {number} int - Fill opacity in percent.
    */
-  layer(i, size, int, matrix = null) {
-    Mix.ctx.lineWidth = map(i, 0, 24, size / 25, size / 30, true) * State.fill.border_strength;
-
-    Mix.ctx.fillStyle = "rgb(255 0 0 / " + int + "%)";
-
-    drawPolygon(this.v, matrix);
-    Mix.ctx.fill();
-    Mix.ctx.stroke();
+  layer(i, size, int) {
+    const border = State.fill.border_strength;
+    queuePolygon(
+      this.v,
+      Math.min(int / 100, 1),
+      border * 0.01,
+      map(i, 0, 24, size / 25, size / 30, true) * border,
+    );
   }
 
   /**
@@ -674,8 +669,6 @@ class FillPoly {
    * @param {number} intensity - Intensity value for size scaling.
    */
   erase(texture, intensity) {
-    Mix.ctx.save();
-
     const numCircles = ~~(rr(80, 110) * map(texture, 0, 1, 2, 3.5));
     const halfSizeX = this.sizeX / 1.3;
     const halfSizeY = this.sizeY / 1.3;
@@ -685,27 +678,17 @@ class FillPoly {
     const maxSizeFactor = 0.45 * minSize;
     const { x: midX, y: midY } = this.midP;
 
-    Mix.ctx.globalCompositeOperation = "destination-out";
-
-    const alpha =
-      ((5 - map(intensity, 80, 100, 0.3, 0.7, true)) * texture) / 255;
-    Mix.ctx.fillStyle = `rgb(255 0 0 / ${alpha})`;
-    Mix.ctx.lineWidth = 0;
+    const alpha = Math.min(
+      ((5 - map(intensity, 80, 100, 0.3, 0.7, true)) * texture) / 255,
+      1,
+    );
 
     for (let i = 0; i < numCircles; i++) {
       const x = midX + gaussian(0, halfSizeX);
       const y = midY + gaussian(0, halfSizeY);
-      const radius = rr(minSizeFactor, maxSizeFactor);
-
-      Mix.ctx.beginPath();
-      circle(x, y, radius);
-      if (i % 5 !== 0) {
-        Mix.ctx.fill();
-      }
+      const diameter = rr(minSizeFactor, maxSizeFactor);
+      if (i % 5 !== 0) queueErase(x, y, diameter / 2, alpha);
     }
-
-    Mix.ctx.globalCompositeOperation = "source-over";
-    Mix.ctx.restore();
   }
 }
 

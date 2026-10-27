@@ -4,14 +4,13 @@
 /**
  * Minimal stateful API for the `wash()` fill modifier.
  * 
- * Wash provides a simpler, solid-color fill that uses the existing 2D canvas
- * pipeline instead of direct WebGL rendering, avoiding the need for polygon
- * triangulation.
+ * Wash is a simple, solid-color fill: one polygon layer drawn into the fill
+ * mask (see gl_fill.js) and composited like a fill.
  */
 
 import { Cwidth, Cheight, Density, isCanvasReady } from "../core/target.js";
 import { Mix, State } from "../core/color.js";
-import { drawPolygon } from "./mask.js";
+import { setFillTransform, queuePolygon, flushFill } from "./gl_fill.js";
 import { Polygon } from "../core/polygon.js";
 import { Plot } from "../core/plot.js";
 import { createColor, getAffineMatrix } from "../core/runtime.js";
@@ -53,7 +52,7 @@ export function noWash() {
 // =============================================================================
 
 /**
- * Draws a solid wash fill to the polygon using the 2D canvas pipeline.
+ * Draws a solid wash fill to the polygon.
  * Follows the same pattern as fill() for consistency with the color caching system.
  *
  * @param {Polygon} polygon - The polygon to fill with the current wash state.
@@ -71,35 +70,18 @@ function drawWashPolygon(polygon) {
   // Our drawing will go to the mask and composite on the next draw call.
   Mix.blend(State.wash.color);
 
-  // Get the user's affine transform matrix
+  // User transform with Density and centering (exactly like fill does)
   const m = getAffineMatrix();
-  
-  // Apply transform with Density and centering (exactly like fill does)
-  Mix.ctx.save();
-  try {
-    Mix.ctx.setTransform(
-      Density * m.a,
-      Density * m.b,
-      Density * m.c,
-      Density * m.d,
-      Density * (m.x + Cwidth / 2),
-      Density * (m.y + Cheight / 2),
-    );
-  
-    // Draw the polygon path to the 2D canvas mask
-    // This will update dirty rects automatically
-    drawPolygon(polygon.vertices);
-  
-    // Set up fill and stroke with wash color (exactly like fill does)
-    const alpha = State.wash.opacity / 255;
-    const washColorBase = `rgb(255 0 0 / `;
-    Mix.ctx.fillStyle = washColorBase + alpha + ")";
-  
-    Mix.ctx.fill();
-  
-  } finally {
-    Mix.ctx.restore();
-  }
+  setFillTransform([
+    Density * m.a,
+    Density * m.b,
+    Density * m.c,
+    Density * m.d,
+    Density * (m.x + Cwidth / 2),
+    Density * (m.y + Cheight / 2),
+  ]);
+  queuePolygon(polygon.vertices, State.wash.opacity / 255, 0, 0, 4);
+  flushFill();
 }
 
 // =============================================================================

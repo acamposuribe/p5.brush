@@ -11,7 +11,7 @@
  *
  * Higher-level core modules also attach their own bookkeeping fields onto the
  * active renderer and mask targets, such as:
- * - `shaderProgram`
+ * - `shaderProgram`, `brushShaderProgram`
  * - `blendSourceFramebuffer`
  * - `glMask`
  * - `fillMaskFramebuffer`

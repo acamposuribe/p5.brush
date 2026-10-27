@@ -1,13 +1,7 @@
 import * as Color from "../core/color.js";
-import {
-  createFramebuffer,
-  create2DCanvas,
-} from "../core/compositor_runtime.js";
+import { createFramebuffer } from "../core/compositor_runtime.js";
+import { clearFillTarget } from "./gl_fill.js";
 
-// Small exact-size staging canvases used to upload the dirty fill sub-rect into the
-// framebuffer-backed mask mirror consumed by the blend shader.
-const fillMaskUploadCanvases = new Map();
-const MAX_UPLOAD_CANVASES = 4;
 let isFillCompositeRegistered = false;
 const DIRTY_FILL_PADDING = 4;
 
@@ -15,29 +9,13 @@ const DIRTY_FILL_PADDING = 4;
 // Section: Helpers
 // =============================================================================
 /**
- * Returns whether the CPU-side 2D fill mask must be recreated.
- *
- * @param {object} Renderer - Active host renderer.
- * @param {number} maskWidth - Mask width in physical pixels.
- * @param {number} maskHeight - Mask height in physical pixels.
- * @returns {boolean} True when the 2D fill mask needs reallocation.
- */
-function needsFillMaskCanvas(Renderer, maskWidth, maskHeight) {
-  return (
-    !Renderer.mask ||
-    Renderer.mask.width !== maskWidth ||
-    Renderer.mask.height !== maskHeight
-  );
-}
-
-/**
- * Returns whether the framebuffer-backed fill mask mirror must be recreated.
+ * Returns whether the fill mask framebuffer must be recreated.
  *
  * @param {object} Renderer - Active host renderer.
  * @param {number} Cwidth - Target width in sketch units.
  * @param {number} Cheight - Target height in sketch units.
  * @param {number} Density - Active pixel density.
- * @returns {boolean} True when the fill mask framebuffer needs reallocation.
+ * @returns {boolean} True when the fill mask needs reallocation.
  */
 function needsFillMaskFramebuffer(Renderer, Cwidth, Cheight, Density) {
   return (
@@ -53,33 +31,17 @@ function needsFillMaskFramebuffer(Renderer, Cwidth, Cheight, Density) {
 // Section: Resource Management
 // =============================================================================
 /**
- * Ensures fill compositing resources exist for the active renderer.
- *
- * Fill draws first into a CPU-side 2D mask canvas. That mask is later uploaded,
- * dirty-rect by dirty-rect, into a framebuffer-backed mirror used by the final
- * blend shader pass.
+ * Ensures the fill mask exists for the active renderer: a half-float
+ * framebuffer with depth and stencil, drawn by gl_fill.js and read directly by
+ * the blend shader.
  *
  * @param {object} Renderer - Active host renderer.
  * @param {number} Cwidth - Target width in sketch units.
  * @param {number} Cheight - Target height in sketch units.
  * @param {number} Density - Active pixel density.
- * @param {Function} clearTarget - Shared low-level clear helper from core.
- * @returns {{mask: object, ctx: CanvasRenderingContext2D}} Fill mask resources.
+ * @returns {{mask: object, ctx: null}} Fill mask resources.
  */
-export function ensureFillCompositeResources(
-  Renderer,
-  Cwidth,
-  Cheight,
-  Density,
-  clearTarget,
-) {
-  const maskWidth = Math.max(1, Math.round(Cwidth * Density));
-  const maskHeight = Math.max(1, Math.round(Cheight * Density));
-
-  if (needsFillMaskCanvas(Renderer, maskWidth, maskHeight)) {
-    Renderer.mask = create2DCanvas(maskWidth, maskHeight);
-  }
-
+export function ensureFillCompositeResources(Renderer, Cwidth, Cheight, Density) {
   if (needsFillMaskFramebuffer(Renderer, Cwidth, Cheight, Density)) {
     if (Renderer.fillMaskFramebuffer?.remove) {
       Renderer.fillMaskFramebuffer.remove();
@@ -88,20 +50,18 @@ export function ensureFillCompositeResources(
       width: Cwidth,
       height: Cheight,
       density: Density,
+      format: "half-float",
       antialias: false,
-      depth: false,
-      stencil: false,
+      depth: true,
+      stencil: true,
     });
-    clearTarget(Renderer.fillMaskFramebuffer);
+    clearFillTarget(Renderer.fillMaskFramebuffer);
   }
 
-  Renderer.mask.dirtyRect ??= null;
-  Renderer.mask.isDrawn ??= false;
-  Renderer.mask.drawingContext.imageSmoothingEnabled = false;
-  return {
-    mask: Renderer.mask,
-    ctx: Renderer.mask.drawingContext,
-  };
+  const mask = Renderer.fillMaskFramebuffer;
+  mask.dirtyRect ??= null;
+  mask.isDrawn ??= false;
+  return { mask, ctx: null };
 }
 
 // =============================================================================
@@ -110,12 +70,11 @@ export function ensureFillCompositeResources(
 /**
  * Clears the current fill mask and resets its bookkeeping flags.
  *
- * @param {object|null} target - Fill mask canvas or framebuffer mirror.
- * @param {Function} clearTarget - Shared low-level clear helper from core.
+ * @param {object|null} target - Fill mask framebuffer.
  */
-export function clearFillMask(target, clearTarget) {
+export function clearFillMask(target) {
   if (!target) return;
-  clearTarget(target);
+  clearFillTarget(target);
   target.isDrawn = false;
   target.dirtyRect = null;
 }
@@ -124,10 +83,10 @@ export function clearFillMask(target, clearTarget) {
 // Section: Composite Bounds
 // =============================================================================
 /**
- * Returns the fill dirty rect to composite into the main target. Fill bounds are
- * taken directly from the accumulated 2D mask dirty area plus a small padding.
+ * Returns the fill dirty rect to composite into the main target: the
+ * accumulated mask dirty area plus a small padding.
  *
- * @param {object|null} target - Fill mask canvas.
+ * @param {object|null} target - Fill mask framebuffer.
  * @param {Function} _getActiveFramebuffer - Unused for fill masks.
  * @param {Function} getFullDirtyRect - Returns the full-target dirty rect.
  * @param {Function} expandDirtyRect - Expands a rect by a constant padding.
@@ -148,74 +107,16 @@ export function getFillCompositeRect(
   );
 }
 
-// =============================================================================
-// Section: Upload
-// =============================================================================
 /**
- * Uploads only the dirty portion of the CPU-side 2D fill mask into the
- * framebuffer-backed fill mask mirror used by the shader compositor.
+ * Returns the resource bound to the blend shader's `u_mask` for fills: the
+ * fill mask framebuffer itself.
  *
- * @param {object} Renderer - Active host renderer.
- * @param {object} mask - CPU-side 2D fill mask canvas.
- * @param {{minX:number,minY:number,maxX:number,maxY:number}|null} dirtyRect - Dirty rect to upload.
- * @param {Function} normalizeDirtyRect - Clamps a rect to target bounds.
- * @param {Function} getFullDirtyRect - Returns the full-target dirty rect.
- * @param {Function} clearTarget - Shared low-level clear helper from core.
- * @returns {object} Framebuffer-backed fill mask mirror.
+ * @param {object} _Renderer - Active host renderer.
+ * @param {object} mask - Fill mask framebuffer.
+ * @returns {object} Fill mask framebuffer.
  */
-export function getFillShaderMask(
-  Renderer,
-  mask,
-  dirtyRect,
-  getFullDirtyRect,
-  clearTarget,
-) {
-  const target = Renderer.fillMaskFramebuffer;
-  const gl = Renderer.drawingContext;
-  const uploadRect = dirtyRect ?? getFullDirtyRect();
-  const uploadWidth = uploadRect.maxX - uploadRect.minX;
-  const uploadHeight = uploadRect.maxY - uploadRect.minY;
-
-  // Exact-size reuse keeps the existing DOM-source upload/crop semantics.
-  const key = `${uploadWidth}x${uploadHeight}`;
-  let uploadCanvas = fillMaskUploadCanvases.get(key);
-  if (!uploadCanvas) {
-    uploadCanvas = create2DCanvas(uploadWidth, uploadHeight);
-    if (fillMaskUploadCanvases.size === MAX_UPLOAD_CANVASES) {
-      fillMaskUploadCanvases.delete(fillMaskUploadCanvases.keys().next().value);
-    }
-    fillMaskUploadCanvases.set(key, uploadCanvas);
-  }
-
-  const uploadContext = uploadCanvas.drawingContext;
-  uploadContext.clearRect(0, 0, uploadWidth, uploadHeight);
-  uploadContext.drawImage(
-    mask,
-    uploadRect.minX,
-    uploadRect.minY,
-    uploadWidth,
-    uploadHeight,
-    0,
-    0,
-    uploadWidth,
-    uploadHeight,
-  );
-
-  // The mirror starts transparent. Only the previous upload can leave pixels
-  // outside the new crop; clear that region, not the whole framebuffer.
-  if (target.uploadRect) clearTarget(target, target.uploadRect);
-  gl.bindTexture(gl.TEXTURE_2D, target.colorTexture);
-  gl.texSubImage2D(
-    gl.TEXTURE_2D,
-    0,
-    uploadRect.minX,
-    uploadRect.minY,
-    gl.RGBA,
-    gl.UNSIGNED_BYTE,
-    uploadCanvas,
-  );
-  target.uploadRect = uploadRect;
-  return target;
+export function getFillShaderMask(_Renderer, mask) {
+  return mask;
 }
 
 // =============================================================================

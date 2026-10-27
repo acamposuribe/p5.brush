@@ -22,12 +22,12 @@ function clearTarget(renderer, target, isFramebufferTarget) {
   ctx.restore();
 }
 
-function ensureBlendShaderProgram(renderer, vertSrc, fragSrc) {
+function ensureBlendShaderProgram(renderer, vertSrc, fragSrc, brushFragSrc) {
   if (!renderer.loaded) {
     renderer.shaderProgram ??= renderer.createShader(vertSrc, fragSrc);
+    renderer.brushShaderProgram ??= renderer.createShader(vertSrc, brushFragSrc);
     renderer.loaded = true;
   }
-  return renderer.shaderProgram;
 }
 
 function ensureBlendSourceFramebuffer(
@@ -58,7 +58,7 @@ function runBlendShaderPass({
   source,
   mask,
   color,
-  isBrushMask,
+  pigment,
   Cwidth,
   Cheight,
   dirtyRect,
@@ -76,9 +76,10 @@ function runBlendShaderPass({
 
     shader.setUniform("u_source", source);
     shader.setUniform("u_targetIsFramebuffer", targetIsFramebuffer);
-    shader.setUniform("u_isBrush", isBrushMask);
     shader.setUniform("u_mask", mask);
     shader.setUniform("u_color", color);
+    shader.setUniform("u_pigmentKS", pigment.ks);
+    shader.setUniform("u_pigmentLuminance", pigment.luminance);
 
     withScissor(
       gl,

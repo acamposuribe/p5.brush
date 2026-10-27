@@ -2,11 +2,14 @@
 
 precision highp float;
 
-uniform bool u_isBrush;
 uniform bool u_targetIsFramebuffer;
 uniform sampler2D u_source;
 uniform sampler2D u_mask;
 uniform vec3 u_color;
+// Pigment K/S per wavelength and luminance, computed once per pass on the CPU
+// (src/core/spectral.js) because the pigment is constant across the pass.
+uniform float u_pigmentKS[38];
+uniform float u_pigmentLuminance;
 
 in vec2 p;
 
@@ -194,6 +197,26 @@ vec3 spectral_mix(vec3 color1, float factor1, vec3 color2, float factor2) {
 	return spectral_mix(color1, 1., factor1, color2, 1., factor2);
 }
 
+// Same as spectral_mix(color1, u_color, factor), with the pigment's terms
+// taken from uniforms instead of recomputed for every pixel.
+vec3 spectral_mix_pigment(vec3 color1, float factor) {
+  float R1[SPECTRAL_SIZE];
+  spectral_linear_to_reflectance(spectral_srgb_to_linear(color1), R1);
+  float luminance1 = spectral_reflectance_to_xyz(R1)[1];
+
+  float concentration1 = pow(1. - factor, 2.) * luminance1;
+  float concentration2 = pow(factor, 2.) * u_pigmentLuminance;
+  float totalConcentration = concentration1 + concentration2;
+
+  float R[SPECTRAL_SIZE];
+  for (int i = 0; i < SPECTRAL_SIZE; i++) {
+    float ksMix = KS(R1[i]) * concentration1 + u_pigmentKS[i] * concentration2;
+    R[i] = KM(ksMix / totalConcentration);
+  }
+
+  return spectral_xyz_to_srgb(spectral_reflectance_to_xyz(R));
+}
+
 // SPECTRAL ENDS HERE
 
 // Define constants in more compact form
@@ -201,45 +224,67 @@ const float GAMMA = 2.4, EPSILON = 0.0001;
 const float DARKEN_THRESHOLD = 0.7;
 const float EDGE_MIN = 0.05, EDGE_MAX = 0.35;
 
+// Compiled twice: with BRUSH for the stroke mask, without it for fills and
+// washes. Keeping the brush-only darkening path out of the fill program keeps
+// that program light enough to run at full GPU occupancy.
+#ifdef BRUSH
+const bool IS_BRUSH = true;
+#else
+const bool IS_BRUSH = false;
+#endif
+
+// Mask coverage at a point. The stroke mask stores it in alpha. The fill mask
+// stores log-domain paint (r) and erasure (g); see src/fill/gl_fill.js.
+float readMask(vec2 uv) {
+    vec4 m = texture(u_mask, uv);
+#ifdef BRUSH
+    return m.a;
+#else
+    return (1.0 - exp(-max(m.r, 0.0))) * exp(-m.g);
+#endif
+}
+
 void main(void) {
     vec2 uv = 0.5 * p + 0.5;
     vec2 sourceUV = vec2(uv.x, 1.0 - uv.y);
     vec2 maskUV = u_targetIsFramebuffer ? vec2(uv.x, 1.0 - uv.y) : uv;
     
     vec4 source = texture(u_source, sourceUV);
-    vec4 maskColor = texture(u_mask, maskUV);
+    float maskAlpha = readMask(maskUV);
     
-    if (maskColor.a == 0.0) {
+    if (maskAlpha == 0.0) {
         outColor = source;
         return;
     }
     
-    vec4 pigment = vec4(u_color.xyz, 1.0);
-    if (u_isBrush && (maskColor.a > DARKEN_THRESHOLD)) {
-        float blacken = 0.5 * (min(maskColor.a, 1.0) - DARKEN_THRESHOLD);
-        pigment = pigment * (1.0 - blacken) - vec4(0.5) * blacken;
-        pigment.rgb = max(pigment.rgb, vec3(0.0));
-    }
-
-    float mixIntensity = min(maskColor.a, 1.0);
+    float mixIntensity = min(maskAlpha, 1.0);
     
-    if (!u_isBrush) {
+    if (!IS_BRUSH) {
         vec2 texelSize = 1.0 / vec2(textureSize(u_mask, 0));
-        float scaledAlpha = maskColor.a * 15.0;
-        
         float blurEdge = 0.0;
         for (int i = -2; i <= 2; i += 2) {
             for (int j = -2; j <= 2; j += 2) {
             vec2 neighborUV = maskUV + vec2(float(i), float(j)) * texelSize;
-            float neighborAlpha = texture(u_mask, neighborUV).a * 15.0;
+            float neighborAlpha = readMask(neighborUV) * 15.0;
                 blurEdge += smoothstep(EDGE_MIN, EDGE_MAX, 
                           length(vec2(dFdx(neighborAlpha), dFdy(neighborAlpha))));
             }
         }
         blurEdge /= 9.0;
-        mixIntensity = clamp(maskColor.a + blurEdge * 0.1, 0.0, 1.0);
+        mixIntensity = clamp(maskAlpha + blurEdge * 0.1, 0.0, 1.0);
     }
     
     vec3 bgColor = mix(vec3(1.0), source.rgb, source.a);
-    outColor = vec4(spectral_mix(bgColor, pigment.rgb, mixIntensity), 1.);
+
+#ifdef BRUSH
+    // Dense brush pixels darken the pigment itself, so they cannot use the
+    // precomputed pigment terms.
+    if (maskAlpha > DARKEN_THRESHOLD) {
+        float blacken = 0.5 * (min(maskAlpha, 1.0) - DARKEN_THRESHOLD);
+        vec3 pigment = max(u_color * (1.0 - blacken) - vec3(0.5) * blacken, vec3(0.0));
+        outColor = vec4(spectral_mix(bgColor, pigment, mixIntensity), 1.);
+        return;
+    }
+#endif
+    outColor = vec4(spectral_mix_pigment(bgColor, mixIntensity), 1.);
 }

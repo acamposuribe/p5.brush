@@ -26,6 +26,10 @@ import {
 import vertSrc from "./gl/shader.vert";
 import fragSrc from "./gl/shader.frag";
 import { notifyDraw } from "./runtime.js";
+import { pigmentTerms } from "./spectral.js";
+
+// The stroke composite is the same shader with its brush-only path compiled in.
+const brushFragSrc = fragSrc.replace("#version 300 es", "#version 300 es\n#define BRUSH");
 
 // =============================================================================
 // Module: Configure and Initiate
@@ -176,8 +180,9 @@ export const Mix = {
    * @param {object} target - Mask buffer to reset.
    */
   clearMask(target) {
-    // EXPERIMENTAL (gpu-dots): draw any batched GPU dots before the mask changes.
+    // Draw queued GPU strokes or fill layers before the mask changes.
     if (target && target === this.glMask) this.beforeBrushMaskAccess?.();
+    if (target && target === this.mask) this.beforeFillMaskAccess?.();
     if (!target || (target.isDrawn === false && !target.dirtyRect)) return;
     const composite = target === this.glMask ? strokeComposite : fillComposite;
     composite?.clearMask?.(target, clearTarget);
@@ -214,7 +219,7 @@ export const Mix = {
         Renderer.blendSourceFramebuffer.height !== Cheight ||
         (typeof Renderer.blendSourceFramebuffer.pixelDensity === "function" &&
           Renderer.blendSourceFramebuffer.pixelDensity() !== Density);
-    ensureBlendShaderProgram(Renderer, vertSrc, fragSrc);
+    ensureBlendShaderProgram(Renderer, vertSrc, fragSrc, brushFragSrc);
 
     this.glMask = strokeComposite?.ensureResources?.(
       Renderer,
@@ -301,8 +306,9 @@ export const Mix = {
    * @param {boolean} isBrushMask - True when compositing the GL brush mask.
    */
   applyShader(mask, isBrushMask) {
-    // EXPERIMENTAL (gpu-dots): draw any batched GPU dots before the mask is read.
+    // Draw queued GPU strokes or fill layers before the mask is read.
     if (mask && mask === this.glMask) this.beforeBrushMaskAccess?.();
+    if (mask && mask === this.mask) this.beforeFillMaskAccess?.();
     if (!mask?.isDrawn) return;
 
     const dirtyRect = this.getCompositeRect(mask, isBrushMask);
@@ -312,7 +318,7 @@ export const Mix = {
     }
 
     const gl = Renderer.drawingContext;
-    const shader = Renderer.shaderProgram;
+    const shader = isBrushMask ? Renderer.brushShaderProgram : Renderer.shaderProgram;
     const activeFramebuffer = getActiveFramebuffer();
     const source = blitSourceToFramebuffer({
       renderer: Renderer,
@@ -342,7 +348,7 @@ export const Mix = {
       source,
       mask: shaderMask,
       color: this.cachedColor,
-      isBrushMask,
+      pigment: pigmentTerms(this.cachedColor),
       Cwidth,
       Cheight,
       dirtyRect,
