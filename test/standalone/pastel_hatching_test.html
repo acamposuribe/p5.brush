@@ -193,7 +193,6 @@
               <select id="style">
                 <option value="arcs">Arcs (current)</option>
                 <option value="scribble">Scribble</option>
-                <option value="loops">Loops</option>
               </select>
             </label>
 
@@ -337,11 +336,7 @@
             strength:  state.strength,
             gradient:  state.gradient,
             outline:   state.outline,
-            ...(state.style === "arcs" ? {} : {
-              style:   "scribble",
-              gesture: state.style === "loops" ? "loops" : "zigzag",
-              follow:  state.follow,
-            }),
+            ...(state.style === "scribble" ? { style: "scribble", follow: state.follow } : {}),
           });
           brush.set("pen", "black", 1);
           brush.circle(x, y, r);

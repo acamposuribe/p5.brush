@@ -427,7 +427,7 @@ function drawRun(run) {
  * across the shape, optionally follow its outline, and are cut where they
  * leave it. Tone comes from how much the marks overlap.
  * @param {Polygon|Polygon[]} shape
- * @param {object} o - { gap, strength, gradient, follow, gesture, baseAngle }
+ * @param {object} o - { gap, strength, gradient, follow, baseAngle }
  */
 function drawScribbleMass(shape, o) {
   const bounds = getPolygonBounds(shape);
@@ -470,18 +470,16 @@ function drawScribbleMass(shape, o) {
       const passes = Math.round(rr2(3, 7));
       const ux = Math.cos(angle), uy = Math.sin(angle); // along the mark
       const vx = -uy, vy = ux; // sideways
-      const loops = o.gesture === "loops";
 
-      // The hand sweeps back and forth (or loops) while creeping sideways.
+      // The hand sweeps back and forth while creeping sideways.
       const tEnd = passes * Math.PI;
-      const steps = Math.max(8, Math.ceil((passes * length * (loops ? 1.6 : 1)) / sample));
+      const steps = Math.max(8, Math.ceil((passes * length) / sample));
       const phase = rr2(0, Math.PI * 2);
       let run = [];
       for (let k = 0; k <= steps; k++) {
         const t = (k / steps) * tEnd;
         const a = (length / 2) * Math.sin(t + phase);
-        // Loops add a sideways swing a third of the mark length: oval scribbles.
-        const side = gap * 1.5 * (t / Math.PI) - (passes * gap * 0.75) + (loops ? (length / 3) * Math.cos(t + phase) : 0);
+        const side = gap * 1.5 * (t / Math.PI) - passes * gap * 0.75;
         const px = x + ux * a + vx * side;
         const py = y + uy * a + vy * side;
         if (pointInMassShape(shape, px, py)) {
@@ -555,7 +553,6 @@ export function createMass(shape, x, y, scale) {
         strength,
         gradient,
         follow: State.mass.options?.follow ?? 0.5,
-        gesture: State.mass.options?.gesture ?? "zigzag",
         baseAngle,
       });
       return;
