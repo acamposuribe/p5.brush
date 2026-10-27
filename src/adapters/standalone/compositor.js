@@ -96,6 +96,10 @@ function makeShader(gl, vertSrc, fragSrc) {
         gl.uniform1f(location, value);
         return;
       }
+      if (value instanceof Float32Array) {
+        gl.uniform1fv(location, value);
+        return;
+      }
       if (Array.isArray(value)) {
         if (value.length === 3) gl.uniform3f(location, value[0], value[1], value[2]);
         else if (value.length === 4) gl.uniform4f(location, value[0], value[1], value[2], value[3]);

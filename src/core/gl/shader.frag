@@ -223,6 +223,34 @@ vec3 spectral_mix_pigment(vec3 color1, float factor) {
   return spectral_mix_pigment(color1, factor, 1.0);
 }
 
+#ifdef WATERCOLOR
+// A watercolour paint is two pigments that separate on wet paper (src/fill/
+// fill.js splits the fill colour into a warmer and a cooler one): u_pigmentKS
+// and u_pigmentLuminance are pigment A, these pigment B.
+uniform float u_wcPigmentB[38];
+uniform float u_wcLuminanceB;
+
+// Same as spectral_mix_pigment, with the pigment a mix of A and B in the
+// ratio `ratio` (0: all A, 1: all B). K/S is linear in concentration.
+vec3 spectral_mix_pigments(vec3 color1, float factor, float strength, float ratio) {
+  float R1[SPECTRAL_SIZE];
+  spectral_linear_to_reflectance(spectral_srgb_to_linear(color1), R1);
+  float luminance1 = spectral_reflectance_to_xyz(R1)[1];
+
+  float concentration1 = pow(1. - factor, 2.) * luminance1;
+  float concentration2 = pow(factor, 2.) * mix(u_pigmentLuminance, u_wcLuminanceB, ratio);
+  float totalConcentration = concentration1 + concentration2;
+
+  float R[SPECTRAL_SIZE];
+  for (int i = 0; i < SPECTRAL_SIZE; i++) {
+    float pigment = mix(u_pigmentKS[i], u_wcPigmentB[i], ratio) * strength;
+    R[i] = KM((KS(R1[i]) * concentration1 + pigment * concentration2) / totalConcentration);
+  }
+
+  return spectral_xyz_to_srgb(spectral_reflectance_to_xyz(R));
+}
+#endif
+
 // SPECTRAL ENDS HERE
 
 // Define constants in more compact form
@@ -315,8 +343,8 @@ float cellWalls(vec2 p, uint seed) {
 //   bloom - a paler backrun with a fine, dark, ragged front
 //   gran  - pigment settling in the paper's valleys, most where paint is thin,
 //           and with reticulation, along a network of cell walls
-// Returns (factor, strength) for spectral_mix_pigment.
-vec2 watercolor(vec2 uv, float coverage) {
+// Returns (factor, strength, pigment ratio) for spectral_mix_pigments.
+vec3 watercolor(vec2 uv, float coverage) {
     vec2 size = vec2(textureSize(u_mask, 0));
     vec2 px = uv * size;
     float density = u_paper.z;
@@ -362,7 +390,7 @@ vec2 watercolor(vec2 uv, float coverage) {
     float fingers = fbm(px / (density * 3.0), seed + 71u) - 0.5;
     float creep = smoothstep(0.05, 0.9, blurred.b / level + 0.8 * fingers);
     float inside = mix(hard, mix(soft * soft, creep, wetEdge), lost);
-    if (inside <= 0.0) return vec2(0.0);
+    if (inside <= 0.0) return vec3(0.0);
 
     // The rim: pigment carried to the pinned edge as the wash dried (the
     // coffee-ring effect). Concentration rises smoothly toward the edge over
@@ -400,12 +428,14 @@ vec2 watercolor(vec2 uv, float coverage) {
     float drift = fbm(q * 1.1 + 5.3, seed + 7u) - 0.5;
     thick *= 1.0 + u_wcLook.w * (1.1 * drift + 0.45 * dot(q, u_wcFlow.xy));
 
+    float pooled = 0.0;
     // Pool: pigment piles up against one side, behind a curved, warped front
     // (an arc around a point on the far side) that fades into the wash.
     if (u_wcPool.w > 0.0) {
         float reach = length(q + u_wcPool.xy * 1.2) - 1.2 - u_wcPool.z
                     + 0.3 * (fbm(q * 2.2, seed + 31u) - 0.5);
-        thick *= 1.0 + u_wcPool.w * smoothstep(-0.2, 0.15, reach);
+        pooled = smoothstep(-0.2, 0.15, reach);
+        thick *= 1.0 + u_wcPool.w * pooled;
     }
 
     // Drop: a dense core whose edge breaks into branches, more so outward.
@@ -462,8 +492,16 @@ vec2 watercolor(vec2 uv, float coverage) {
         factor = 1.0 - exp(-body * thick);
     }
 
+    // Pigment separation: the two pigments drift apart in broad zones, and
+    // the one that travels further (B) gathers in the rim and pools; drops,
+    // laid in later, carry the mix as it was.
+    float zones = 0.75 * paperNoise(q * 1.2 + 61.0, seed + 89u)
+                + 0.25 * paperNoise(q * 2.7 + 13.0, seed + 97u) - 0.5;
+    float ratio = 0.5 + zones * 1.8 + 0.3 * (rim - 0.3) + 0.2 * pooled;
+    ratio = clamp(mix(ratio, 0.5, drop), 0.0, 1.0);
+
     float strength = 1.0 + u_wcLook.x * 1.1 * rim;
-    return vec2(factor * inside, strength);
+    return vec3(factor * inside, strength, ratio);
 }
 #endif
 
@@ -478,12 +516,12 @@ void main(void) {
 #ifdef WATERCOLOR
     // The watercolour edge comes from smoothed coverage and can reach pixels
     // the raw paint missed, so it decides coverage itself.
-    vec2 wc = watercolor(maskUV, maskAlpha);
+    vec3 wc = watercolor(maskUV, maskAlpha);
     if (wc.x <= 0.0) {
         outColor = source;
         return;
     }
-    outColor = vec4(spectral_mix_pigment(mix(vec3(1.0), source.rgb, source.a), wc.x, wc.y), 1.);
+    outColor = vec4(spectral_mix_pigments(mix(vec3(1.0), source.rgb, source.a), wc.x, wc.y, wc.z), 1.);
     return;
 #endif
 

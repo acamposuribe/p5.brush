@@ -43,6 +43,7 @@ import { createColor, getAffineMatrix } from "../core/runtime.js";
 import { Polygon } from "../core/polygon.js";
 import { Plot } from "../core/plot.js";
 import { getPaper } from "../stroke/gl_draw.js";
+import { pigmentTerms, splitPigment } from "../core/spectral.js";
 
 // Internal module imports
 import { initFillComposite } from "./composite.js";
@@ -75,6 +76,7 @@ State.fill = {
   angle: null,
   scatter: true,
   style: "classic",
+  colorShift: 0.25,
   isActive: false,
 };
 
@@ -134,12 +136,17 @@ export function fillTexture(_texture = 0.4, _border = 0.4, _scatter = true) {
  * (border strength), granulation in the paper (texture strength), pooling and,
  * with stronger bleed, blooms.
  * @param {"classic"|"watercolor"} [style="classic"]
+ * @param {object} [options]
+ * @param {number} [options.colorShift=0.25] - Watercolour only: how far the
+ *   paint separates into a warmer and a cooler pigment across a wash, 0 (one
+ *   pigment) to 1.
  */
-export function fillStyle(style = "classic") {
+export function fillStyle(style = "classic", { colorShift = 0.25 } = {}) {
   if (style !== "classic" && style !== "watercolor") {
     throw new Error('fillStyle() takes "classic" or "watercolor".');
   }
   State.fill.style = style;
+  State.fill.colorShift = constrain(colorShift, 0, 1);
 }
 
 /**
@@ -731,6 +738,26 @@ class FillPoly {
    * @param {number} int - Fill opacity in percent.
    * @returns {{sigma: number, uniforms: Object}}
    */
+  /**
+   * Returns the watercolour composite's two pigment uniforms: the fill colour
+   * split into a warmer and a cooler pigment (see spectral_mix_pigments() in
+   * core/gl/shader.frag). They override the single pigment Mix computes.
+   * @returns {Object} Uniforms by name.
+   */
+  pigments() {
+    // Each pigment's hue turns up to 30° from the fill colour.
+    const [a, b] = splitPigment(State.fill.color._array, 30 * State.fill.colorShift);
+    const termsA = pigmentTerms(a);
+    const ksA = Float32Array.from(termsA.ks), luminanceA = termsA.luminance;
+    const termsB = pigmentTerms(b);
+    return {
+      u_pigmentKS: ksA,
+      u_pigmentLuminance: luminanceA,
+      u_wcPigmentB: Float32Array.from(termsB.ks),
+      u_wcLuminanceB: termsB.luminance,
+    };
+  }
+
   watercolorLook(t, size, int) {
     const [a, b, c, d, e, f] = t;
     const { x, y } = this.midP;
@@ -788,6 +815,7 @@ class FillPoly {
       u_wcDrop: drop,
       u_wcPool: pool,
       u_wcPigment: map(State.fill.opacity, 0, 255, 0, 1, true),
+      ...this.pigments(),
       // Some fills lose part of their edge, more often when wetter.
       u_wcFlow: [(flow * tx) / len, (flow * ty) / len, level, rr(0, 1) < 0.3 + 0.5 * wet ? rr(0.6, 1) : 0],
     };
