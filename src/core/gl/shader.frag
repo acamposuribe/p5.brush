@@ -198,8 +198,10 @@ vec3 spectral_mix(vec3 color1, float factor1, vec3 color2, float factor2) {
 }
 
 // Same as spectral_mix(color1, u_color, factor), with the pigment's terms
-// taken from uniforms instead of recomputed for every pixel.
-vec3 spectral_mix_pigment(vec3 color1, float factor) {
+// taken from uniforms instead of recomputed for every pixel. `strength`
+// scales the pigment's K/S: above 1 the paint is denser than the pigment
+// itself (watercolour rims and pools).
+vec3 spectral_mix_pigment(vec3 color1, float factor, float strength) {
   float R1[SPECTRAL_SIZE];
   spectral_linear_to_reflectance(spectral_srgb_to_linear(color1), R1);
   float luminance1 = spectral_reflectance_to_xyz(R1)[1];
@@ -210,11 +212,15 @@ vec3 spectral_mix_pigment(vec3 color1, float factor) {
 
   float R[SPECTRAL_SIZE];
   for (int i = 0; i < SPECTRAL_SIZE; i++) {
-    float ksMix = KS(R1[i]) * concentration1 + u_pigmentKS[i] * concentration2;
+    float ksMix = KS(R1[i]) * concentration1 + u_pigmentKS[i] * strength * concentration2;
     R[i] = KM(ksMix / totalConcentration);
   }
 
   return spectral_xyz_to_srgb(spectral_reflectance_to_xyz(R));
+}
+
+vec3 spectral_mix_pigment(vec3 color1, float factor) {
+  return spectral_mix_pigment(color1, factor, 1.0);
 }
 
 // SPECTRAL ENDS HERE
@@ -224,25 +230,202 @@ const float GAMMA = 2.4, EPSILON = 0.0001;
 const float DARKEN_THRESHOLD = 0.7;
 const float EDGE_MIN = 0.05, EDGE_MAX = 0.35;
 
-// Compiled twice: with BRUSH for the stroke mask, without it for fills and
-// washes. Keeping the brush-only darkening path out of the fill program keeps
-// that program light enough to run at full GPU occupancy.
+// Compiled three times: with BRUSH for the stroke mask, with WATERCOLOR for
+// watercolour fills, and with neither for classic fills and washes. Keeping
+// each variant's extra work out of the others keeps them light enough to run
+// at full GPU occupancy.
 #ifdef BRUSH
 const bool IS_BRUSH = true;
 #else
 const bool IS_BRUSH = false;
 #endif
 
-// Mask coverage at a point. The stroke mask stores it in alpha. The fill mask
-// stores log-domain paint (r) and erasure (g); see src/fill/gl_fill.js.
+// Fill mask coverage from a texel: log-domain paint (r) and erasure (g); see
+// src/fill/gl_fill.js.
+float fillCoverage(vec4 m) {
+    return (1.0 - exp(-max(m.r, 0.0))) * exp(-m.g);
+}
+
+// Mask coverage at a point. The stroke mask stores it in alpha.
 float readMask(vec2 uv) {
     vec4 m = texture(u_mask, uv);
 #ifdef BRUSH
     return m.a;
 #else
-    return (1.0 - exp(-max(m.r, 0.0))) * exp(-m.g);
+    return fillCoverage(m);
 #endif
 }
+
+#ifdef WATERCOLOR
+#pragma glslify: paperNoise = require(./value_noise.glsl)
+#pragma glslify: paperHeight = require(../../stroke/paper_height.glsl)
+
+uniform vec4 u_paper;   // contact strength, grain (logical px), density, seed
+uniform vec4 u_wcShape; // centre.xy and radius (mask px), seed
+uniform vec4 u_wcLook;  // rim, granulation, reticulation, drift (0..1)
+uniform vec4 u_wcFlow;  // flow direction.xy (mask px, unit or 0), edge level (silhouette paint), lost edges (0..1)
+// The mask blurred at half resolution (src/fill/blur.frag): r / a is the mean
+// paint inside the shape nearby, a the share of the neighbourhood inside.
+uniform sampler2D u_blur;
+// Features placed in shape space (q: shape radii from the centre); a zero
+// strength turns one off.
+uniform vec4 u_wcBloom; // backrun: centre.xy, radius, strength
+uniform vec4 u_wcDrop;  // wet-in-wet drop: centre.xy, radius, strength
+uniform vec4 u_wcPool;  // pooled side: direction.xy, reach, strength
+
+float fbm(vec2 q, uint seed) {
+    return (0.5 * paperNoise(q, seed)
+          + 0.25 * paperNoise(q * 2.03 + 17.1, seed + 1u)
+          + 0.125 * paperNoise(q * 4.01 + 3.7, seed + 2u)
+          + 0.0625 * paperNoise(q * 8.07 + 9.2, seed + 3u)) / 0.9375;
+}
+
+// Cell walls of a jittered grid (Worley F2 − F1): 1 on a wall, 0 at a cell
+// centre. Value noise sampled at integer points is a plain hash.
+float cellWalls(vec2 p, uint seed) {
+    vec2 i = floor(p);
+    float f1 = 9.0, f2 = 9.0;
+    for (int y = -1; y <= 1; y++) {
+        for (int x = -1; x <= 1; x++) {
+            vec2 c = i + vec2(float(x), float(y));
+            vec2 o = vec2(paperNoise(c, seed), paperNoise(c, seed + 1u));
+            float d = length(c + 0.15 + 0.7 * o - p);
+            if (d < f1) { f2 = f1; f1 = d; }
+            else if (d < f2) f2 = d;
+        }
+    }
+    return 1.0 - smoothstep(0.0, 0.35, f2 - f1);
+}
+
+// Watercolour from the paint field. The silhouette is the iso-line where the
+// outline layers reach the edge level: a crisp dried edge instead of a halo,
+// which trimmed and scattered layers shade but never move.
+// Inside it, paint density (`body`) is the layers' own depth, modulated by:
+//   rim   - pigment carried to the edge as the wash dries
+//   drift - a slow tonal drift across the shape, downstream when it flows
+//   pool  - pigment collected on one side, behind a soft, warped boundary
+//   drop  - a wet-in-wet drop: a dense spot with a feathered, branching rim
+//   bloom - a paler backrun with a fine, dark, ragged front
+//   gran  - pigment settling in the paper's valleys, most where paint is thin,
+//           and with reticulation, along a network of cell walls
+// Returns (factor, strength) for spectral_mix_pigment.
+vec2 watercolor(vec2 uv, float coverage) {
+    vec2 size = vec2(textureSize(u_mask, 0));
+    vec2 px = uv * size;
+    float density = u_paper.z;
+    float level = u_wcFlow.z;
+    uint seed = uint(u_wcShape.w);
+    vec2 q = (px - u_wcShape.xy) / max(u_wcShape.z, 1.0);
+
+    // The edge: an iso-line of the blurred silhouette paint, which rounds the
+    // polygons' corners and steps into one smooth edge, bent by a gentle
+    // wobble. `dist` is the signed distance to it in mask pixels (positive
+    // inside), from the field's slope.
+    vec4 blurred = texture(u_blur, uv);
+    float wobble = 1.0 + 0.3 * (fbm(px / (density * 7.0), seed + 29u) - 0.5);
+    float field = blurred.b - level * wobble;
+    float dist = field / max(length(vec2(dFdx(field), dFdy(field))), 1e-5);
+
+    // Lost edges: along some stretches the wash was still wet and feathered
+    // out, fading from pigment to bare paper with no dried line.
+    float lost = u_wcFlow.w * smoothstep(0.45, 0.75, fbm(q * 1.8 + 23.0, seed + 67u));
+
+    // Elsewhere the wash stopped against the paper: it runs into the valleys
+    // and halts at the hills, so the edge follows the same paper as the
+    // granulation, rougher along some stretches. The shift is bounded to a
+    // few pixels, so no flecks break off.
+    float grain = density * u_paper.y;
+    // The shift stays below the bumps' own size (about 8 px apart), so the
+    // edge bends around them instead of breaking into specks.
+    float hill = paperHeight(px / (grain * 3.0), uint(u_paper.w)) - 0.5;
+    float rough = 0.4 + 0.9 * smoothstep(0.45, 0.7, fbm(q * 2.5 + 11.0, seed + 59u));
+    float edgeDist = dist - hill * rough * 2.5 * density;
+    float hard = clamp(edgeDist + 0.5, 0.0, 1.0);
+    float soft = smoothstep(0.1 * level, 2.5 * level, blurred.b);
+    float inside = mix(hard, soft * soft, lost);
+    if (inside <= 0.0) return vec2(0.0);
+
+    // The rim: a thin dark line that follows the actual edge, teeth and all,
+    // over a faint band that fades inward (from the blurred share inside:
+    // 0 deep inside, about 0.5 on the edge).
+    float edge = clamp(1.0 - blurred.a, 0.0, 1.0);
+    float line = 1.0 - smoothstep(0.0, 1.8 * density, edgeDist);
+    float rim = (0.7 * line + 0.3 * smoothstep(0.0, 0.5, edge)) * (1.0 - lost);
+
+    // Body: the blurred inside paint softens the stack's hard internal steps
+    // without fading toward the edge.
+    float body0 = blurred.a > 1e-3 ? 1.0 - exp(-blurred.r / blurred.a) : coverage;
+    // Near the edge the raw paint thins out (the edge can sit just past it),
+    // so the tone there comes from the inside mean alone: no pale fringe.
+    float nearEdge = 1.0 - smoothstep(0.0, 4.0 * density, edgeDist);
+    float paint = -log(max(1.0 - mix(coverage, body0, max(0.8, nearEdge)), 1e-4));
+    float body = max(paint, 0.12);
+    float thick = 1.0;
+
+    // Drift: low-frequency variation plus a gradient along the flow.
+    float drift = fbm(q * 1.1 + 5.3, seed + 7u) - 0.5;
+    thick *= 1.0 + u_wcLook.w * (1.1 * drift + 0.45 * dot(q, u_wcFlow.xy));
+
+    // Pool: pigment piles up against one side, behind a curved, warped front
+    // (an arc around a point on the far side) that fades into the wash.
+    if (u_wcPool.w > 0.0) {
+        float reach = length(q + u_wcPool.xy * 1.2) - 1.2 - u_wcPool.z
+                    + 0.3 * (fbm(q * 2.2, seed + 31u) - 0.5);
+        thick *= 1.0 + u_wcPool.w * smoothstep(-0.2, 0.15, reach);
+    }
+
+    // Drop: a dense core whose edge breaks into branches, more so outward.
+    if (u_wcDrop.w > 0.0) {
+        vec2 dq = (q - u_wcDrop.xy) / u_wcDrop.z;
+        float lr = length(dq);
+        float branch = fbm(dq * 4.0 + 3.1, seed + 37u) - 0.5;
+        float twig = fbm(dq * 13.0, seed + 39u) - 0.5;
+        float d = lr + (0.3 + 0.7 * smoothstep(0.3, 1.2, lr)) * branch + 0.25 * twig * lr;
+        float core = 1.0 - smoothstep(0.2, 1.0, d);
+        thick *= 1.0 + u_wcDrop.w * core * core;
+    }
+
+    // Bloom: water flowing back into the drying wash from one point. The
+    // inside lifts unevenly; the front is a thin, broken, cauliflower edge.
+    if (u_wcBloom.w > 0.0) {
+        vec2 bq = (q - u_wcBloom.xy) / u_wcBloom.z;
+        float warp = fbm(bq * 1.6, seed + 11u) - 0.5;
+        float lace = fbm(bq * 7.0, seed + 13u) - 0.5;
+        float d = length(bq * vec2(1.0, 0.75)) + 0.9 * warp + 0.3 * lace;
+        float fw = 0.03;
+        float pale = (1.0 - smoothstep(0.9, 1.0, d)) * (0.55 + 0.45 * fbm(bq * 3.0, seed + 17u));
+        float front = smoothstep(1.0 - fw, 1.0, d) * (1.0 - smoothstep(1.0, 1.0 + fw, d));
+        front *= smoothstep(0.35, 0.6, fbm(bq * 6.0, seed + 19u));
+        pale *= 1.0 - rim;
+        thick *= 1.0 - 0.5 * u_wcBloom.w * pale;
+        thick *= 1.0 + 0.9 * u_wcBloom.w * front;
+    }
+
+    float factor = 1.0 - exp(-body * thick);
+
+    // Granulation: paper valleys hold pigment, and flocculated clumps several
+    // grains across give the mottle a second, coarser scale.
+    if (u_wcLook.y > 0.0) {
+        float grain = density * u_paper.y;
+        float h = paperHeight(px / (grain * 1.3), uint(u_paper.w));
+        float clumps = fbm(mat2(0.8, 0.6, -0.6, 0.8) * px / (grain * 9.0), seed + 23u);
+        float settle = (0.5 - h) * 0.7 + (clumps - 0.5) * 1.1;
+        // Reticulation: in patches, irregular cells whose walls gather pigment.
+        if (u_wcLook.z > 0.0) {
+            vec2 cq = px / (grain * 6.0);
+            cq += 0.8 * vec2(fbm(cq * 0.3, seed + 43u), fbm(cq * 0.3 + 5.0, seed + 47u));
+            float patches = smoothstep(0.4, 0.7, fbm(q * 2.0, seed + 53u));
+            settle += u_wcLook.z * patches * (cellWalls(cq, seed + 41u) - 0.4);
+        }
+        thick *= max(0.0, 1.0 + u_wcLook.y * settle * (1.3 - factor) * (1.0 - 0.7 * rim));
+        factor = 1.0 - exp(-body * thick);
+    }
+
+    float strength = 1.0 + u_wcLook.x * 1.1 * rim;
+    factor = clamp(factor + u_wcLook.x * 0.45 * rim * (1.0 - factor), 0.0, 1.0);
+    return vec2(factor * inside, strength);
+}
+#endif
 
 void main(void) {
     vec2 uv = 0.5 * p + 0.5;
@@ -251,14 +434,26 @@ void main(void) {
     
     vec4 source = texture(u_source, sourceUV);
     float maskAlpha = readMask(maskUV);
-    
+
+#ifdef WATERCOLOR
+    // The watercolour edge comes from smoothed coverage and can reach pixels
+    // the raw paint missed, so it decides coverage itself.
+    vec2 wc = watercolor(maskUV, maskAlpha);
+    if (wc.x <= 0.0) {
+        outColor = source;
+        return;
+    }
+    outColor = vec4(spectral_mix_pigment(mix(vec3(1.0), source.rgb, source.a), wc.x, wc.y), 1.);
+    return;
+#endif
+
     if (maskAlpha == 0.0) {
         outColor = source;
         return;
     }
     
     float mixIntensity = min(maskAlpha, 1.0);
-    
+
     if (!IS_BRUSH) {
         vec2 texelSize = 1.0 / vec2(textureSize(u_mask, 0));
         float blurEdge = 0.0;

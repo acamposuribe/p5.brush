@@ -94,6 +94,12 @@ export function setPaper(strength, grain, seed) {
   paperState.seed = seed;
 }
 
+/**
+ * Returns the current paper as (strength, grain, seed). Read-only.
+ * @returns {{strength: number, grain: number, seed: number}}
+ */
+export const getPaper = () => paperState;
+
 // The stroke being queued, and the batch it belongs to. Everything the shaders
 // read as a uniform is captured in the batch, because by the time it is
 // flushed the live transform, colour or clip may belong to a later stroke.

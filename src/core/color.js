@@ -28,8 +28,10 @@ import fragSrc from "./gl/shader.frag";
 import { notifyDraw } from "./runtime.js";
 import { pigmentTerms } from "./spectral.js";
 
-// The stroke composite is the same shader with its brush-only path compiled in.
+// The stroke composite is the same shader with its brush-only path compiled in;
+// watercolour fills compile in their own path.
 const brushFragSrc = fragSrc.replace("#version 300 es", "#version 300 es\n#define BRUSH");
+const watercolorFragSrc = fragSrc.replace("#version 300 es", "#version 300 es\n#define WATERCOLOR");
 
 // =============================================================================
 // Module: Configure and Initiate
@@ -162,6 +164,9 @@ export const isMixReady = () => {
 export const Mix = {
   isBlending: false,
   cachedColor: null,
+  // Watercolour composite uniforms, set by a watercolour fill for its own
+  // composite only (src/fill/fill.js).
+  watercolor: null,
 
   /**
    * Merges a new dirty rectangle into the target's accumulated draw bounds.
@@ -219,7 +224,7 @@ export const Mix = {
         Renderer.blendSourceFramebuffer.height !== Cheight ||
         (typeof Renderer.blendSourceFramebuffer.pixelDensity === "function" &&
           Renderer.blendSourceFramebuffer.pixelDensity() !== Density);
-    ensureBlendShaderProgram(Renderer, vertSrc, fragSrc, brushFragSrc);
+    ensureBlendShaderProgram(Renderer, vertSrc, fragSrc, brushFragSrc, watercolorFragSrc);
 
     this.glMask = strokeComposite?.ensureResources?.(
       Renderer,
@@ -318,7 +323,13 @@ export const Mix = {
     }
 
     const gl = Renderer.drawingContext;
-    const shader = isBrushMask ? Renderer.brushShaderProgram : Renderer.shaderProgram;
+    // A watercolour fill sets its look just before its composite.
+    const watercolor = !isBrushMask && this.watercolor?.uniforms;
+    const shader = isBrushMask
+      ? Renderer.brushShaderProgram
+      : watercolor
+        ? Renderer.watercolorShaderProgram
+        : Renderer.shaderProgram;
     const activeFramebuffer = getActiveFramebuffer();
     const source = blitSourceToFramebuffer({
       renderer: Renderer,
@@ -349,6 +360,7 @@ export const Mix = {
       mask: shaderMask,
       color: this.cachedColor,
       pigment: pigmentTerms(this.cachedColor),
+      uniforms: watercolor || null,
       Cwidth,
       Cheight,
       dirtyRect,

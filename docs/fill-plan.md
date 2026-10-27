@@ -1,6 +1,6 @@
 # Fill plan
 
-**Status: in progress.** Steps 0, 1 and 2 done (2026-10-27); step 2 awaits F-D1 approval. Hardware measurements are from an Apple M4 (ANGLE Metal) only.  
+**Status: in progress.** Steps 0, 1 and 2 done (2026-10-27); step 2 awaits F-D1 approval. Step 3 spike works as an opt-in prototype (`fillStyle("watercolor")`); step 3b (wet-in-wet) in progress; F-D2 open. Hardware measurements are from an Apple M4 (ANGLE Metal) only.  
 **Background:** [`rendering-model-audit.md`](rendering-model-audit.md) (F06, F07, F09, F10, F11) and the closed stroke plan in [`rendering-plan.md`](rendering-plan.md).
 
 ## Goal
@@ -57,7 +57,7 @@ A CPU profile of the 40-fill case puts 53% of samples in `drawImage`, the sync p
 
 ## 4. Style: what "better" looks like
 
-References: Zach Lieberman, [post 1](https://x.com/zachlieberman/status/2105577082365387257) and [post 2](https://x.com/zachlieberman/status/2103642760565629399) (videos). Post 1's discs are perfect circles with real watercolour texture inside, so they look like masked scans of real paint. Post 2's blobs are a grid of irregular, dried washes.
+References: Zach Lieberman, [post 1](https://x.com/zachlieberman/status/2105577082365387257), [post 2](https://x.com/zachlieberman/status/2103642760565629399) and [post 3](https://x.com/zachlieberman/status/2103948104068170164) (videos). Post 1's discs are perfect circles with real watercolour texture inside, so they look like masked scans of real paint. Post 2's blobs are a grid of irregular, dried washes.
 
 Their features, roughly in order of visual weight:
 
@@ -203,6 +203,46 @@ Build it as an opt-in prototype; it is not the default.
 - Compare against the reference videos and the current look, at densities 1, 2 and 3.
 
 **Done when:** F-D2 is decided, with the cost of the new look measured. A rejected spike is a valid outcome; steps 1–2 stand on their own.
+
+**Result (spike, 2026-10-27).** `brush.fillStyle("classic" | "watercolor")`, experimental and opt-in. Classic output is unchanged: all exact-hash fixtures pass.
+
+The watercolour composite is a third build of `shader.frag` (`#define WATERCOLOR`), so the classic and stroke programs stay as they were. It runs once per fill instead of four times. Geometry is still Hobbs (base growth, three trims, the darker layer, the scatter layer, the same bleed modifiers), with these changes:
+
+- **5 layers instead of 20.** The schedule is walked in steps of 4, each layer 4× denser. It looked better than 10 or 20 layers (flatter washes, distinct glaze shapes, no beaded edges), and it is the main speed win.
+- **No erase circles and no border capsules.** Texture and rim come from the composite.
+- **No finest growth level.** Its zigzags showed as a saw-tooth along a crisp edge.
+- **Trim cuts bow slightly inward**, so their tone steps read as wash boundaries rather than ruler lines.
+- **The outline layer is never trimmed** and also writes a silhouette channel (mask B). The edge comes from that channel only, so trims shade the interior but never cut the outline or close a concave notch.
+
+The composite (`watercolor()` in `shader.frag`):
+
+- **A half-resolution separable Gaussian blur of the mask** (`src/fill/blur.frag`, 2 passes, σ ≈ 3.5% of the shape size). It gives the smooth silhouette field, the share of each neighbourhood that is inside, and the mean inside paint. An earlier version built these from 16 ring taps instead. Its edge traced shifted copies of the pixel-stepped raster ("a blown-up low-res image"), with ghost contours.
+- **Edge.** The signed distance to the blurred silhouette's iso-line, roughened by the shared paper height. The paper shift is kept below the paper bumps' size: noise thresholds broke off flecks that looked cut out in Photoshop. Some stretches are rougher than others. Some stretches, more often on wetter fills, are *lost edges* that fade to bare paper with no line.
+- **Rim.** A thin dark line that follows the actual edge, over a faint band fading inward (`border`).
+- **Interior.** Granulation in the paper's valleys, strongest where paint is thin. Patchy reticulation (Worley cell walls), more likely at high `texture`. Low-frequency drift. Per fill, sometimes: a pooled side behind a curved front (downstream with a `fillBleed` angle), a wet-in-wet drop, or a small bloom with a broken front.
+- Pitfalls hit: glslify renames the `u` of `123u` literals in modules required from other modules (`value_noise.glsl` uses `uint(int)` instead). The composite rect is wider than the paint bounds, so the blur must cover it, or the composite reads a previous fill's blur as a stray line.
+
+Cost, Apple M4, total ms. These are quiet-machine runs, after the blur and before the final edge rework:
+
+| Workload | classic | watercolor |
+|---|---:|---:|
+| fill | 6.3 | 3.3 |
+| fillLarge | 31 | 27 |
+| fillMany | 106 | **34** |
+| fillHighBleed | 38 | 28 |
+
+The final edge (paper roughness and lost edges) was measured only on a loaded machine. In that run classic read 1.4–1.6× its quiet numbers, and watercolour stayed faster than classic on every fill workload (fillMany 45 vs 151–176 ms). Re-measure before release. `node test/e2e/bench.mjs --fill-style=watercolor` and `node test/e2e/fill-sheet.mjs --style=watercolor` select the style; the standalone and p5 fill explorers take `?style=watercolor`.
+
+Not done in the spike: densities 1 and 3 were only spot-checked.
+
+### 3b. Wet-in-wet contacts
+
+Fills that touch a wash that is still wet lose their edge there, and their pigment creeps into the wet area. Wet-on-dry overlaps stay as they are (hard-edged glazes).
+
+- A per-target, half-resolution wetness buffer. After each watercolour fill composites, its blurred silhouette is stamped in as wet. Every new fill dries the buffer by a fixed factor: drying is by fill count, deterministic under a seed.
+- The composite reads wetness under the fill. Where its edge meets wet paint, the edge becomes a lost edge and the pigment spreads past the silhouette. Only the new fill moves; the earlier one is already on the canvas.
+- Lifecycle: cleared on `clear()` and resize, one buffer per drawing target.
+- Also fix: smooth, dense drops (no granulation spray over them), less regular reticulation, and less periodic wobble along long straight edges.
 
 ### 4. Composite collapse
 

@@ -10,7 +10,7 @@
 //             overlapping glazes, and a wash
 //
 // Run: npm run build && node test/e2e/fill-sheet.mjs [--density=2]
-//        [--out=workspace/fill-sheet.png] [--angle=…]
+//        [--style=classic|watercolor] [--out=workspace/fill-sheet.png] [--angle=…]
 // ============================================================
 
 import { mkdir, writeFile } from "node:fs/promises";
@@ -24,7 +24,8 @@ const take = (name, fallback) => {
   return argv.splice(i, 1)[0].slice(name.length + 3);
 };
 const density = Number(take("density", 2));
-const out = take("out", `workspace/fill-sheet-d${density}.png`);
+const style = take("style", "classic");
+const out = take("out", `workspace/fill-sheet-${style === "classic" ? "" : `${style}-`}d${density}.png`);
 const angle = take("angle", "swiftshader");
 if (argv.length) throw new Error(`Unknown arguments: ${argv.join(" ")}`);
 
@@ -39,12 +40,13 @@ let exitCode = 0;
 
 try {
   const page = await newPage(browser, `http://127.0.0.1:${server.address().port}`);
-  const png = await page.evaluate(({ W, H, density, COLS, ROWS, CELL }) => {
+  const png = await page.evaluate(({ W, H, density, style, COLS, ROWS, CELL }) => {
     const { brush } = window;
     const canvas = brush.createCanvas(W, H, { pixelDensity: density });
     brush.seed(1);
     brush.noiseSeed(1);
     brush.noStroke();
+    brush.fillStyle(style);
 
     const cx = (c) => -W / 2 + CELL * (c + 0.5);
     const cy = (r) => -H / 2 + CELL * (r + 0.5);
@@ -100,9 +102,17 @@ try {
     const out = document.createElement("canvas");
     out.width = w;
     out.height = h;
-    out.getContext("2d").putImageData(new ImageData(flipped, w, h), 0, 0);
+    // Flatten onto white paper, as fills are seen in practice.
+    const layer = document.createElement("canvas");
+    layer.width = w;
+    layer.height = h;
+    layer.getContext("2d").putImageData(new ImageData(flipped, w, h), 0, 0);
+    const ctx = out.getContext("2d");
+    ctx.fillStyle = "#fff";
+    ctx.fillRect(0, 0, w, h);
+    ctx.drawImage(layer, 0, 0);
     return out.toDataURL("image/png");
-  }, { W, H, density, COLS, ROWS, CELL });
+  }, { W, H, density, style, COLS, ROWS, CELL });
   if (page.harnessErrors.length) throw new Error(page.harnessErrors.join("\n"));
 
   const path = resolve(REPO_ROOT, out);

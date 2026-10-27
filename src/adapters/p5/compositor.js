@@ -22,10 +22,11 @@ function clearTarget(renderer, target, isFramebufferTarget) {
   ctx.restore();
 }
 
-function ensureBlendShaderProgram(renderer, vertSrc, fragSrc, brushFragSrc) {
+function ensureBlendShaderProgram(renderer, vertSrc, fragSrc, brushFragSrc, watercolorFragSrc) {
   if (!renderer.loaded) {
     renderer.shaderProgram ??= renderer.createShader(vertSrc, fragSrc);
     renderer.brushShaderProgram ??= renderer.createShader(vertSrc, brushFragSrc);
+    renderer.watercolorShaderProgram ??= renderer.createShader(vertSrc, watercolorFragSrc);
     renderer.loaded = true;
   }
 }
@@ -59,6 +60,7 @@ function runBlendShaderPass({
   mask,
   color,
   pigment,
+  uniforms,
   Cwidth,
   Cheight,
   dirtyRect,
@@ -80,6 +82,7 @@ function runBlendShaderPass({
     shader.setUniform("u_color", color);
     shader.setUniform("u_pigmentKS", pigment.ks);
     shader.setUniform("u_pigmentLuminance", pigment.luminance);
+    if (uniforms) for (const name in uniforms) shader.setUniform(name, uniforms[name]);
 
     withScissor(
       gl,

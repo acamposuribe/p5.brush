@@ -74,6 +74,14 @@ function makeShader(gl, vertSrc, fragSrc) {
     setUniform(name, value) {
       const location = getUniformLocation(name);
       if (!location) return;
+      // Extra textures go on unit 2; units 0 and 1 hold the source and mask.
+      if (value?.colorTexture) {
+        gl.activeTexture(gl.TEXTURE2);
+        gl.bindTexture(gl.TEXTURE_2D, value.colorTexture);
+        gl.uniform1i(location, 2);
+        gl.activeTexture(gl.TEXTURE0);
+        return;
+      }
       if (typeof value === "boolean") {
         gl.uniform1i(location, value ? 1 : 0);
         return;
@@ -91,9 +99,10 @@ function makeShader(gl, vertSrc, fragSrc) {
   };
 }
 
-function ensureBlendShaderProgram(renderer, vertSrc, fragSrc, brushFragSrc) {
+function ensureBlendShaderProgram(renderer, vertSrc, fragSrc, brushFragSrc, watercolorFragSrc) {
   renderer.shaderProgram ??= makeShader(renderer.drawingContext, vertSrc, fragSrc);
   renderer.brushShaderProgram ??= makeShader(renderer.drawingContext, vertSrc, brushFragSrc);
+  renderer.watercolorShaderProgram ??= makeShader(renderer.drawingContext, vertSrc, watercolorFragSrc);
   renderer.loaded = true;
 }
 
@@ -204,6 +213,7 @@ function runBlendShaderPass({
   mask,
   color,
   pigment,
+  uniforms,
   dirtyRect,
   targetIsFramebuffer,
   withScissor,
@@ -233,6 +243,7 @@ function runBlendShaderPass({
   gl.uniform3f(shader.loc_color, color[0], color[1], color[2]);
   gl.uniform1fv(shader.loc_pigmentKS, pigment.ks);
   gl.uniform1f(shader.loc_pigmentLuminance, pigment.luminance);
+  if (uniforms) for (const name in uniforms) shader.setUniform(name, uniforms[name]);
 
   gl.bindFramebuffer(gl.FRAMEBUFFER, null);
   withScissor(
@@ -244,7 +255,11 @@ function runBlendShaderPass({
     !targetIsFramebuffer,
   );
 
-  gl.bindTexture(gl.TEXTURE_2D, null);
+  // Unbind the mask (unit 1) and any extra texture (unit 2).
+  for (const unit of [gl.TEXTURE2, gl.TEXTURE1]) {
+    gl.activeTexture(unit);
+    gl.bindTexture(gl.TEXTURE_2D, null);
+  }
   gl.activeTexture(gl.TEXTURE0);
   gl.bindVertexArray(previousVao);
   gl.useProgram(previousProgram);
