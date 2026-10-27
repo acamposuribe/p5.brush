@@ -1,6 +1,6 @@
 # Rendering plan
 
-**Status (2026-10-27, branch `experiment/gpu-dots`):** steps 1–4 done; step 7 partly done (paper tooth, always on); step 6 replaced by GPU dot generation, done for every brush type. D1 decided (density 2); D4 decided (GPU dots replace CPU dots). No library code has changed.  
+**Status: closed 2026-10-27.** Steps 1–4 and 6 done; step 5 only on an Apple M4; step 7's paper half done (always on) and its continuous-stroke half dropped for now (D3: no-go). step 6 replaced by GPU dot generation, done for every brush type. D1 decided (density 2); D4 decided (GPU dots replace CPU dots). No library code has changed.  
 **Evidence and background:** [`rendering-model-audit.md`](rendering-model-audit.md). Finding IDs (F01 and so on) refer to that document.
 
 ## Goal
@@ -15,7 +15,7 @@ These need an owner's answer before the step that depends on them.
 |---|---|---|---|
 | D1 | **Reference density.** At which pixel density do the current presets look as intended? **Decided 2026-10-27: density 2.** | Step 3 | Fine brushes are about 3.5× darker at density 1 than at density 2 (F01). The fix keeps the look at the reference density and changes it at the others. Choose the density the presets were tuned on. |
 | D2 | **Release vehicle for the F01 fix.** Patch, minor, or major version, and is there an opt-out? | Step 3 merge | The fix changes seeded output for every fine-brush sketch on non-reference screens. |
-| D3 | **Go/no-go for the segment renderer.** | After step 7 | Decided against the criteria in step 7. |
+| D3 | **Go/no-go for the segment renderer.** **Decided 2026-10-27: no-go for now** — GPU dots delivered the speed and the paper tooth most of the texture. Revisit only if pens or markers look wrong. | After step 7 | Decided against the criteria in step 7. |
 | D4 | **GPU dot generation in classic mode?** Seeds keep their statistics but produce different dots. **Decided 2026-10-27: yes, and CPU dots are removed.** | Step 6 | Approved after side-by-side comparison. |
 
 ## Steps
@@ -80,7 +80,9 @@ Render the brush matrix at densities 1 and 2 with the step 1 harness, compare th
 - **F15:** list side-effectful modules in `package.json` `sideEffects`, and add a bundled-consumer fixture that proves tree-shaking keeps registration.
 - **Docs:** update the adapter READMEs that still describe standalone as a future adapter.
 
-### 5. Profile on hardware GPUs
+### 5. Profile on hardware GPUs — partly done (Apple M4 only)
+
+Windows (ANGLE D3D11) and a mobile GPU were not measured. Since rendering moved to the GPU, this is the main open risk; run `npm run measure:bench -- --angle=d3d11` (Windows) and compare with `test/e2e/baselines/`.
 
 Run `bench.mjs` (instrumented to split CPU tip generation, upload/submission, and composite, using `EXT_disjoint_timer_query_webgl2` where available) on at least:
 
