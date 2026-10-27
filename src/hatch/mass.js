@@ -434,17 +434,17 @@ function drawScribbleMass(shape, o) {
   const size = Math.max(bounds.size, 1);
   const base = (-o.baseAngle * Math.PI) / 180; // degrees (y up) → radians (y down)
   const gap = o.gap;
-  const sample = Math.max(1, gap * 0.75);
+  const sample = Math.max(2, gap); // path detail; the brush steps finely between samples
 
   // Mark size: a fraction of the shape, but always several brush widths long,
   // unless the caller sets a maximum mark length.
   const maxLength = o.maxLength > 0 ? o.maxLength : Infinity;
   const meanLength = Number.isFinite(maxLength)
     ? maxLength * 0.6
-    : Math.max(gap * 8, Math.min(size * 0.12, gap * 40));
-  const meanWidth = gap * 7;
-  // Marks overlap ~1-3 times on average depending on strength.
-  const overlap = 1 + 2 * o.strength;
+    : Math.max(gap * 12, size * 0.2);
+  const meanWidth = gap * 4;
+  // Marks overlap ~2-5 times on average depending on strength.
+  const overlap = 2 + 3 * o.strength;
   const cell = Math.sqrt((meanLength * meanWidth) / overlap);
   const freq = 2.5 / size; // slow variation: a few cycles across the shape
 
@@ -453,9 +453,12 @@ function drawScribbleMass(shape, o) {
       const x = gx + rr2(0, cell), y = gy + rr2(0, cell);
       if (!pointInMassShape(shape, x, y)) continue;
 
-      // Gradient: fewer marks further across the shape, perpendicular to the base angle.
+      // Gradient: marks get lighter and shorter further across the shape
+      // (perpendicular to the base angle); only a few are dropped outright,
+      // so the fill thins out without leaving isolated marks on bare paper.
       const across = ((x - bounds.cx) * -Math.sin(base) + (y - bounds.cy) * Math.cos(base)) / size + 0.5;
-      if (rr2() < o.gradient * 1.5 * across) continue;
+      const fade = Math.min(1, Math.max(0, o.gradient * 1.5 * across));
+      if (rr2() < fade * 0.35) continue;
 
       const n1 = noise(x * freq, y * freq);
       const n2 = noise(x * freq + 40, y * freq + 40);
@@ -470,24 +473,40 @@ function drawScribbleMass(shape, o) {
         const ay = (1 - f) * Math.sin(2 * angle) + f * Math.sin(2 * edge.angle);
         angle = Math.atan2(ay, ax) / 2;
       }
-      const length = Math.min(maxLength, meanLength * (0.6 + 0.8 * (n2 * 0.5 + 0.5)) * rr2(0.8, 1.2));
-      const passes = Math.round(rr2(3, 7));
-      const ux = Math.cos(angle), uy = Math.sin(angle); // along the mark
-      const vx = -uy, vy = ux; // sideways
+      const length = Math.min(maxLength, meanLength * (0.5 + 1.2 * (n2 * 0.5 + 0.5)) * rr2(0.7, 1.3))
+        * (1 - 0.4 * fade);
+      // Mostly one or two long sweeps; sometimes the hand doubles back again.
+      const passes = rr2() < 0.45 ? 1 : rr2() < 0.7 ? 2 : 3;
+      const stride = rr2(1.2, 3.5); // sideways step between passes, in brush widths
 
-      // The hand sweeps back and forth while creeping sideways.
+      // The hand sweeps back and forth while creeping sideways, but never like
+      // a machine: each pass varies in reach and drifts along the mark, the
+      // passes fan out as the wrist turns, each one bows slightly, the
+      // sideways step is uneven, and pressure lifts at the turnarounds.
       const tEnd = passes * Math.PI;
       const steps = Math.max(8, Math.ceil((passes * length) / sample));
       const phase = rr2(0, Math.PI * 2);
+      const fan = rr2(-0.25, 0.25); // total wrist rotation over the mark, radians
+      const bow = rr2(-0.1, 0.1) * length; // sideways bulge of each pass
+      const key = rr2(0, 1000); // this mark's slice of the noise field
+      const weight = (0.8 + 0.25 * (n1 * 0.5 + 0.5)) * (1 - 0.6 * fade);
       let run = [];
       for (let k = 0; k <= steps; k++) {
         const t = (k / steps) * tEnd;
-        const a = (length / 2) * Math.sin(t + phase);
-        const side = gap * 1.5 * (t / Math.PI) - passes * gap * 0.75;
-        const px = x + ux * a + vx * side;
-        const py = y + uy * a + vy * side;
+        const u = t / tEnd;
+        const s = Math.sin(t + phase);
+        const reach = (length / 2) * (0.75 + 0.25 * noise(key, u * passes * 0.9));
+        const a = reach * s + length * 0.12 * noise(key + 7, u * 1.5);
+        const side = gap * (stride * ((t / Math.PI) - passes / 2) + 0.8 * noise(key + 13, u * passes * 0.6))
+          + bow * (1 - s * s);
+        const wobble = gap * 0.4 * noise(key + 21, t * 0.8);
+        const ang = angle + fan * (u - 0.5);
+        const ux = Math.cos(ang), uy = Math.sin(ang);
+        const px = x + ux * a - uy * (side + wobble);
+        const py = y + uy * a + ux * (side + wobble);
         if (pointInMassShape(shape, px, py)) {
-          run.push([px, py, 0.75 + 0.35 * Math.abs(Math.cos(t + phase))]);
+          const press = 0.3 + 0.8 * Math.pow(Math.abs(Math.cos(t + phase)), 1.5);
+          run.push([px, py, press * weight]);
         } else {
           drawRun(run);
           run = [];
@@ -556,7 +575,7 @@ export function createMass(shape, x, y, scale) {
         gap: hatchDist,
         strength,
         gradient,
-        follow: State.mass.options?.follow ?? 0.5,
+        follow: State.mass.options?.follow ?? 0.25,
         maxLength: State.mass.options?.length,
         baseAngle,
       });
