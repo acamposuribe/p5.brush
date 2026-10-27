@@ -27,7 +27,6 @@ import {
   noise,
   cos,
   sin,
-  cossin,
 } from "../core/utils.js";
 import { createColor, getAffineMatrix } from "../core/runtime.js";
 import { Position, isFieldReady } from "../core/flowfield.js";
@@ -390,12 +389,10 @@ const SEGMENT_LENGTH = 4;
  */
 function drawSegments(totalSteps, stepSize, isPlot, angleScale) {
   const steps = Math.max(1, Math.min(SUBSTEPS, Math.round(SEGMENT_LENGTH / stepSize)));
-  let stepX = 0, stepY = 0;
-  if (!isPlot) {
-    const direction = cossin(-angleScale);
-    stepX = stepSize * direction[0];
-    stepY = stepSize * direction[1];
-  }
+  // Straight lines use their exact direction (not the 0.25° lookup table),
+  // so long lines end where they were asked to.
+  const stepX = isPlot ? 0 : stepSize * current.cos;
+  const stepY = isPlot ? 0 : -stepSize * current.sin;
   let pressure = calculatePressure();
   for (let i = 0; i < totalSteps; i += steps) {
     const n = Math.min(steps, totalSteps - i);
@@ -461,10 +458,12 @@ function saveState() {
   }
   [current.min, current.max] = pressure.min_max;
 
-  // Cache stroke direction for direction-aware dispersion (non-plot strokes only)
+  // Cache the exact stroke direction for stepping and direction-aware
+  // dispersion (non-plot strokes only)
   if (!_plot) {
-    current.cos = cos(_dir);
-    current.sin = sin(_dir);
+    const rad = (_dir * Math.PI) / 180;
+    current.cos = Math.cos(rad);
+    current.sin = Math.sin(rad);
   }
 
   // Ensure GL is ready and blend state

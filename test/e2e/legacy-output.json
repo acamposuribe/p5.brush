@@ -4,10 +4,10 @@
     "field": "Updated for B24 floor-based signed integer sampling; seeded changes approved by user. Then: Brush dots and stamps are now generated on the GPU from hashed randomness: same distribution and ink (within ~2% of 2.3.0), different seeded realization. Approved by user 2026-10-27. Then: density-invariant dot footprint (F01); these scenes render at density 1, where fine brushes are now ~4x lighter, matching density 2.",
     "standardBrushes": "Brush dots and stamps are now generated on the GPU from hashed randomness: same distribution and ink (within ~2% of 2.3.0), different seeded realization. Approved by user 2026-10-27. Then: density-invariant dot footprint (F01); these scenes render at density 1, where fine brushes are now ~4x lighter, matching density 2.",
     "curves": "Brush dots and stamps are now generated on the GPU from hashed randomness: same distribution and ink (within ~2% of 2.3.0), different seeded realization. Approved by user 2026-10-27. Then: density-invariant dot footprint (F01); these scenes render at density 1, where fine brushes are now ~4x lighter, matching density 2.",
-    "hatch": "Brush dots and stamps are now generated on the GPU from hashed randomness: same distribution and ink (within ~2% of 2.3.0), different seeded realization. Approved by user 2026-10-27. Then: density-invariant dot footprint (F01); these scenes render at density 1, where fine brushes are now ~4x lighter, matching density 2.",
+    "hatch": "Brush dots and stamps are now generated on the GPU from hashed randomness: same distribution and ink (within ~2% of 2.3.0), different seeded realization. Approved by user 2026-10-27. Then: density-invariant dot footprint (F01); these scenes render at density 1, where fine brushes are now ~4x lighter, matching density 2. Then: straight lines step along their exact direction instead of the 0.25\u00b0 lookup table (F12).",
     "mass": "Brush dots and stamps are now generated on the GPU from hashed randomness: same distribution and ink (within ~2% of 2.3.0), different seeded realization. Approved by user 2026-10-27. Then: density-invariant dot footprint (F01); these scenes render at density 1, where fine brushes are now ~4x lighter, matching density 2.",
     "massArray": "Brush dots and stamps are now generated on the GPU from hashed randomness: same distribution and ink (within ~2% of 2.3.0), different seeded realization. Approved by user 2026-10-27. Then: density-invariant dot footprint (F01); these scenes render at density 1, where fine brushes are now ~4x lighter, matching density 2.",
-    "straightAngles": "Brush dots and stamps are now generated on the GPU from hashed randomness: same distribution and ink (within ~2% of 2.3.0), different seeded realization. Approved by user 2026-10-27. Then: density-invariant dot footprint (F01); these scenes render at density 1, where fine brushes are now ~4x lighter, matching density 2."
+    "straightAngles": "Brush dots and stamps are now generated on the GPU from hashed randomness: same distribution and ink (within ~2% of 2.3.0), different seeded realization. Approved by user 2026-10-27. Then: density-invariant dot footprint (F01); these scenes render at density 1, where fine brushes are now ~4x lighter, matching density 2. Then: straight lines step along their exact direction instead of the 0.25\u00b0 lookup table (F12)."
   },
   "addedCases": {
     "massArray": "Post-B24, pre-optimization build",
@@ -18,11 +18,11 @@
     "standardBrushes": "9abe13fb74fadbc7681a0b49fc8602c1509254aec4cd05fd43c944b3cad93c09",
     "curves": "7b035f926cb4f7fe9b585a0601c7c679562c6151dc2e856739cc70d22206298b",
     "wash": "bee159e6d3bf1f869aa2a3474e4694e2f9ea920b00293afe197c3352eff04e2a",
-    "hatch": "7761b727dfe1638feb37d87240c6c396e5f608aba5f4c53402fe3133c7fabb98",
+    "hatch": "32cd8347e4af54182962ebded2723cae1be5c9c32b6858090b8cb780bc3126a9",
     "mass": "fe6751220d395a8092826b8c534c7e9e114a3ea087f89fd125d8768671b1b16f",
     "field": "63b70f873e991d02f172db87e349274cc5f2137903b4f5dbd9fdce86c1242615",
     "massArray": "5f79c69a2e838291166d5679c6036cd8a114c8b780645f1ea896144120ce60bb",
-    "straightAngles": "eeae285eed45167a0233eb3b310c1661c35ac4667a955daac59ff7936f295029",
+    "straightAngles": "867de2aedcded8d217d4a6b942b7def06311e46256b44316bca41185f2b822e9",
     "washSequence": "9e6df5e63ccf30717a478b99dc9b22c9a915f00a433e36900c71d037e1b45d04"
   }
 }

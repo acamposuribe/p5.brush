@@ -100,6 +100,21 @@ export async function regressions(b) {
     check(sizes[0][1]===200 && sizes[1][1]===400, `stale field dimensions ${JSON.stringify(sizes)}`);
     b.noField();
   });
+  await run('F12 straight lines follow their exact direction', () => {
+    // Line directions were looked up as 360° − 30.0125° = 329.9875°, which a
+    // truncating 0.25° table turns into 329.75° (~0.8 px off at x = 90).
+    b.add('regression-thin', {...params,weight:1.5,spacing:0.25});
+    const [x1, y1, x2, y2] = [-100, 60, 100, 60 - 200 * Math.tan(30.0125 * Math.PI / 180)];
+    b.set('regression-thin','black'); b.line(x1, y1, x2, y2); b.render();
+    const x = 90, ideal = y1 + (y2 - y1) * (x - x1) / (x2 - x1);
+    let ink = 0, sum = 0;
+    for (let y = Math.round(ideal) - 6; y <= Math.round(ideal) + 6; y++) {
+      const v = 255 - pixel(x, y);
+      ink += v; sum += v * y;
+    }
+    const centre = sum / ink;
+    check(ink > 0 && Math.abs(centre - ideal) < 0.4, `line centre ${centre.toFixed(2)} at x=${x}, expected ${ideal.toFixed(2)}`);
+  });
   await run('B16 transparent CSS colors', () => {
     for (const css of ['transparent','#ff000080','rgb(255 0 0 / 0.5)']) {
       const c=new b.Color(css); check(c._array[3]<1, `alpha lost for ${css}`);

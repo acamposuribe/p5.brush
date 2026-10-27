@@ -1,6 +1,6 @@
 # Rendering plan
 
-**Status (2026-10-27, branch `experiment/gpu-dots`):** steps 1 and 3 done; step 6 replaced by GPU dot generation, done for every brush type. D1 decided (density 2); D4 decided (GPU dots replace CPU dots). No library code has changed.  
+**Status (2026-10-27, branch `experiment/gpu-dots`):** steps 1–4 done; step 6 replaced by GPU dot generation, done for every brush type. D1 decided (density 2); D4 decided (GPU dots replace CPU dots). No library code has changed.  
 **Evidence and background:** [`rendering-model-audit.md`](rendering-model-audit.md). Finding IDs (F01 and so on) refer to that document.
 
 ## Goal
@@ -51,7 +51,7 @@ Findings that change later steps:
 3. **The audit's fill timing was CPU-only.** It reported 12.3 ms, which matches the JavaScript time here, not the GPU time. On SwiftShader, the four spectral composites take about 800 ms of GPU time; on the M4, about 5 ms.
 4. **The audit's density table was not measured on SwiftShader.** Its values and its point-size range of [1, 511] match the Metal run exactly; SwiftShader in this Chromium reports [1, 1023].
 
-### 2. Decide the reference density (D1)
+### 2. Decide the reference density (D1) — done (density 2)
 
 Render the brush matrix at densities 1 and 2 with the step 1 harness, compare them side by side, and record the decision in this document.
 
@@ -69,7 +69,12 @@ Render the brush matrix at densities 1 and 2 with the step 1 harness, compare th
 - Line width and grain look the same at matched display size. Darkness alone is not enough: a blurred, over-wide line can match it.
 - `npm test` passes, with legacy fixtures updated only where the change is intended and explained.
 
-### 4. Small fixes
+### 4. Small fixes — done
+
+**Result.**
+- **F12:** straight lines step along their exact direction instead of the 0.25° lookup table; a new regression test fails on 2.3.0 (0.75 px off) and passes now. Rounding the table itself was tried and reverted: it changed every seeded watercolour fill for no visible benefit.
+- **F15:** `"sideEffects": false` made bundlers drop `import "p5.brush"` entirely (confirmed: a consumer bundle came out empty). The flag is removed; `npm run test:packaging` installs the package into a temporary `node_modules` and checks both entry points survive bundling.
+- **Docs:** the adapter READMEs now describe the standalone adapter as it exists.
 
 - **F12:** use exact endpoint-derived direction vectors for straight lines. Round instead of truncate in `angleToIdx()`, or interpolate. Add an endpoint/angle test.
 - **F15:** list side-effectful modules in `package.json` `sideEffects`, and add a bundled-consumer fixture that proves tree-shaking keeps registration.

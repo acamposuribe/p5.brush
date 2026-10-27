@@ -16,9 +16,10 @@
     }
   },
   "scripts": {
-    "test": "npm run build && npm run test:bugs && npm run test:smoke",
+    "test": "npm run build && npm run test:bugs && npm run test:smoke && npm run test:packaging",
     "test:bugs": "node test/e2e/bugs.mjs",
     "test:smoke": "node test/e2e/smoke.mjs",
+    "test:packaging": "node test/e2e/packaging.mjs",
     "measure:density": "npm run build && node test/e2e/density.mjs",
     "measure:bench": "npm run build && node test/e2e/bench.mjs",
     "build": "rollup --config",
@@ -28,7 +29,6 @@
     "dist",
     "src"
   ],
-  "sideEffects": false,
   "type": "module",
   "repository": {
     "type": "git",
