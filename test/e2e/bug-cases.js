@@ -115,6 +115,24 @@ export async function regressions(b) {
     const centre = sum / ink;
     check(ink > 0 && Math.abs(centre - ideal) < 0.4, `line centre ${centre.toFixed(2)} at x=${x}, expected ${ideal.toFixed(2)}`);
   });
+  await run('Paper tooth: seeded, repeatable, and removes ink', async () => {
+    const snapshot = async (strength, options) => {
+      b.paper(strength, options); b.clear('white'); b.seed(9);
+      b.set('2B','black',1); b.hatch(2, 30); b.rect(-60,-60,120,120); b.noHatch(); b.render();
+      const data = new Uint8Array(256 * 256 * 4);
+      gl.readPixels(0, 0, 256, 256, gl.RGBA, gl.UNSIGNED_BYTE, data);
+      let ink = 0; for (let i = 0; i < data.length; i += 4) ink += 255 - data[i];
+      const hash = [...new Uint8Array(await crypto.subtle.digest('SHA-256', data))].join(',');
+      return { ink, hash };
+    };
+    try {
+      const a = await snapshot(1, {seed: 1}), again = await snapshot(1, {seed: 1}), other = await snapshot(1, {seed: 2});
+      const smooth = await snapshot(0);
+      check(a.hash === again.hash, 'same paper seed rendered differently');
+      check(a.hash !== other.hash, 'paper seed had no effect');
+      check(smooth.ink > a.ink * 1.05, `paper did not remove ink (${a.ink} vs smooth ${smooth.ink})`);
+    } finally { b.paper(); }
+  });
   await run('B16 transparent CSS colors', () => {
     for (const css of ['transparent','#ff000080','rgb(255 0 0 / 0.5)']) {
       const c=new b.Color(css); check(c._array[3]<1, `alpha lost for ${css}`);

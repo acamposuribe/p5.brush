@@ -1,6 +1,6 @@
 # Rendering plan
 
-**Status (2026-10-27, branch `experiment/gpu-dots`):** steps 1–4 done; step 6 replaced by GPU dot generation, done for every brush type. D1 decided (density 2); D4 decided (GPU dots replace CPU dots). No library code has changed.  
+**Status (2026-10-27, branch `experiment/gpu-dots`):** steps 1–4 done; step 7 partly done (paper tooth, always on); step 6 replaced by GPU dot generation, done for every brush type. D1 decided (density 2); D4 decided (GPU dots replace CPU dots). No library code has changed.  
 **Evidence and background:** [`rendering-model-audit.md`](rendering-model-audit.md). Finding IDs (F01 and so on) refer to that document.
 
 ## Goal
@@ -105,7 +105,11 @@ Proceed only if submission or upload accounts for a meaningful share of mass/hat
 
 **Acceptance:** pixel output matches the step 3/4 baseline within tolerance; upload/draw counts drop; hardware wall time improves measurably on at least two of the step 5 targets.
 
-### 7. Segment-renderer spike, time-boxed
+### 7. Segment-renderer spike, time-boxed — paper half done
+
+**Result (paper).** Tested first, on the existing dot strokes. Every stroke is now drawn onto a procedural paper tooth (`src/stroke/paper.glsl`, shared by the dot and stamp shaders): a fixed height map in canvas space. A mark deposits only where the paper rises above a level set by its pressure. It is **always on** (strength 0.5, grain 1.26 logical px × the `scaleBrushes()` factor), its pattern follows `brush.seed()`, and `brush.paper()` / `brush.noPaper()` tune or remove it. Strokes come out somewhat paler; this was accepted rather than recalibrating presets. Cost on an Apple M4 is 0–3 ms per workload, and about 0–10% on SwiftShader. The continuous-stroke half has not been started.
+
+Original plan text:
 
 A throwaway prototype of continuous segment coverage with persistent paper texture (audit §5.2–5.3) for **pen and HB pencil only**, behind an internal flag.
 

@@ -68,13 +68,13 @@
       <div class="nav"><a href="../index.html">All tests</a></div>
       <h1>Paper Tooth</h1>
       <p>
-        Experimental <code>brush.paper()</code>: strokes deposit onto one fixed, procedural paper surface.
+        Every stroke deposits onto one fixed, procedural paper surface (tune with <code>brush.paper()</code>).
         Light pressure catches only the hilltops; heavy pressure reaches the valleys. Crossing strokes share
-        the same grain. The grain follows <code>brush.scaleBrushes()</code>. Press <b>P</b> to flip paper on/off.
+        the same grain. The pattern follows <code>brush.seed()</code> and the grain follows <code>brush.scaleBrushes()</code>. Press <b>P</b> to compare with smooth paper.
       </p>
 
       <div class="controls">
-        <label>Paper <input type="range" id="strength" min="0" max="1" step="0.05" value="0.7" /><span class="val" id="strengthVal"></span></label>
+        <label>Paper <input type="range" id="strength" min="0" max="1" step="0.05" value="0.5" /><span class="val" id="strengthVal"></span></label>
         <label>Grain <input type="range" id="grain" min="0.4" max="3" step="0.1" value="1" /><span class="val" id="grainVal"></span></label>
         <label>Brush scale
           <select id="scale"><option>1</option><option>2</option><option>3</option></select>
@@ -131,7 +131,7 @@
         canvas.style.width = `${W * zoom}px`;
         canvas.style.height = `${H * zoom}px`;
 
-        if (paperOn && strength > 0) brush.paper(strength, { scale: grain, seed: 3 });
+        if (paperOn) brush.paper(strength, { scale: grain });
         else brush.noPaper();
 
         brush.clear("#fbf8f0");

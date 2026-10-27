@@ -1,13 +1,13 @@
 {
   "capturedFrom": "43ac6d5",
   "intentionalChanges": {
-    "field": "Updated for B24 floor-based signed integer sampling; seeded changes approved by user. Then: Brush dots and stamps are now generated on the GPU from hashed randomness: same distribution and ink (within ~2% of 2.3.0), different seeded realization. Approved by user 2026-10-27. Then: density-invariant dot footprint (F01); these scenes render at density 1, where fine brushes are now ~4x lighter, matching density 2.",
-    "standardBrushes": "Brush dots and stamps are now generated on the GPU from hashed randomness: same distribution and ink (within ~2% of 2.3.0), different seeded realization. Approved by user 2026-10-27. Then: density-invariant dot footprint (F01); these scenes render at density 1, where fine brushes are now ~4x lighter, matching density 2.",
-    "curves": "Brush dots and stamps are now generated on the GPU from hashed randomness: same distribution and ink (within ~2% of 2.3.0), different seeded realization. Approved by user 2026-10-27. Then: density-invariant dot footprint (F01); these scenes render at density 1, where fine brushes are now ~4x lighter, matching density 2.",
-    "hatch": "Brush dots and stamps are now generated on the GPU from hashed randomness: same distribution and ink (within ~2% of 2.3.0), different seeded realization. Approved by user 2026-10-27. Then: density-invariant dot footprint (F01); these scenes render at density 1, where fine brushes are now ~4x lighter, matching density 2. Then: straight lines step along their exact direction instead of the 0.25\u00b0 lookup table (F12).",
-    "mass": "Brush dots and stamps are now generated on the GPU from hashed randomness: same distribution and ink (within ~2% of 2.3.0), different seeded realization. Approved by user 2026-10-27. Then: density-invariant dot footprint (F01); these scenes render at density 1, where fine brushes are now ~4x lighter, matching density 2.",
-    "massArray": "Brush dots and stamps are now generated on the GPU from hashed randomness: same distribution and ink (within ~2% of 2.3.0), different seeded realization. Approved by user 2026-10-27. Then: density-invariant dot footprint (F01); these scenes render at density 1, where fine brushes are now ~4x lighter, matching density 2.",
-    "straightAngles": "Brush dots and stamps are now generated on the GPU from hashed randomness: same distribution and ink (within ~2% of 2.3.0), different seeded realization. Approved by user 2026-10-27. Then: density-invariant dot footprint (F01); these scenes render at density 1, where fine brushes are now ~4x lighter, matching density 2. Then: straight lines step along their exact direction instead of the 0.25\u00b0 lookup table (F12)."
+    "field": "Updated for B24 floor-based signed integer sampling; seeded changes approved by user. Then: Brush dots and stamps are now generated on the GPU from hashed randomness: same distribution and ink (within ~2% of 2.3.0), different seeded realization. Approved by user 2026-10-27. Then: density-invariant dot footprint (F01); these scenes render at density 1, where fine brushes are now ~4x lighter, matching density 2. Then: strokes are drawn on the default paper tooth (strength 0.5), seeded by brush.seed().",
+    "standardBrushes": "Brush dots and stamps are now generated on the GPU from hashed randomness: same distribution and ink (within ~2% of 2.3.0), different seeded realization. Approved by user 2026-10-27. Then: density-invariant dot footprint (F01); these scenes render at density 1, where fine brushes are now ~4x lighter, matching density 2. Then: strokes are drawn on the default paper tooth (strength 0.5), seeded by brush.seed().",
+    "curves": "Brush dots and stamps are now generated on the GPU from hashed randomness: same distribution and ink (within ~2% of 2.3.0), different seeded realization. Approved by user 2026-10-27. Then: density-invariant dot footprint (F01); these scenes render at density 1, where fine brushes are now ~4x lighter, matching density 2. Then: strokes are drawn on the default paper tooth (strength 0.5), seeded by brush.seed().",
+    "hatch": "Brush dots and stamps are now generated on the GPU from hashed randomness: same distribution and ink (within ~2% of 2.3.0), different seeded realization. Approved by user 2026-10-27. Then: density-invariant dot footprint (F01); these scenes render at density 1, where fine brushes are now ~4x lighter, matching density 2. Then: straight lines step along their exact direction instead of the 0.25\u00b0 lookup table (F12). Then: strokes are drawn on the default paper tooth (strength 0.5), seeded by brush.seed().",
+    "mass": "Brush dots and stamps are now generated on the GPU from hashed randomness: same distribution and ink (within ~2% of 2.3.0), different seeded realization. Approved by user 2026-10-27. Then: density-invariant dot footprint (F01); these scenes render at density 1, where fine brushes are now ~4x lighter, matching density 2. Then: strokes are drawn on the default paper tooth (strength 0.5), seeded by brush.seed().",
+    "massArray": "Brush dots and stamps are now generated on the GPU from hashed randomness: same distribution and ink (within ~2% of 2.3.0), different seeded realization. Approved by user 2026-10-27. Then: density-invariant dot footprint (F01); these scenes render at density 1, where fine brushes are now ~4x lighter, matching density 2. Then: strokes are drawn on the default paper tooth (strength 0.5), seeded by brush.seed().",
+    "straightAngles": "Brush dots and stamps are now generated on the GPU from hashed randomness: same distribution and ink (within ~2% of 2.3.0), different seeded realization. Approved by user 2026-10-27. Then: density-invariant dot footprint (F01); these scenes render at density 1, where fine brushes are now ~4x lighter, matching density 2. Then: straight lines step along their exact direction instead of the 0.25\u00b0 lookup table (F12). Then: strokes are drawn on the default paper tooth (strength 0.5), seeded by brush.seed()."
   },
   "addedCases": {
     "massArray": "Post-B24, pre-optimization build",
@@ -15,14 +15,14 @@
     "washSequence": "Post-B24, pre-optimization build"
   },
   "hashes": {
-    "standardBrushes": "9abe13fb74fadbc7681a0b49fc8602c1509254aec4cd05fd43c944b3cad93c09",
-    "curves": "7b035f926cb4f7fe9b585a0601c7c679562c6151dc2e856739cc70d22206298b",
+    "standardBrushes": "6e37fa47306fc1d0378eb637299027f642d7b1b2aa07b47081d00f3e6d8d57e4",
+    "curves": "7ea2b466b5d4a5e70c5589ca6b150d3b800efe945d159d57e4b47360e1a13548",
     "wash": "bee159e6d3bf1f869aa2a3474e4694e2f9ea920b00293afe197c3352eff04e2a",
-    "hatch": "32cd8347e4af54182962ebded2723cae1be5c9c32b6858090b8cb780bc3126a9",
-    "mass": "fe6751220d395a8092826b8c534c7e9e114a3ea087f89fd125d8768671b1b16f",
-    "field": "63b70f873e991d02f172db87e349274cc5f2137903b4f5dbd9fdce86c1242615",
-    "massArray": "5f79c69a2e838291166d5679c6036cd8a114c8b780645f1ea896144120ce60bb",
-    "straightAngles": "867de2aedcded8d217d4a6b942b7def06311e46256b44316bca41185f2b822e9",
+    "hatch": "85a999a79fec493c16e6d0f7247efe33bc07566bd18b875dbe8ab0595a0cae5e",
+    "mass": "b1acf95ab6eba03d9523bbe0779f8107e56fa9e9f427ce81807e31e62079cc28",
+    "field": "4899d7f73ac0a24089322617161401495c04803aa0f4e714d632a701798d142c",
+    "massArray": "9003f0a789ca5b14427058c1bc68f86b9c90002fb09e2365e36eb56a1332c88c",
+    "straightAngles": "c25b7fe1d98b544420a8974856da1eb6506a9cb581dc2ae2b27b3c66d8c16eb0",
     "washSequence": "9e6df5e63ccf30717a478b99dc9b22c9a915f00a433e36900c71d037e1b45d04"
   }
 }

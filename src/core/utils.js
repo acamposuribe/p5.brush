@@ -64,12 +64,18 @@ const _seedCallbacks = [];
  */
 export const _onSeed = (cb) => _seedCallbacks.push(cb);
 
+// Hash of the value last passed to seed(), for features (like the paper
+// tooth) that follow the seed without consuming random numbers.
+let _seedHash = _hashSeed(Math.random());
+export const seedHash = () => _seedHash;
+
 /**
  * Seed the random number generator.
  * @param {number|string} s – The seed value.
  * @returns {void}
  */
 export const seed = (s) => {
+  _seedHash = _hashSeed(s);
   rng = _makePRNG(s);
   rng2 = _makePRNG(`${s}:2`);
   _gaussCached = false; // reset cached gaussian on reseed

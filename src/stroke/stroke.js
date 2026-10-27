@@ -25,6 +25,8 @@ import {
   toDegrees,
   gaussian,
   noise,
+  seedHash,
+  _onSeed,
   cos,
   sin,
 } from "../core/utils.js";
@@ -254,42 +256,48 @@ export function scaleBrushes(scaleFactor) {
 }
 
 // ---------------------------------------------------------------------------
-// Paper (EXPERIMENTAL)
+// Paper
 // ---------------------------------------------------------------------------
+// Every stroke is drawn onto a paper tooth: a fixed, procedurally generated
+// surface of hills and valleys shared by all strokes. Light pressure only
+// catches the hilltops; heavy pressure reaches into the valleys.
 
 // Combined scaleBrushes() factor; the paper grain follows it so the tooth
 // stays in proportion to the strokes.
 let brushScale = 1;
 // Paper grain size in logical px at brush scale 1.
-const PAPER_GRAIN = 1.8;
-const paperRequest = { strength: 0, scale: 1, seed: 0 };
+const PAPER_GRAIN = 1.26;
+const PAPER_STRENGTH = 0.5;
+// seed: null follows brush.seed().
+const paperRequest = { strength: PAPER_STRENGTH, scale: 1, seed: null };
 
 function applyPaper() {
-  setPaper(paperRequest.strength, PAPER_GRAIN * brushScale * paperRequest.scale, paperRequest.seed);
+  const seed = paperRequest.seed ?? seedHash();
+  setPaper(paperRequest.strength, PAPER_GRAIN * brushScale * paperRequest.scale, seed % 65536);
 }
+_onSeed(applyPaper);
+applyPaper();
 
 /**
- * Draws dry-media strokes onto a paper tooth: a fixed, procedurally generated
- * surface of hills and valleys shared by every stroke. Light pressure only
- * catches the hilltops; heavy pressure reaches into the valleys. The grain
- * scales with scaleBrushes().
- * @param {number} [strength=0.6] - How strongly the tooth shows, 0 to 1.
+ * Tunes the paper tooth strokes are drawn on. The paper is on by default;
+ * its pattern follows brush.seed() and its grain follows scaleBrushes().
+ * @param {number} [strength=0.5] - How strongly the tooth shows, 0 (smooth) to 1.
  * @param {object} [options]
  * @param {number} [options.scale=1] - Grain size multiplier.
- * @param {number} [options.seed=0] - Integer seed for the paper pattern.
+ * @param {number} [options.seed] - Fixed paper pattern; omit to follow brush.seed().
  */
-export function paper(strength = 0.6, { scale = 1, seed = 0 } = {}) {
-  if (![strength, scale, seed].every(Number.isFinite) || scale <= 0) {
+export function paper(strength = PAPER_STRENGTH, { scale = 1, seed } = {}) {
+  if (![strength, scale].every(Number.isFinite) || scale <= 0 || (seed !== undefined && !Number.isFinite(seed))) {
     throw new Error("paper() needs a finite strength, a positive scale and a finite seed.");
   }
   paperRequest.strength = Math.max(0, Math.min(1, strength));
   paperRequest.scale = scale;
-  paperRequest.seed = Math.abs(Math.floor(seed)) % 65536;
+  paperRequest.seed = seed === undefined ? null : Math.abs(Math.floor(seed));
   applyPaper();
 }
 
 /**
- * Turns the paper tooth off.
+ * Draws on smooth paper (no tooth). Same as paper(0).
  */
 export function noPaper() {
   paperRequest.strength = 0;

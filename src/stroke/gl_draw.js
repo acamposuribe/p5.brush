@@ -79,7 +79,7 @@ let segDirtyRect = null;
 let perStep = 1; // spray dots per step needed by the current batch
 
 // Paper tooth shared by all strokes: contact strength, grain size (logical
-// px, already multiplied by the brush scale) and seed. See dots.frag.
+// px, already multiplied by the brush scale) and seed. See paper.glsl.
 const paperState = { strength: 0, grain: 1, seed: 0 };
 
 /**
@@ -245,7 +245,7 @@ export function isReady() {
   ], 0);
   setupProgram(stamps, stampsVertSrc, stampsFragSrc, attributes, [
     "u_proj", "u_tipLinear", "u_translate", "u_half", "u_substeps",
-    "u_rotate", "u_brush", "u_strokeWeight", "u_color", "u_tex", ...CLIP_UNIFORMS,
+    "u_rotate", "u_brush", "u_strokeWeight", "u_color", "u_tex", "u_paper", ...CLIP_UNIFORMS,
   ], SUBSTEPS);
 
   isLoaded = true;
@@ -441,6 +441,7 @@ export function flushStrokes() {
   gl.uniform2f(u.u_translate, ...b.translate);
   gl.uniform2f(u.u_half, ...b.half);
   gl.uniform1f(u.u_strokeWeight, b.strokeWeight);
+  gl.uniform4f(u.u_paper, ...b.paper);
   const liveClip = State.stroke.clip;
   State.stroke.clip = b.clip;
   setClipUniforms(gl, u);
@@ -467,7 +468,6 @@ export function flushStrokes() {
     gl.uniform4f(u.u_brush, b.param.weight, b.param.scatter, b.param.sharpness ?? 0, b.param.grain ?? 0);
     gl.uniform1i(u.u_affineCircle, b.affineCircle);
     gl.uniformMatrix2fv(u.u_tipInverse, false, b.tipInverse);
-    gl.uniform4f(u.u_paper, ...b.paper);
     gl.drawArraysInstanced(gl.POINTS, 0, segCount, SUBSTEPS * perStep);
   }
 

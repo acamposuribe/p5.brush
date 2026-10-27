@@ -193,7 +193,7 @@ p5.brush.js provides a comprehensive API for creating complex drawings and effec
 
 | Section | Functions | Section | Functions |
 |---|---|---|---|
-| [Configuration](#configuration) | `brush.load()`, `brush.scaleBrushes()`, `brush.instance()` | [Fill Operations](#fill-operations) | `brush.fill()`, `brush.noFill()`, `brush.wash()`, `brush.noWash()`, `brush.fillBleed()`, `brush.fillTexture()` |
+| [Configuration](#configuration) | `brush.load()`, `brush.scaleBrushes()`, `brush.paper()`, `brush.noPaper()`, `brush.instance()` | [Fill Operations](#fill-operations) | `brush.fill()`, `brush.noFill()`, `brush.wash()`, `brush.noWash()`, `brush.fillBleed()`, `brush.fillTexture()` |
 | [Vector Fields](#vector-fields) | `brush.field()`, `brush.noField()`, `brush.refreshField()`, `brush.listFields()`, `brush.addField()`, `brush.wiggle()` | [Hatch Operations](#hatch-operations) | `brush.hatch()`, `brush.noHatch()`, `brush.hatchStyle()`, `brush.mass()`, `brush.noMass()` |
 | [Brush Management](#brush-management) | `brush.box()`, `brush.add()`, `brush.clip()`, `brush.noClip()` | [Primitives](#primitives) | `brush.line()`, `brush.flowLine()`, `brush.beginStroke()`, `brush.move()`, `brush.endStroke()`, `brush.spline()`, `brush.rect()`, `brush.circle()`, `brush.arc()`, `brush.beginShape()`, `brush.vertex()`, `brush.endShape()`, `brush.polygon()` |
 | [Stroke Operations](#stroke-operations) | `brush.set()`, `brush.pick()`, `brush.stroke()`, `brush.noStroke()`, `brush.strokeWeight()` | [Exposed Classes](#exposed-classes) | `brush.Polygon()`, `brush.Plot()`, `brush.Position()` |
@@ -293,6 +293,23 @@ This section covers functions for initializing the drawing system and configurin
     ```
     Use `brush.scaleBrushes()` early in `setup()` so the built-in brushes match your canvas scale before you start drawing.
     
+---
+
+- `brush.paper(strength, options)`
+  - **Description**: Strokes are always drawn onto a paper tooth: a fixed surface of tiny hills and valleys shared by every stroke. Light pressure only catches the hilltops; heavy pressure reaches into the valleys, and crossing strokes share the same grain. Pencils, charcoal, crayon and pastel show it fully, pens weakly, markers not at all. The paper is on by default; use this function to tune it.
+  - **Parameters**:
+    - `strength` (Number): How strongly the tooth shows, from `0` (smooth paper) to `1`. Default: `0.5`.
+    - `options` (Object, optional):
+      - `scale` (Number): Grain size multiplier. Default: `1`. The grain also follows `brush.scaleBrushes()`, so it stays in proportion to the brushes.
+      - `seed` (Number): Fixed paper pattern. By default the pattern follows `brush.seed()`: the same seed always gives the same paper.
+  - **Usage**:
+    ```javascript
+    brush.paper(0.8, { scale: 1.5 }); // rougher, coarser paper
+    ```
+
+- `brush.noPaper()`
+  - **Description**: Draws on smooth paper, with no tooth. Same as `brush.paper(0)`.
+
 ---
 
 - `brush.instance(p)`
