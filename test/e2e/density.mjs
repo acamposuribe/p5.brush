@@ -7,7 +7,7 @@
 //   - width      — logical-px width where the averaged vertical darkness
 //                  profile is at least half its peak
 //
-// See docs/rendering-model-audit.md §3.1 and docs/rendering-plan.md step 1.
+// See docs/rendering.md.
 // Measurement only: this script makes no pass/fail assertions yet.
 //
 // Run: npm run build && node test/e2e/density.mjs [--out=<file>] [--angle=…]

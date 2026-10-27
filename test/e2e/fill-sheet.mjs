@@ -2,7 +2,7 @@
 // p5.brush fill contact sheet
 //
 // Renders a seeded grid of fills for side-by-side review
-// (docs/fill-plan.md step 0). Not a pixel test: later fill steps change
+// (docs/rendering.md). Not a pixel test: fill changes alter
 // pixels by design, so compare sheets by eye.
 //
 //   rows 1–4  bleed 0.05 / 0.2 / 0.4 / 0.7; columns sweep texture and border

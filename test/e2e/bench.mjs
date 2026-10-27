@@ -2,8 +2,7 @@
 // p5.brush workload benchmark
 //
 // Runs the lines, hatch, mass, and fill workloads from
-// docs/rendering-model-audit.md §3.2 / §10.3, plus the fill workloads from
-// docs/fill-plan.md step 0, each on its own page.
+// docs/rendering.md, each on its own page.
 // Per workload: WARMUP unmeasured runs, then RUNS measured runs, each
 // ending with brush.render() and a synchronous 1×1 readPixels(). Reports
 // median and p90 for two intervals, plus WebGL call counts from the final
@@ -15,7 +14,7 @@
 //
 // Under the default SwiftShader backend these are software-renderer
 // diagnostics, not hardware GPU timings. Pass a hardware backend
-// (for example --angle=metal on macOS); see docs/rendering-plan.md step 5.
+// (for example --angle=metal on macOS); see docs/rendering.md.
 //
 // Run: npm run build && node test/e2e/bench.mjs [--out=<file>] [--angle=…]
 // ============================================================
@@ -57,7 +56,7 @@ const WORKLOADS = {
     brush.rect(-150, -150, 300, 300);
     brush.noFill();
   `,
-  // docs/fill-plan.md step 0: large, many-small, wash, and high-bleed fills.
+  // Fills: large, many-small, wash, and high-bleed.
   fillLarge: { canvas: [1200, 1200], density: 2, body: `
     brush.noStroke();
     brush.fill("#2a6fb0", 150);
