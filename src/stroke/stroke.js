@@ -49,6 +49,10 @@ import {
   invalidateTexEntry,
   snapshotMatrix,
   discardPendingStamps,
+  getGpuSubsteps,
+  isGpuDotsEnabled,
+  beginGpuStroke,
+  queueDotSegment,
 } from "./gl_draw.js";
 
 initStrokeComposite(); // Register the stroke composite system for offscreen mask rendering and compositing.
@@ -395,7 +399,9 @@ function draw(angleScale, isPlot) {
       stepY = stepSize * direction[1];
     }
 
-    for (let i = 0; i < totalSteps; i++) {
+    if (isGpuDotsEnabled() && current.drawFn === drawDefault) {
+      drawGpuSegments(totalSteps, stepSize, isPlot, angleScale, stepX, stepY);
+    } else for (let i = 0; i < totalSteps; i++) {
       if (isPlot) _cachedPlotAngle = _plot.angle(_position.plotted);
       tip();
       if (isPlot) {
@@ -415,6 +421,42 @@ function draw(angleScale, isPlot) {
     current.cachedPressure = undefined;
     current.pressureCount = 10;
     throw error;
+  }
+}
+
+/**
+ * EXPERIMENTAL: walks the path in segments of getGpuSubsteps() fine steps and
+ * queues them for GPU dot generation, instead of calling tip() every step.
+ * Pressure is evaluated at segment ends and interpolated on the GPU.
+ */
+function drawGpuSegments(totalSteps, stepSize, isPlot, angleScale, stepX, stepY) {
+  const substeps = getGpuSubsteps();
+  beginGpuStroke(current.seed, current.alpha, current.p, State.stroke.weight);
+  current.pressureCount = substeps;
+  let pressure = calculatePressure();
+  for (let i = 0; i < totalSteps; i += substeps) {
+    const n = Math.min(substeps, totalSteps - i);
+    const len = stepSize * n;
+    const x0 = _position.x, y0 = _position.y;
+    let cs = current.cos, sn = current.sin;
+    if (isPlot) {
+      // Use the direction at the segment midpoint: start-of-segment
+      // directions drift off curves once segments are a few pixels long.
+      _cachedPlotAngle = _plot.angle(_position.plotted + len / angleScale / 2);
+      cs = cos(_cachedPlotAngle);
+      sn = sin(_cachedPlotAngle);
+      _position.plotTo(_plot, len, len, angleScale, _cachedPlotAngle);
+    } else if (!State.field.isActive) {
+      _position.x += stepX * n;
+      _position.y += stepY * n;
+      _position.plotted += len;
+    } else {
+      _position._moveToDegrees(angleScale, len, len);
+    }
+    current.pressureCount = substeps;
+    const endPressure = calculatePressure();
+    queueDotSegment(x0, y0, _position.x, _position.y, cs, sn, pressure, endPressure, n);
+    pressure = endPressure;
   }
 }
 
@@ -485,6 +527,8 @@ function saveState() {
 function restoreState() {
   markerTip();
   glDraw();
+  // EXPERIMENTAL: GPU dot segments stay queued across strokes; they are drawn
+  // when batch state changes or before the brush mask is cleared or composited.
   const type = current.p?.type;
   if (type === "image") glDrawImages(T.tips.get(current.p.image.src), current.p.image.src);
   else if (type === "custom") glDrawImages(T.tips.get(current.p.tipKey), current.p.tipKey);

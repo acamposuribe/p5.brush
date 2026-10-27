@@ -186,6 +186,16 @@
               <input type="checkbox" id="outline" />
               Outline
             </label>
+
+            <!-- EXPERIMENTAL (experiment/gpu-dots): needs npm run build:exp -->
+            <label id="dotsRow" hidden>
+              Dots <small style="color:#8a9aa8;">(press G to flip)</small>
+              <select id="dots">
+                <option value="cpu">CPU (current)</option>
+                <option value="gpu">GPU (experimental)</option>
+              </select>
+            </label>
+            <div id="renderTime" class="val" style="font-variant-numeric:tabular-nums;" hidden></div>
           </div>
         </div>
 
@@ -195,7 +205,15 @@
 
     <script src="./standalone_profiler.js"></script>
     <script type="module">
-      import * as brush from "../../dist/brush.esm.js";
+      // EXPERIMENTAL (experiment/gpu-dots): prefer the experimental build when
+      // present so CPU and GPU dot generation can be compared live.
+      let brush;
+      try {
+        brush = await import("../../dist-exp/brush.esm.js");
+      } catch {
+        brush = await import("../../dist/brush.esm.js");
+      }
+      const hasGpuDots = typeof brush.experimentalGpuDots === "function";
 
       const PAPER = "#fffceb";
       const PALETTE = ["#002185", "#003c32", "#fcd300", "#ff2702", "#6b9404"];
@@ -213,6 +231,7 @@
         strength:  0.6,
         gradient:  0.1,
         outline:   false,
+        dots:      new URLSearchParams(location.search).get("dots") === "gpu" ? "gpu" : "cpu",
       };
 
       const controls = {
@@ -226,7 +245,15 @@
         gradient:     document.getElementById("gradient"),
         gradientVal:  document.getElementById("gradientVal"),
         outline:      document.getElementById("outline"),
+        dotsRow:      document.getElementById("dotsRow"),
+        dots:         document.getElementById("dots"),
+        renderTime:   document.getElementById("renderTime"),
       };
+      if (hasGpuDots) {
+        controls.dotsRow.hidden = false;
+        controls.renderTime.hidden = false;
+        controls.dots.value = state.dots;
+      }
 
       // Mulberry32 seeded PRNG — mirrors p5's randomSeed behavior
       function mkRng(seed) {
@@ -259,6 +286,8 @@
 
       function renderScene() {
         syncReadouts();
+        if (hasGpuDots) brush.experimentalGpuDots(state.dots === "gpu");
+        const t0 = performance.now();
 
         const rng = mkRng(currentSeed);
         brush.seed(currentSeed);
@@ -288,6 +317,15 @@
 
         brush.pop();
         brush.render();
+        if (hasGpuDots) {
+          const t1 = performance.now();
+          // A 1×1 readback waits for queued GPU work, so the second figure includes it.
+          const gl = document.getElementById("brush-canvas").getContext("webgl2");
+          gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array(4));
+          const t2 = performance.now();
+          controls.renderTime.textContent =
+            `${state.dots.toUpperCase()} dots: ${(t1 - t0).toFixed(1)} ms CPU · ${(t2 - t0).toFixed(1)} ms incl. GPU`;
+        }
         window.reportStandaloneFirstFrame?.("pastel_hatching_test");
       }
 
@@ -311,6 +349,17 @@
       controls.outline.addEventListener("change", () => {
         state.outline = controls.outline.checked;
         queueRender();
+      });
+
+      function setDots(mode) {
+        state.dots = mode;
+        controls.dots.value = mode;
+        queueRender();
+      }
+      controls.dots.addEventListener("change", () => setDots(controls.dots.value));
+      window.addEventListener("keydown", (e) => {
+        if (!hasGpuDots || e.key.toLowerCase() !== "g" || e.target.matches("input, select")) return;
+        setDots(state.dots === "gpu" ? "cpu" : "gpu");
       });
 
       controls.refreshSeed.addEventListener("click", () => {

@@ -176,6 +176,8 @@ export const Mix = {
    * @param {object} target - Mask buffer to reset.
    */
   clearMask(target) {
+    // EXPERIMENTAL (gpu-dots): draw any batched GPU dots before the mask changes.
+    if (target && target === this.glMask) this.beforeBrushMaskAccess?.();
     if (!target || (target.isDrawn === false && !target.dirtyRect)) return;
     const composite = target === this.glMask ? strokeComposite : fillComposite;
     composite?.clearMask?.(target, clearTarget);
@@ -299,6 +301,8 @@ export const Mix = {
    * @param {boolean} isBrushMask - True when compositing the GL brush mask.
    */
   applyShader(mask, isBrushMask) {
+    // EXPERIMENTAL (gpu-dots): draw any batched GPU dots before the mask is read.
+    if (mask && mask === this.glMask) this.beforeBrushMaskAccess?.();
     if (!mask?.isDrawn) return;
 
     const dirtyRect = this.getCompositeRect(mask, isBrushMask);

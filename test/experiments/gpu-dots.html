@@ -1,0 +1,221 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GPU dots comparison</title>
+<style>
+  :root {
+    --bg: #f4f1ea;
+    --card: #fffdf8;
+    --ink: #2b2a27;
+    --muted: #77736a;
+    --line: #e2ddd1;
+    --accent: #1f5f8b;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 24px 16px 48px;
+    background: var(--bg);
+    color: var(--ink);
+    font: 14px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  }
+  header { max-width: 1400px; margin: 0 auto 20px; }
+  h1 { font-size: 20px; margin: 0 0 4px; }
+  p.lede { margin: 0; color: var(--muted); max-width: 72ch; }
+  .controls {
+    display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center;
+    margin-top: 14px;
+  }
+  .controls label { color: var(--muted); }
+  select, button {
+    font: inherit; padding: 4px 10px; border-radius: 6px;
+    border: 1px solid var(--line); background: var(--card); color: var(--ink);
+  }
+  button { cursor: pointer; }
+  button:hover { border-color: var(--accent); }
+  main {
+    max-width: 1400px; margin: 0 auto;
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 560px), 1fr)); gap: 16px;
+  }
+  .card {
+    background: var(--card); border: 1px solid var(--line); border-radius: 10px;
+    padding: 14px; overflow-x: auto;
+  }
+  .card h2 { font-size: 15px; margin: 0 0 2px; }
+  .stats { color: var(--muted); font-variant-numeric: tabular-nums; margin-bottom: 10px; min-height: 2.9em; }
+  .stats b { color: var(--ink); font-weight: 600; }
+  .frame { position: relative; display: inline-block; }
+  .frame canvas { display: block; background: #fff; }
+  .labels { position: absolute; left: 6px; top: 0; pointer-events: none; }
+  .labels div {
+    position: absolute; left: 0; transform: translateY(-50%);
+    font: 11px/1 Menlo, Monaco, monospace; color: var(--muted); white-space: nowrap;
+  }
+  body.zoom .frame canvas { image-rendering: pixelated; }
+  table { border-collapse: collapse; margin-top: 16px; font-variant-numeric: tabular-nums; }
+  th, td { padding: 3px 10px; text-align: right; border-bottom: 1px solid var(--line); }
+  th:first-child, td:first-child { text-align: left; }
+  th { color: var(--muted); font-weight: 500; }
+  .wide { grid-column: 1 / -1; }
+</style>
+</head>
+<body>
+<header>
+  <h1>CPU vs GPU dot generation</h1>
+  <p class="lede">Each row is one brush line drawn with the same seed in both modes, so pressure profiles match; only which dots are drawn differs. The block at the bottom is a seeded <code>mass("HB")</code> rectangle. Built from <code>dist-exp/</code> on the <code>experiment/gpu-dots</code> branch.</p>
+  <div class="controls">
+    <label>Density <select id="density"><option>1</option><option selected>2</option><option>3</option></select></label>
+    <label>Zoom <select id="zoom"><option value="1" selected>1×</option><option value="2">2×</option><option value="4">4×</option></select></label>
+    <label>Seed <select id="seed"><option>1</option><option>2</option><option>3</option></select></label>
+    <button id="bench">Time mass ×10</button>
+  </div>
+</header>
+<main>
+  <section class="card"><h2>CPU (current)</h2><div class="stats" id="stats-cpu"></div><div class="frame" id="frame-cpu"></div></section>
+  <section class="card"><h2>GPU (experimental)</h2><div class="stats" id="stats-gpu"></div><div class="frame" id="frame-gpu"></div></section>
+  <section class="card wide"><h2>Darkness per row</h2><div class="stats">Integrated darkness over white, per logical px². Ratio near 1.00 means the GPU path deposits the same amount of ink.</div><div id="table"></div></section>
+</main>
+
+<script type="module">
+import * as brush from "/dist-exp/brush.esm.js";
+
+const BRUSHES = ["pen", "rotring", "2B", "HB", "2H", "cpencil", "pastel", "crayon", "charcoal"];
+const W = 640, ROW = 44, TOP = 34, MASS_H = 230;
+const H = TOP + BRUSHES.length * ROW + MASS_H;
+const params = new URLSearchParams(location.search);
+const $ = (id) => document.getElementById(id);
+for (const k of ["density", "zoom", "seed"]) if (params.has(k)) $(k).value = params.get(k);
+
+function rowY(i) { return TOP + i * ROW; }
+const massBox = () => ({ x: -W / 2 + 90, y: TOP + BRUSHES.length * ROW + 10 - H / 2, w: W - 120, h: MASS_H - 30 });
+
+function drawScene(seed) {
+  BRUSHES.forEach((name, i) => {
+    brush.seed(seed * 100 + i);
+    brush.noiseSeed(seed * 100 + i);
+    brush.set(name, "#1b1a17", 1);
+    const y = rowY(i) - H / 2;
+    brush.line(-W / 2 + 90, y, W / 2 - 20, y);
+  });
+  drawMass(seed);
+}
+
+function drawMass(seed) {
+  const m = massBox();
+  brush.seed(seed * 100 + 99);
+  brush.noiseSeed(seed * 100 + 99);
+  brush.noStroke();
+  brush.mass("HB", "#1b1a17");
+  brush.rect(m.x, m.y, m.w, m.h);
+  brush.noMass();
+}
+
+function renderMode(gpu, density, seed, zoom) {
+  brush.experimentalGpuDots(gpu);
+  const frame = $(gpu ? "frame-gpu" : "frame-cpu");
+  frame.replaceChildren();
+  const canvas = brush.createCanvas(W, H, { parent: frame, pixelDensity: density, id: gpu ? "c-gpu" : "c-cpu" });
+  canvas.style.width = `${W * zoom}px`;
+  canvas.style.height = `${H * zoom}px`;
+  const gl = canvas.getContext("webgl2");
+  const px = new Uint8Array(4);
+  const t0 = performance.now();
+  drawScene(seed);
+  brush.render();
+  const t1 = performance.now();
+  gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, px);
+  const t2 = performance.now();
+
+  const labels = document.createElement("div");
+  labels.className = "labels";
+  BRUSHES.forEach((name, i) => {
+    const d = document.createElement("div");
+    d.style.top = `${rowY(i) * zoom}px`;
+    d.textContent = name;
+    labels.append(d);
+  });
+  const ml = document.createElement("div");
+  ml.style.top = `${(TOP + BRUSHES.length * ROW + 10 + (MASS_H - 30) / 2) * zoom}px`;
+  ml.textContent = "mass HB";
+  labels.append(ml);
+  frame.append(labels);
+
+  return { canvas, cpu: t1 - t0, total: t2 - t0, rows: measureRows(canvas, density) };
+}
+
+function measureRows(canvas, density) {
+  const k = document.createElement("canvas");
+  k.width = canvas.width; k.height = canvas.height;
+  const ctx = k.getContext("2d");
+  ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, k.width, k.height);
+  ctx.drawImage(canvas, 0, 0);
+  const band = (y0, y1) => {
+    const d = ctx.getImageData(0, Math.round(y0 * density), k.width, Math.round((y1 - y0) * density)).data;
+    let s = 0;
+    for (let i = 0; i < d.length; i += 4) s += (255 - d[i]) / 255;
+    return s / (density * density);
+  };
+  const rows = BRUSHES.map((name, i) => ({ name, dark: band(rowY(i) - ROW / 2, rowY(i) + ROW / 2) }));
+  const top = TOP + BRUSHES.length * ROW;
+  rows.push({ name: "mass HB", dark: band(top, top + MASS_H) });
+  return rows;
+}
+
+function fmt(ms) { return `${ms.toFixed(1)} ms`; }
+
+function render() {
+  const density = Number($("density").value);
+  const zoom = Number($("zoom").value);
+  const seed = Number($("seed").value);
+  document.body.classList.toggle("zoom", zoom > 1);
+  const cpu = renderMode(false, density, seed, zoom);
+  const gpu = renderMode(true, density, seed, zoom);
+  for (const [id, r] of [["stats-cpu", cpu], ["stats-gpu", gpu]]) {
+    $(id).innerHTML = `Whole scene, first draw: <b>${fmt(r.cpu)}</b> CPU · <b>${fmt(r.total)}</b> incl. GPU<br>Density ${density}, seed ${seed}`;
+  }
+  const rows = cpu.rows.map((r, i) => {
+    const g = gpu.rows[i].dark;
+    return `<tr><td>${r.name}</td><td>${r.dark.toFixed(1)}</td><td>${g.toFixed(1)}</td><td>${(g / r.dark).toFixed(2)}</td></tr>`;
+  }).join("");
+  $("table").innerHTML = `<table><thead><tr><th>Row</th><th>CPU</th><th>GPU</th><th>GPU / CPU</th></tr></thead><tbody>${rows}</tbody></table>`;
+  window.__result = { density, seed, cpu: { cpu: cpu.cpu, total: cpu.total, rows: cpu.rows }, gpu: { cpu: gpu.cpu, total: gpu.total, rows: gpu.rows } };
+}
+
+function bench() {
+  const density = Number($("density").value);
+  const out = {};
+  for (const gpu of [false, true]) {
+    brush.experimentalGpuDots(gpu);
+    const c = brush.createCanvas(W, H, { parent: null, pixelDensity: density });
+    const gl = c.getContext("webgl2");
+    const px = new Uint8Array(4);
+    const cpu = [], total = [];
+    for (let i = 0; i < 12; i++) {
+      brush.clear();
+      const t0 = performance.now();
+      drawMass(1);
+      brush.render();
+      const t1 = performance.now();
+      gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, px);
+      const t2 = performance.now();
+      if (i >= 2) { cpu.push(t1 - t0); total.push(t2 - t0); }
+    }
+    const med = (xs) => xs.sort((a, b) => a - b)[xs.length >> 1];
+    out[gpu ? "gpu" : "cpu"] = { cpu: med(cpu), total: med(total) };
+  }
+  window.__bench = out;
+  for (const k of ["cpu", "gpu"]) {
+    $(`stats-${k}`).innerHTML += `<br>mass ×10 median: <b>${fmt(out[k].cpu)}</b> CPU · <b>${fmt(out[k].total)}</b> incl. GPU`;
+  }
+  return out;
+}
+
+for (const id of ["density", "zoom", "seed"]) $(id).addEventListener("change", render);
+$("bench").addEventListener("click", bench);
+window.__bench_run = bench;
+render();
+</script>
+</body>
+</html>
