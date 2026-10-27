@@ -20,6 +20,7 @@
       "standalone/fill_circle_explorer.html",
       "standalone/wash_test.html",
       "standalone/pastel_hatching_test.html",
+      "standalone/paper_test.html",
       "standalone/angle_mode_test.html",
       "standalone/transform_test.html",
       "standalone/pushpop_test.html",

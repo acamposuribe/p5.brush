@@ -45,6 +45,7 @@ import {
   queueSegment,
   discardStroke,
   setStrokeOverscan,
+  setPaper,
 } from "./gl_draw.js";
 
 initStrokeComposite(); // Register the stroke composite system for offscreen mask rendering and compositing.
@@ -248,6 +249,51 @@ export function scaleBrushes(scaleFactor) {
       param.spacing *= scaleFactor;
     }
   }
+  brushScale *= scaleFactor;
+  applyPaper();
+}
+
+// ---------------------------------------------------------------------------
+// Paper (EXPERIMENTAL)
+// ---------------------------------------------------------------------------
+
+// Combined scaleBrushes() factor; the paper grain follows it so the tooth
+// stays in proportion to the strokes.
+let brushScale = 1;
+// Paper grain size in logical px at brush scale 1.
+const PAPER_GRAIN = 1.8;
+const paperRequest = { strength: 0, scale: 1, seed: 0 };
+
+function applyPaper() {
+  setPaper(paperRequest.strength, PAPER_GRAIN * brushScale * paperRequest.scale, paperRequest.seed);
+}
+
+/**
+ * Draws dry-media strokes onto a paper tooth: a fixed, procedurally generated
+ * surface of hills and valleys shared by every stroke. Light pressure only
+ * catches the hilltops; heavy pressure reaches into the valleys. The grain
+ * scales with scaleBrushes().
+ * @param {number} [strength=0.6] - How strongly the tooth shows, 0 to 1.
+ * @param {object} [options]
+ * @param {number} [options.scale=1] - Grain size multiplier.
+ * @param {number} [options.seed=0] - Integer seed for the paper pattern.
+ */
+export function paper(strength = 0.6, { scale = 1, seed = 0 } = {}) {
+  if (![strength, scale, seed].every(Number.isFinite) || scale <= 0) {
+    throw new Error("paper() needs a finite strength, a positive scale and a finite seed.");
+  }
+  paperRequest.strength = Math.max(0, Math.min(1, strength));
+  paperRequest.scale = scale;
+  paperRequest.seed = Math.abs(Math.floor(seed)) % 65536;
+  applyPaper();
+}
+
+/**
+ * Turns the paper tooth off.
+ */
+export function noPaper() {
+  paperRequest.strength = 0;
+  applyPaper();
 }
 
 /**
@@ -781,6 +827,8 @@ const _standard_brushes = [
 for (let s of _standard_brushes) {
   let obj = {};
   for (let i = 0; i < s[1].length; i++) obj[_vals[i]] = s[1][i];
+  // Ink pens barely pick up paper tooth; dry media take the default (full).
+  if (s[0] === "pen" || s[0] === "rotring") obj.paper = 0.35;
   add(s[0], obj);
 }
 

@@ -78,6 +78,22 @@ let segCount = 0;
 let segDirtyRect = null;
 let perStep = 1; // spray dots per step needed by the current batch
 
+// Paper tooth shared by all strokes: contact strength, grain size (logical
+// px, already multiplied by the brush scale) and seed. See dots.frag.
+const paperState = { strength: 0, grain: 1, seed: 0 };
+
+/**
+ * Sets the paper tooth that dry-media strokes deposit on.
+ * @param {number} strength - 0 (off) to 1.
+ * @param {number} grain - Grain size in logical px.
+ * @param {number} seed - Integer seed for the paper pattern.
+ */
+export function setPaper(strength, grain, seed) {
+  paperState.strength = strength;
+  paperState.grain = grain;
+  paperState.seed = seed;
+}
+
 // The stroke being queued, and the batch it belongs to. Everything the shaders
 // read as a uniform is captured in the batch, because by the time it is
 // flushed the live transform, colour or clip may belong to a later stroke.
@@ -225,7 +241,7 @@ export function isReady() {
   setupProgram(dots, dotsVertSrc, dotsFragSrc, attributes, [
     "u_matrix", "u_affine", "u_translate", "u_half", "u_sizeScale", "u_density",
     "u_type", "u_perStep", "u_brush", "u_strokeWeight",
-    "u_color", "u_affineCircle", "u_tipInverse", ...CLIP_UNIFORMS,
+    "u_color", "u_affineCircle", "u_tipInverse", "u_paper", ...CLIP_UNIFORMS,
   ], 0);
   setupProgram(stamps, stampsVertSrc, stampsFragSrc, attributes, [
     "u_proj", "u_tipLinear", "u_translate", "u_half", "u_substeps",
@@ -255,6 +271,7 @@ export function beginStroke(seed, alpha, param, tip = null) {
     color[0], color[1], color[2], color[3],
     _ma, _mb, _mc, _md, _mx, _my, _halfW, _halfH, _density, _scale, _affineCircle, ..._tipInverse,
     param.type, param.rotate, param.weight, param.scatter, param.sharpness, param.grain, strokeWeight,
+    paperState.strength, paperState.grain, paperState.seed, param.paper,
   ];
   if (segCount > 0 && (!batch || key.some((v, i) => v !== batch.key[i]))) flushStrokes();
   if (segCount === 0) {
@@ -273,6 +290,9 @@ export function beginStroke(seed, alpha, param, tip = null) {
       tipInverse: new Float32Array(_tipInverse),
       param,
       strokeWeight,
+      paper: [
+        paperState.strength * paperResponse(param), paperState.grain, _density, paperState.seed,
+      ],
     };
   }
   stroke.seed = Math.floor(seed * 4294.967) >>> 0;
@@ -368,6 +388,17 @@ export function queueSegment(x0, y0, x1, y1, cs, sn, p0, p1, count, naturalAngle
 }
 
 /**
+ * How strongly a brush picks up the paper tooth (0..1): dry media fully,
+ * wet media (markers) not at all. Brushes can override with `paper`.
+ */
+function paperResponse(param) {
+  if (param.paper !== undefined) return param.paper;
+  if (param.type === "marker") return 0;
+  if (param.type === "spray") return 0.5;
+  return 1;
+}
+
+/**
  * Sets the conservative image-tip padding (logical units) for the current stroke.
  */
 export function setStrokeOverscan(overscan) {
@@ -436,6 +467,7 @@ export function flushStrokes() {
     gl.uniform4f(u.u_brush, b.param.weight, b.param.scatter, b.param.sharpness ?? 0, b.param.grain ?? 0);
     gl.uniform1i(u.u_affineCircle, b.affineCircle);
     gl.uniformMatrix2fv(u.u_tipInverse, false, b.tipInverse);
+    gl.uniform4f(u.u_paper, ...b.paper);
     gl.drawArraysInstanced(gl.POINTS, 0, segCount, SUBSTEPS * perStep);
   }
 
