@@ -1,6 +1,6 @@
 # Rendering plan
 
-**Status:** Step 1 done (2026-10-27). D1 decided (density 2). No library code has changed.  
+**Status (2026-10-27, branch `experiment/gpu-dots`):** steps 1 and 3 done; step 6 replaced by GPU dot generation, done for every brush type. D1 decided (density 2); D4 decided (GPU dots replace CPU dots). No library code has changed.  
 **Evidence and background:** [`rendering-model-audit.md`](rendering-model-audit.md). Finding IDs (F01 and so on) refer to that document.
 
 ## Goal
@@ -16,6 +16,7 @@ These need an owner's answer before the step that depends on them.
 | D1 | **Reference density.** At which pixel density do the current presets look as intended? **Decided 2026-10-27: density 2.** | Step 3 | Fine brushes are about 3.5× darker at density 1 than at density 2 (F01). The fix keeps the look at the reference density and changes it at the others. Choose the density the presets were tuned on. |
 | D2 | **Release vehicle for the F01 fix.** Patch, minor, or major version, and is there an opt-out? | Step 3 merge | The fix changes seeded output for every fine-brush sketch on non-reference screens. |
 | D3 | **Go/no-go for the segment renderer.** | After step 7 | Decided against the criteria in step 7. |
+| D4 | **GPU dot generation in classic mode?** Seeds keep their statistics but produce different dots. **Decided 2026-10-27: yes, and CPU dots are removed.** | Step 6 | Approved after side-by-side comparison. |
 
 ## Steps
 
@@ -54,7 +55,9 @@ Findings that change later steps:
 
 Render the brush matrix at densities 1 and 2 with the step 1 harness, compare them side by side, and record the decision in this document.
 
-### 3. Subpixel coverage fix (F01)
+### 3. Subpixel coverage fix (F01) — done
+
+**Result.** In `dots.vert`, dots keep a footprint of at least 0.5 logical px (one device pixel at density 2), points rasterise at no less than one device pixel, and alpha scales by footprint over raster area. Density 2 is unchanged (darkness ratio 1.00 for every brush). Fine-brush darkness relative to density 2 went from 3.5× (d1) and 0.3× (d3) to 0.79–0.94× (d1) and 1.05–1.18× (d3). The remaining gap is coverage-union overlap: at density 1 several faint dots share one pixel and combine to less ink than the same dots in separate pixels, and the reverse at density 3. Closing it needs resolution-independent accumulation, so the 10% target is not met for d1 on the finest brushes. The large-point quad fallback was not added; behaviour above the point-size limit is unchanged from 2.3.0.
 
 - Pass the intended diameter to the shader, clamp the support size to a minimum, and scale alpha by the ratio of intended to support area (sketch in audit F01).
 - Add a quad fallback when the intended size exceeds `ALIASED_POINT_SIZE_RANGE[1]`; query the limit at runtime.
@@ -82,7 +85,11 @@ Run `bench.mjs` (instrumented to split CPU tip generation, upload/submission, an
 
 **Output:** a short table, added here, showing where the time goes in the mass and hatch workloads.
 
-### 6. Cross-stroke batching (F03), only if step 5 supports it
+### 6. Cross-stroke batching (F03) — superseded by GPU dot generation, done
+
+**Result.** Profiling showed mass spent ~97% of its time generating dots and walking the path on the CPU, so batching alone could not help. Instead, every brush type now queues path segments of up to 4 logical px, and shaders expand them into dots (`dots.vert`: default, spray, marker) or textured stamps (`stamps.vert`: image and custom tips), using hashed randomness keyed by stroke seed, segment and step. Strokes sharing brush, colour, transform, clip and target are batched into one draw. The CPU dot path is removed. Ink per brush matches 2.3.0 within ~2% at density 2. Apple M4: lines 29.6 → 3.7 ms, hatch 39.3 → 4.2 ms, mass 250.4 → 13.7 ms.
+
+Original plan text, kept for reference:
 
 Proceed only if submission or upload accounts for a meaningful share of mass/hatch time on hardware. If CPU tip generation dominates, skip to step 7, which attacks that cost directly.
 

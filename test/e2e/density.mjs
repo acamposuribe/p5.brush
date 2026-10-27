@@ -3,9 +3,6 @@
 //
 // For every built-in brush, draws one seeded horizontal line at several
 // pixel densities and reports, per density:
-//   - points     — circles submitted as gl.POINTS
-//   - diameter   — intended device-px point diameter (p10 / median / p90)
-//   - subpixel   — fraction of points with intended diameter below 1 device px
 //   - darkness   — sum((255 − R) / 255) over white, divided by density²
 //   - width      — logical-px width where the averaged vertical darkness
 //                  profile is at least half its peak
@@ -18,7 +15,7 @@
 
 import {
   parseArgs, startServer, launchBrowser, newPage, collectMetadata,
-  writeResults, quantile, round,
+  writeResults, round,
 } from "./harness.mjs";
 
 const DENSITIES = [1, 2, 3];
@@ -64,12 +61,8 @@ async function measure(page, brushName, density) {
     let rows = 0;
     if (peak > 0) for (let y = 0; y < H; y++) if (profile[y] >= peak / 2) rows++;
 
-    const d = window.__gl.diameters.slice().sort((a, b) => a - b);
     canvas.remove();
     return {
-      points: window.__gl.pointCount,
-      pointDraws: window.__gl.pointDraws,
-      diameters: d,
       darkness: darkness / (density * density),
       width: rows / density,
     };
@@ -100,14 +93,7 @@ try {
       try {
         const m = await measure(page, name, density);
         if (page.harnessErrors.length) throw new Error(page.harnessErrors.join("\n"));
-        const d = m.diameters;
         row.densities[density] = {
-          points: m.points,
-          pointDraws: m.pointDraws,
-          diameterP10: round(quantile(d, 0.1)),
-          diameterMedian: round(quantile(d, 0.5)),
-          diameterP90: round(quantile(d, 0.9)),
-          subpixelFraction: d.length ? round(d.filter((x) => x < 1).length / d.length) : null,
           darkness: round(m.darkness, 1),
           width: round(m.width, 2),
         };
@@ -127,9 +113,6 @@ try {
     return {
       brush: k === 1 ? r.brush : "",
       density: k,
-      points: v.points,
-      "diam p10/med/p90": `${v.diameterP10} / ${v.diameterMedian} / ${v.diameterP90}`,
-      "<1px": v.subpixelFraction,
       darkness: v.darkness,
       width: v.width,
       "d1/dk": k === 1 ? "" : r.darknessRatio[`d1/d${k}`],

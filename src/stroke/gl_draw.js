@@ -223,7 +223,7 @@ export function isReady() {
     ["a_pressure", 2, 24], ["a_info", 4, 32], ["a_seed", 1, 48],
   ];
   setupProgram(dots, dotsVertSrc, dotsFragSrc, attributes, [
-    "u_matrix", "u_affine", "u_translate", "u_half", "u_sizeScale",
+    "u_matrix", "u_affine", "u_translate", "u_half", "u_sizeScale", "u_density",
     "u_type", "u_perStep", "u_brush", "u_strokeWeight",
     "u_color", "u_affineCircle", "u_tipInverse", ...CLIP_UNIFORMS,
   ], 0);
@@ -268,6 +268,7 @@ export function beginStroke(seed, alpha, param, tip = null) {
       translate: [_mx, _my],
       half: [_halfW, _halfH],
       sizeScale: _density * _scale,
+      density: _density,
       affineCircle: _affineCircle,
       tipInverse: new Float32Array(_tipInverse),
       param,
@@ -429,6 +430,7 @@ export function flushStrokes() {
     gl.uniformMatrix4fv(u.u_matrix, false, b.projection);
     gl.uniform4f(u.u_affine, ...b.affine);
     gl.uniform1f(u.u_sizeScale, b.sizeScale);
+    gl.uniform1f(u.u_density, b.density);
     gl.uniform1i(u.u_type, DOT_TYPES[b.param.type] ?? 0);
     gl.uniform1i(u.u_perStep, perStep);
     gl.uniform4f(u.u_brush, b.param.weight, b.param.scatter, b.param.sharpness ?? 0, b.param.grain ?? 0);

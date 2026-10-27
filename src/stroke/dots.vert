@@ -22,6 +22,7 @@ uniform vec4 u_affine;     // ma, mb, mc, md
 uniform vec2 u_translate;  // mx, my
 uniform vec2 u_half;       // Cwidth / 2, Cheight / 2
 uniform float u_sizeScale; // density * transform scale
+uniform float u_density;
 uniform int u_type;        // 0 default, 1 spray, 2 marker
 uniform int u_perStep;     // instances per step (spray dot capacity, else 1)
 uniform vec4 u_brush;      // weight, scatter, sharpness, grain
@@ -102,7 +103,13 @@ void main() {
         u_affine.y * local.x + u_affine.w * local.y
     ) + u_translate + u_half;
 
+    // Dots smaller than 0.5 logical px (one device px at the reference
+    // density 2) keep that footprint at every density, and points are never
+    // rasterised below one device px; alpha scales by footprint / raster area
+    // so the ink per logical area does not depend on pixel density.
+    float footprint = max(u_sizeScale * diameter, 0.5 * u_density);
+    float raster = max(footprint, 1.0);
     gl_Position = u_matrix * vec4(screen, 0.0, 1.0);
-    gl_PointSize = u_sizeScale * diameter;
-    v_alpha = alpha / 255.0;
+    gl_PointSize = raster;
+    v_alpha = alpha / 255.0 * (footprint * footprint) / (raster * raster);
 }
