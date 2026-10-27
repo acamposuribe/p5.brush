@@ -1,0 +1,298 @@
+{
+  "meta": {
+    "date": "2026-10-27T23:42:58.988Z",
+    "version": "2.4.0",
+    "commit": "1c75dac6c51a6809262523cce8576720936e483f",
+    "libraryDirty": false,
+    "bundle": "dist/brush.esm.js",
+    "bundleSha256": "7afbed34cb8c23ef00d4d18403380199265b3ea2e1f485b295dc9fa98e7ab52c",
+    "node": "v23.9.0",
+    "platform": "darwin-arm64",
+    "browser": "chromium 145.0.7632.6",
+    "angle": "metal",
+    "gpu": {
+      "vendor": "Google Inc. (Apple)",
+      "renderer": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4, Unspecified Version)",
+      "pointSizeRange": [
+        1,
+        511
+      ],
+      "timerQuery": true
+    }
+  },
+  "setup": {
+    "canvas": [
+      512,
+      512
+    ],
+    "density": 1,
+    "warmup": 2,
+    "runs": 10,
+    "heavyRuns": null,
+    "seed": 1,
+    "noiseSeed": 1,
+    "workloads": {
+      "lines": {
+        "canvas": [
+          512,
+          512
+        ],
+        "density": 1,
+        "body": "\n    brush.set(\"2B\", \"#222\", 1);\n    for (let i = 0; i < 100; i++) brush.line(-200, -200 + i * 4, 200, -200 + i * 4);\n  "
+      },
+      "hatch": {
+        "canvas": [
+          512,
+          512
+        ],
+        "density": 1,
+        "body": "\n    brush.set(\"HB\", \"#222\", 1);\n    brush.hatch(3, 45);\n    brush.rect(-200, -200, 400, 400);\n    brush.noHatch();\n  "
+      },
+      "mass": {
+        "canvas": [
+          512,
+          512
+        ],
+        "density": 1,
+        "body": "\n    brush.noStroke();\n    brush.mass(\"HB\", \"#222\");\n    brush.rect(-150, -150, 300, 300);\n    brush.noMass();\n  "
+      },
+      "fill": {
+        "canvas": [
+          512,
+          512
+        ],
+        "density": 1,
+        "body": "\n    brush.noStroke();\n    brush.fill(\"#2a6fb0\", 150);\n    brush.fillBleed(0.3);\n    brush.fillTexture(0.6, 0.4);\n    brush.rect(-150, -150, 300, 300);\n    brush.noFill();\n  "
+      },
+      "fillLarge": {
+        "canvas": [
+          1200,
+          1200
+        ],
+        "density": 2,
+        "body": "\n    brush.noStroke();\n    brush.fill(\"#2a6fb0\", 150);\n    brush.fillBleed(0.3);\n    brush.fillTexture(0.6, 0.4);\n    brush.circle(0, 0, 450);\n    brush.noFill();\n  "
+      },
+      "fillMany": {
+        "canvas": [
+          1000,
+          1000
+        ],
+        "density": 2,
+        "body": "\n    brush.noStroke();\n    brush.fillBleed(0.25);\n    brush.fillTexture(0.5, 0.4);\n    const colors = [\"#2a6fb0\", \"#d0402a\", \"#e8b030\", \"#3a9a50\"];\n    for (let i = 0; i < 40; i++) {\n      brush.fill(colors[i % 4], 120);\n      brush.circle(-400 + (i % 8) * 110, -350 + Math.floor(i / 8) * 150, 60);\n    }\n    brush.noFill();\n  "
+      },
+      "wash": {
+        "canvas": [
+          1200,
+          1200
+        ],
+        "density": 2,
+        "body": "\n    brush.noStroke();\n    for (let i = 0; i < 4; i++) {\n      brush.wash(i % 2 ? \"#2a6fb0\" : \"#b02a2a\", 40);\n      brush.circle(0, 0, 450);\n    }\n    brush.noWash();\n  "
+      },
+      "fillHighBleed": {
+        "canvas": [
+          1000,
+          1000
+        ],
+        "density": 2,
+        "body": "\n    brush.noStroke();\n    brush.fillBleed(0.6);\n    brush.fillTexture(0.8, 0.6);\n    const colors = [\"#2a6fb0\", \"#d0402a\", \"#e8b030\", \"#3a9a50\"];\n    for (let i = 0; i < 8; i++) {\n      brush.fill(colors[i % 4], 140);\n      brush.rect(-400 + (i % 4) * 200, -300 + Math.floor(i / 4) * 300, 160, 240);\n    }\n    brush.noFill();\n  "
+      }
+    }
+  },
+  "results": {
+    "lines": {
+      "cpuMs": {
+        "median": 0.8,
+        "p90": 1,
+        "min": 0.6,
+        "max": 1.4
+      },
+      "totalMs": {
+        "median": 2.8,
+        "p90": 3.6,
+        "min": 2.3,
+        "max": 4.1
+      },
+      "points": 0,
+      "counts": {
+        "bindFramebuffer": 10,
+        "useProgram": 3,
+        "bufferSubData": 1,
+        "drawArraysInstanced": 1,
+        "getParameter": 6,
+        "blitFramebuffer": 1,
+        "drawArrays": 1,
+        "readPixels": 0
+      }
+    },
+    "hatch": {
+      "cpuMs": {
+        "median": 1.1,
+        "p90": 1.7,
+        "min": 1,
+        "max": 2.2
+      },
+      "totalMs": {
+        "median": 3.2,
+        "p90": 4.6,
+        "min": 2.7,
+        "max": 5.3
+      },
+      "points": 0,
+      "counts": {
+        "bindFramebuffer": 10,
+        "useProgram": 3,
+        "bufferSubData": 1,
+        "drawArraysInstanced": 1,
+        "getParameter": 6,
+        "blitFramebuffer": 1,
+        "drawArrays": 1,
+        "readPixels": 0
+      }
+    },
+    "mass": {
+      "cpuMs": {
+        "median": 11.6,
+        "p90": 11.9,
+        "min": 11.3,
+        "max": 12.4
+      },
+      "totalMs": {
+        "median": 16.6,
+        "p90": 17.6,
+        "min": 16.1,
+        "max": 19
+      },
+      "points": 0,
+      "counts": {
+        "bindFramebuffer": 10,
+        "useProgram": 3,
+        "bufferSubData": 1,
+        "drawArraysInstanced": 1,
+        "getParameter": 6,
+        "blitFramebuffer": 1,
+        "drawArrays": 1,
+        "readPixels": 0
+      }
+    },
+    "fill": {
+      "cpuMs": {
+        "median": 1,
+        "p90": 1.2,
+        "min": 0.7,
+        "max": 1.6
+      },
+      "totalMs": {
+        "median": 3.9,
+        "p90": 4.3,
+        "min": 3.4,
+        "max": 4.4
+      },
+      "points": 0,
+      "counts": {
+        "bindFramebuffer": 18,
+        "useProgram": 5,
+        "bufferData": 1,
+        "drawArrays": 144,
+        "getParameter": 5,
+        "blitFramebuffer": 1,
+        "readPixels": 0
+      }
+    },
+    "fillLarge": {
+      "cpuMs": {
+        "median": 1.3,
+        "p90": 1.8,
+        "min": 0.8,
+        "max": 2.1
+      },
+      "totalMs": {
+        "median": 46.5,
+        "p90": 47.7,
+        "min": 45.4,
+        "max": 48
+      },
+      "points": 0,
+      "counts": {
+        "bindFramebuffer": 18,
+        "useProgram": 5,
+        "bufferData": 1,
+        "drawArrays": 144,
+        "getParameter": 5,
+        "blitFramebuffer": 1,
+        "readPixels": 0
+      }
+    },
+    "fillMany": {
+      "cpuMs": {
+        "median": 24.4,
+        "p90": 25.5,
+        "min": 23.8,
+        "max": 25.9
+      },
+      "totalMs": {
+        "median": 50.7,
+        "p90": 50.9,
+        "min": 50.2,
+        "max": 51
+      },
+      "points": 0,
+      "counts": {
+        "bindFramebuffer": 642,
+        "useProgram": 200,
+        "bufferData": 40,
+        "drawArrays": 5760,
+        "getParameter": 200,
+        "blitFramebuffer": 40,
+        "readPixels": 0
+      }
+    },
+    "wash": {
+      "cpuMs": {
+        "median": 0.4,
+        "p90": 0.6,
+        "min": 0.2,
+        "max": 0.8
+      },
+      "totalMs": {
+        "median": 18.2,
+        "p90": 19.2,
+        "min": 17.6,
+        "max": 19.3
+      },
+      "points": 0,
+      "counts": {
+        "bindFramebuffer": 40,
+        "useProgram": 12,
+        "bufferData": 4,
+        "drawArrays": 36,
+        "getParameter": 20,
+        "blitFramebuffer": 4,
+        "readPixels": 0
+      }
+    },
+    "fillHighBleed": {
+      "cpuMs": {
+        "median": 6.9,
+        "p90": 9.1,
+        "min": 6,
+        "max": 9.3
+      },
+      "totalMs": {
+        "median": 41.6,
+        "p90": 43.4,
+        "min": 41,
+        "max": 43.5
+      },
+      "points": 0,
+      "counts": {
+        "bindFramebuffer": 130,
+        "useProgram": 40,
+        "bufferData": 8,
+        "drawArrays": 1152,
+        "getParameter": 40,
+        "blitFramebuffer": 8,
+        "readPixels": 0
+      }
+    }
+  }
+}

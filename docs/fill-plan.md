@@ -1,6 +1,6 @@
 # Fill plan
 
-**Status: in progress.** Steps 0, 1 and 2 done (2026-10-27); step 2 awaits F-D1 approval. Steps 3 and 3b done; F-D2 decided (2026-10-28): watercolour is the only fill model and classic is removed. Steps 4–6 next. Hardware measurements are from an Apple M4 (ANGLE Metal) only.  
+**Status: done (2026-10-28), released as 3.0.0.** Steps 0–3b and 6 done; steps 4 and 5 not needed (see each). Hardware measurements are from an Apple M4 (ANGLE Metal) only.  
 **Background:** [`rendering-model-audit.md`](rendering-model-audit.md) (F06, F07, F09, F10, F11) and the closed stroke plan in [`rendering-plan.md`](rendering-plan.md).
 
 ## Goal
@@ -102,10 +102,10 @@ The float buffer needs `EXT_color_buffer_float` or `EXT_color_buffer_half_float`
 
 | # | Decision | Needed before | Notes |
 |---|---|---|---|
-| F-D1 | **How much may the classic look change in step 2?** Same CPU polygons, but GPU coverage changes edge antialiasing, quantisation and the border band. | Step 2 merge | Approve from side-by-side seeded renders. |
+| F-D1 | **How much may the classic look change in step 2?** Same CPU polygons, but GPU coverage changes edge antialiasing, quantisation and the border band. | Step 2 merge | **Moot**: the classic look was removed (F-D2). |
 | F-D2 | **New look: default or opt-in?** | Step 3 end | **Decided 2026-10-28: watercolour replaces classic entirely.** No style switch; `fillTexture(texture, border, scatter, split)` gains the pigment split. |
-| F-D3 | **Seed compatibility.** Steps 4 and 5 change seeded output (KS-space glazes, hashed RNG). | Step 4 | Seeds keep their statistics, not their exact pixels, as with D4 in the stroke plan. |
-| F-D4 | **Release vehicle.** | Step 6 | Minor (2.5.0) if the classic look stays the default; consider a major version if the new look becomes the default. |
+| F-D3 | **Seed compatibility.** Steps 4 and 5 change seeded output (KS-space glazes, hashed RNG). | Step 4 | **Moot**: steps 4 and 5 were not done. The new fill model changes seeded output anyway (3.0.0). |
+| F-D4 | **Release vehicle.** | Step 6 | **3.0.0**: fills look different by design. |
 
 ## Steps
 
@@ -283,6 +283,21 @@ Whether this applies to the classic look, the new look, or both depends on step 
 
 **Done when:** F-D3 is decided; composite time on the large fill drops at least 1.5× more, and the 40-fill workload uses at most one composite per colour run.
 
+**Not needed (2026-10-28).** With classic gone, every fill composites exactly once, so there are no glazes to collapse. Batching same-colour fills would merge their blurred silhouettes and break wet-in-wet, because each fill reads the paper the previous one left wet.
+
+Instead, the composite's cost was profiled on `fillLarge`. Pieces were switched off one at a time and the cost read as the change in total time:
+
+- The `watercolor()` field function: about 37 ms of 50, dominated by **reticulation**, about 20 ms on any fill that rolls it.
+- The spectral mix: about 5 ms.
+- Mask, blur and passes: about 12 ms.
+- Edge wobble, roughness and creep: about 1 ms each.
+
+Two pixel-identical fixes went in. Reticulation cells are computed only inside their patches (`458e50d`), and cell points are hashed directly instead of through four-corner value noise (`1c75dac`). Together they take fillLarge from 54 to 47 ms.
+
+Rejected: evaluating the eight shape-scale noise fields once per fill at ¼ resolution (patch kept in `workspace/step3/lowres-fields.patch`). Pixels matched well: at density 2, under 0.2% of pixels changed by more than 2/255. But the gain was only 50 → 40 ms on the large fill. Small fills got slower: 52 → 69 ms from two extra render-target switches per fill, and 77 ms with a size threshold, because carrying both code paths enlarged the shader.
+
+Open, if animation needs it: cheaper reticulation (it cannot be pixel-identical), and a vertex cap by perimeter for small shapes. Today a 60 px circle grows up to about 2000 × bleed vertices, more than one per pixel of edge. Small fills cost about 1.25 ms each (half CPU geometry, half fixed GPU passes): roughly 12 small fills per frame at 60 fps on an M4.
+
 ### 5. GPU fine geometry (only if still needed)
 
 - Do the last two growth levels in the vertex shader with hashed randomness (F11, audit §5.4), and use typed arrays for the coarse levels.
@@ -290,11 +305,34 @@ Whether this applies to the classic look, the new look, or both depends on step 
 
 **Done when:** CPU geometry time drops at least 3× on the 40-fill workload with no visible change in character.
 
+**Not done (2026-10-28).** CPU geometry is about 25 ms of fillMany's 50 ms, so it is still worth attacking for animated fills. The cheaper first move is the vertex cap noted under step 4, before any GPU growth.
+
 ### 6. Release
 
 - Update the README and `llms.txt` for any new API (F-D2).
 - Rebuild `dist`, rerun the harness on a hardware GPU, and record the results here.
 
+**Result (3.0.0, 2026-10-28).** The README and `llms.txt` describe the new fill model and `fillTexture(texture, border, scatter, split)`. The baseline is `test/e2e/baselines/bench-3.0.0-metal-m4.json`: two consecutive runs agreed within 0.6 ms on every workload.
+
+| Workload, total ms (Apple M4) | 2.4.0 | 3.0.0 |
+|---|---:|---:|
+| lines | — | 2.8 |
+| hatch | — | 3.2 |
+| mass | — | 16.6 |
+| fill (512², d1) | 10 | **3.9** |
+| fillLarge (1200², d2) | 82 | **46.5** |
+| fillMany (40 fills, d2) | 283 | **50.7** |
+| wash | 66 | **18.2** |
+| fillHighBleed | 92 | **41.6** |
+
 ## Expected outcome
 
 These are projections, not measurements. Steps 1, 2 and 4 together should take the large fill from about 80 ms to roughly 10–15 ms on an M4, and the 40-fill workload from 279 ms to roughly 30–40 ms. Step 3's cost will be budgeted against these numbers. The new look should cost no more than the old one; it will probably cost less if the layer count drops.
+
+**Actual (3.0.0):**
+
+- fillLarge 82 → 46.5 ms (1.8×).
+- fillMany 283 → 50.7 ms (5.6×).
+- Washes 66 → 18.2 ms (3.6×).
+
+The large fill missed its projection. The new look costs more per pixel than the projection assumed, mostly reticulation (see step 4). The new look is still faster than the old one on every workload.

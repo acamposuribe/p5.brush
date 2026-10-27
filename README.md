@@ -667,7 +667,9 @@ These functions control stroke appearance: which brush is active, what color it 
 <sub>[back to table](#table-of-functions)</sub>
 ### Fill Operations
 
-These functions control how closed shapes are filled. You can use watercolor-style fills, flat wash fills, and adjust bleed or texture.
+These functions control how closed shapes are filled. `fill()` paints watercolour: each shape is grown from Tyler Hobbs' layered-polygon method and painted as a dried wash, with an irregular edge, a pigment ring where it dried, granulation, pooling, occasional drops and blooms, and pigments that separate into slightly different hues. `wash()` paints flat colour.
+
+Fills drawn in the same frame interact: a fill whose edge touches a recent one that is still wet loses its edge there and feathers into it. The paper dries at every `brush.render()` (and at the end of p5's `draw()`). Fills are seeded: call `brush.seed()` with the same value each frame to keep an animated fill's look stable.
 
 ---
 
@@ -735,12 +737,13 @@ These functions control how closed shapes are filled. You can use watercolor-sty
 
 ---
 
-- `brush.fillTexture(textureStrength, borderIntensity, scatter?)`
-  - **Description**: Adjusts the texture levels for the fill operation, mimicking the behavior of watercolor paints. This function adds a natural and organic feel to digital artwork.
+- `brush.fillTexture(textureStrength, borderIntensity, scatter?, split?)`
+  - **Description**: Adjusts the texture of watercolour fills.
   - **Parameters**:
-    - `textureStrength` (Number): The texture of the fill effect, ranging from 0 to 1.
-    - `borderIntensity` (Number): The intensity of the border watercolor effect, ranging from 0 to 1.
-    - `scatter` (Boolean, optional, default `true`): Whether to draw the sparse scattered polygon layers that add edge texture noise. Set to `false` for a cleaner gradient trim effect.
+    - `textureStrength` (Number): Granulation (pigment settling in the paper's tooth) and, at higher values, reticulation (a fine cell pattern), from 0 to 1.
+    - `borderIntensity` (Number): Strength of the pigment ring left at the edge as the wash dried, from 0 to 1.
+    - `scatter` (Boolean, optional, default `true`): Whether to draw the sparse scattered polygon layers that add texture inside the shape. Set to `false` for a cleaner gradient.
+    - `split` (Number, optional, default `0.15`): How far the paint separates into a warmer and a cooler pigment across the wash, from 0 (one pigment) to 1.
   - **Usage**:
     ```javascript
     // Set the fill texture and border intensity
@@ -748,6 +751,9 @@ These functions control how closed shapes are filled. You can use watercolor-sty
 
     // Disable scatter layers for a cleaner gradient
     brush.fillTexture(0.6, 0.4, false);
+
+    // Stronger hue variation inside each wash
+    brush.fillTexture(0.6, 0.4, true, 0.4);
     ```
 
 ---

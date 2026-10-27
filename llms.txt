@@ -242,15 +242,15 @@ Everything below works identically in both builds. The only differences are setu
 
 ### Fill Operations
 
-Fill simulates watercolor — soft edges, bleed, texture layering.
+Fill simulates watercolor: Hobbs-style grown shapes painted as dried washes (irregular edge, pigment ring, granulation, pooling, drops, blooms, pigment separation). Fills in the same frame bleed into each other where they touch (wet-in-wet); the paper dries at every `brush.render()` / end of p5 `draw()`. Fills are seeded — re-seed each frame for stable animation.
 
 - `brush.fill(color, opacity)` or `brush.fill(r, g, b, opacity)` — Set fill color. Opacity 0–255. Enables fill.
 - `brush.noFill()` — Disable fill.
 - `brush.wash(color, opacity)` — Fast solid fill, no watercolor simulation.
 - `brush.noWash()` — Disable wash.
 - `brush.fillBleed(strength, direction?)` — Edge bleed 0–1. Direction: `"out"` or `"in"`.
-- `brush.fillTexture(textureStrength, borderIntensity, scatter?)` — Texture and border, both 0–1. `scatter` (default `true`) enables the sparse scattered polygon layers; set to `false` for a cleaner gradient trim without edge texture noise.
-- For better fill performance, group shapes by fill color/opacity so the library can reuse its internal caching.
+- `brush.fillTexture(textureStrength, borderIntensity, scatter?, split?)` — `textureStrength` 0–1: granulation, plus reticulation at higher values. `borderIntensity` 0–1: pigment ring at the edge. `scatter` (default `true`) enables the sparse scattered polygon layers; set to `false` for a cleaner gradient. `split` (default `0.15`) 0–1: how far the paint separates into a warmer and a cooler pigment.
+- Each fill composites on its own (roughly 1 ms per small fill on a fast GPU); a full-canvas fill at pixel density 2 is the expensive case.
 
 ---
 
