@@ -155,7 +155,7 @@ function runErrorTests() {
     spacing: 1.5,
     pressure: [0.8, 1.2],
     rotate: "random",
-    image: { src: "../../example/brush_tips/brush.jpg" },
+    image: { src: "../../examples/teaser1/brush_tips/brush.jpg" },
   });
 
   // Custom tip brush
