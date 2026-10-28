@@ -232,11 +232,14 @@
 
           <div style="font: 11px/1.4 Menlo, Monaco, 'Courier New', monospace; display:grid; gap:6px;">
             Shape
-            <div style="display:flex; gap:6px;">
+            <div style="display:flex; flex-wrap:wrap; gap:6px;">
               <button type="button" class="shape-btn active" data-shape="circle">circle</button>
               <button type="button" class="shape-btn" data-shape="rect">rect</button>
               <button type="button" class="shape-btn" data-shape="blob">blob</button>
               <button type="button" class="shape-btn" data-shape="grid">grid</button>
+              <button type="button" class="shape-btn" data-shape="dots">dots</button>
+              <button type="button" class="shape-btn" data-shape="swatches">swatches</button>
+              <button type="button" class="shape-btn" data-shape="klint">klint</button>
             </div>
           </div>
 
@@ -272,6 +275,14 @@
                 <span class="val" id="borderVal">0.4</span>
               </div>
             </label>
+
+            <label>
+              Pigment split <span style="color:#8a9aa8">(C toggles 0)</span>
+              <div class="slider-row">
+                <input type="range" id="shift" min="0" max="1" step="0.05" value="0.15" />
+                <span class="val" id="shiftVal">0.15</span>
+              </div>
+            </label>
           </div>
 
           <label style="font: 11px/1.4 Menlo, Monaco, 'Courier New', monospace;">
@@ -283,6 +294,7 @@
         <div id="canvas-host" class="panel"></div>
       </div>
 
+      <script src="../fill_compositions.js"></script>
       <script src="./fill_circle_explorer.js"></script>
     </main>
   <script src="../test-nav.js"></script>

@@ -2,7 +2,7 @@ const PALETTE = ["#002185", "#003c32", "#fcd300", "#ff2702", "#6b9404", "#000000
 const PAPER = "#fffceb";
 const STROKE = "#111111";
 
-const SHAPES = ["circle", "rect", "blob", "grid"];
+const SHAPES = ["circle", "rect", "blob", "grid", "dots", "swatches", "klint"];
 
 const state = {
   bleed: 0.3,
@@ -12,7 +12,9 @@ const state = {
   color: PALETTE[0],
   seed: 100000 + Math.floor(Math.random() * 900000),
   shape: "circle",
+  shift: 0.15,
 };
+const compositions = window.fillCompositions(brush, state);
 
 const urlParams = new URLSearchParams(location.search);
 
@@ -25,6 +27,8 @@ const controls = {
   opacityVal: document.getElementById("opacityVal"),
   textureVal: document.getElementById("textureVal"),
   borderVal: document.getElementById("borderVal"),
+  shift: document.getElementById("shift"),
+  shiftVal: document.getElementById("shiftVal"),
   seedVal: document.getElementById("seedVal"),
   refreshSeed: document.getElementById("refreshSeed"),
   palette: document.getElementById("palette"),
@@ -59,6 +63,7 @@ function syncUrl() {
     color: state.color,
     seed: String(state.seed),
     shape: state.shape,
+    shift: String(state.shift),
   });
   const nextSearch = `?${qs.toString()}`;
   if (location.search === nextSearch) return;
@@ -79,6 +84,7 @@ function syncReadouts() {
   controls.opacityVal.textContent = formatValue(state.opacity);
   controls.textureVal.textContent = formatValue(state.texture);
   controls.borderVal.textContent = formatValue(state.border);
+  controls.shiftVal.textContent = formatValue(state.shift);
   controls.seedVal.textContent = String(state.seed).padStart(6, "0");
 }
 
@@ -130,6 +136,7 @@ state.bleed = readUrlNumber("bleed", state.bleed, 0, 1, 2);
 state.opacity = Math.round(readUrlNumber("opacity", state.opacity, 0, 255));
 state.texture = readUrlNumber("texture", state.texture, 0, 1, 2);
 state.border = readUrlNumber("border", state.border, 0, 1, 2);
+state.shift = readUrlNumber("shift", state.shift, 0, 1, 2);
 state.seed = Math.round(readUrlNumber("seed", state.seed, 100000, 999999));
 if (urlParams.has("color") && PALETTE.includes(urlParams.get("color"))) {
   state.color = urlParams.get("color");
@@ -142,11 +149,25 @@ controls.bleed.value = state.bleed;
 controls.opacity.value = state.opacity;
 controls.texture.value = state.texture;
 controls.border.value = state.border;
+controls.shift.value = state.shift;
 
 bindSlider("bleed", controls.bleed, controls.bleedVal);
 bindSlider("opacity", controls.opacity, controls.opacityVal);
 bindSlider("texture", controls.texture, controls.textureVal);
 bindSlider("border", controls.border, controls.borderVal);
+bindSlider("shift", controls.shift, controls.shiftVal);
+
+// C flips the pigment split off and back to its last non-zero value.
+let lastShift = state.shift || 0.15;
+addEventListener("keydown", (e) => {
+  if (e.key !== "c" && e.key !== "C") return;
+  if (state.shift > 0) { lastShift = state.shift; state.shift = 0; }
+  else state.shift = lastShift;
+  controls.shift.value = state.shift;
+  syncReadouts();
+  queueUrlSync();
+  queueRender();
+});
 
 controls.refreshSeed.addEventListener("click", () => {
   state.seed = 100000 + Math.floor(Math.random() * 900000);
@@ -214,7 +235,7 @@ function drawGrid(w, h) {
       const y = PAD + row * (cellH + GAP);
       brush.fill(color, state.opacity);
       brush.fillBleed(state.bleed, "out");
-      brush.fillTexture(state.texture, state.border);
+      brush.fillTexture(state.texture, state.border, true, state.shift);
       brush.rect(x, y, cellW, cellH);
       brush.noFill();
     }
@@ -243,10 +264,13 @@ function renderScene() {
   brush.set("HB", STROKE, 0.5);
   if (state.shape === "grid") {
     drawGrid(width, height);
+  } else if (compositions[state.shape]) {
+    brush.noStroke();
+    compositions[state.shape](width, height);
   } else {
     brush.fill(state.color, state.opacity);
     brush.fillBleed(state.bleed, "out");
-    brush.fillTexture(state.texture, state.border);
+    brush.fillTexture(state.texture, state.border, true, state.shift);
     drawShape(width, height);
     brush.noFill();
   }
