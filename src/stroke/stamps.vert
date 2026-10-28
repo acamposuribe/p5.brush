@@ -22,7 +22,6 @@ uniform float u_strokeWeight;
 
 out vec2  v_uv;
 out float v_alpha;
-out float v_pressure;
 
 uint pcg(uint v) {
     uint state = v * 747796405u + 2891336453u;
@@ -45,7 +44,6 @@ void main() {
         gl_Position = vec4(2.0, 2.0, 2.0, 1.0);
         v_uv = vec2(0.0);
         v_alpha = 0.0;
-        v_pressure = 0.0;
         return;
     }
 
@@ -68,5 +66,4 @@ void main() {
     // Map corner [-1,1] → uv [0,1]; the projection already has Y increasing downward.
     v_uv = corner * 0.5 + 0.5;
     v_alpha = alpha / 255.0;
-    v_pressure = p;
 }

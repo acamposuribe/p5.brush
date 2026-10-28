@@ -286,9 +286,9 @@ float readMask(vec2 uv) {
 
 #ifdef WATERCOLOR
 #pragma glslify: paperNoise = require(./value_noise.glsl)
-#pragma glslify: paperHeight = require(../../stroke/paper_height.glsl)
+#pragma glslify: paperHeight = require(../../fill/paper_height.glsl)
 
-uniform vec4 u_paper;   // contact strength, grain (logical px), density, seed
+uniform vec3 u_wcPaper; // paper grain (logical px), pixel density, seed
 uniform vec4 u_wcShape; // centre.xy and radius (mask px), seed
 uniform vec4 u_wcLook;  // rim, granulation, reticulation, drift (0..1)
 uniform vec4 u_wcFlow;  // flow direction.xy (mask px, unit or 0), edge level (silhouette paint), lost edges (0..1)
@@ -349,7 +349,7 @@ float cellWalls(vec2 p, uint seed) {
 vec3 watercolor(vec2 uv, float coverage) {
     vec2 size = vec2(textureSize(u_mask, 0));
     vec2 px = uv * size;
-    float density = u_paper.z;
+    float density = u_wcPaper.y;
     float level = u_wcFlow.z;
     uint seed = uint(u_wcShape.w);
     vec2 q = (px - u_wcShape.xy) / max(u_wcShape.z, 1.0);
@@ -380,10 +380,10 @@ vec3 watercolor(vec2 uv, float coverage) {
     // and halts at the hills, so the edge follows the same paper as the
     // granulation, rougher along some stretches. The shift is bounded to a
     // few pixels, so no flecks break off.
-    float grain = density * u_paper.y;
+    float grain = density * u_wcPaper.x;
     // The shift stays below the bumps' own size (about 8 px apart), so the
     // edge bends around them instead of breaking into specks.
-    float hill = paperHeight(px / (grain * 3.0), uint(u_paper.w)) - 0.5;
+    float hill = paperHeight(px / (grain * 3.0), uint(u_wcPaper.z)) - 0.5;
     float rough = 0.4 + 0.9 * smoothstep(0.45, 0.7, fbm(q * 2.5 + 11.0, seed + 59u));
     float edgeDist = dist - hill * rough * 2.5 * density;
     float hard = clamp(edgeDist + 0.5, 0.0, 1.0);
@@ -478,7 +478,7 @@ vec3 watercolor(vec2 uv, float coverage) {
     // Granulation: paper valleys hold pigment, and flocculated clumps several
     // grains across give the mottle a second, coarser scale.
     if (u_wcLook.y > 0.0) {
-        float h = paperHeight(px / (grain * 1.3), uint(u_paper.w));
+        float h = paperHeight(px / (grain * 1.3), uint(u_wcPaper.z));
         float clumps = fbm(mat2(0.8, 0.6, -0.6, 0.8) * px / (grain * 9.0), seed + 23u);
         float settle = (0.5 - h) * 0.7 + (clumps - 0.5) * 1.1;
         // Reticulation: in patches, irregular cells whose walls gather pigment.

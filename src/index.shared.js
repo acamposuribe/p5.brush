@@ -54,8 +54,6 @@ export {
   noClip,
   line,
   flowLine,
-  paper,
-  noPaper,
 } from "./stroke/stroke.js";
 
 // Section: Hatching

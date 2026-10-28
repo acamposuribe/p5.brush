@@ -36,12 +36,12 @@ import {
   cossin,
   toDegreesSigned,
   _onSeed,
+  seedHash,
 } from "../core/utils.js";
 import { isFieldReady } from "../core/flowfield.js";
 import { createColor, getAffineMatrix } from "../core/runtime.js";
 import { Polygon } from "../core/polygon.js";
 import { Plot } from "../core/plot.js";
-import { getPaper } from "../stroke/gl_draw.js";
 import { pigmentTerms, splitPigment } from "../core/spectral.js";
 
 // Internal module imports
@@ -52,6 +52,9 @@ initFillComposite(); // Register the fill composite with the core color module
 // =============================================================================
 // Fill State and helpers
 // =============================================================================
+
+// Grain of the paper fills granulate on, in logical px.
+const FILL_GRAIN = 1.26;
 
 // Hobbs' layer schedule, and the layers of it a fill draws.
 const SCHEDULE = 20;
@@ -726,7 +729,6 @@ class FillPoly {
     const [a, b, c, d, e, f] = t;
     const { x, y } = this.midP;
     const bleed = State.fill.bleed_strength;
-    const paper = getPaper();
 
     // Pigment drifts downstream along the bleed angle, or a little anywhere.
     let fx, fy, flow;
@@ -763,7 +765,9 @@ class FillPoly {
     const drop = rr(0, 1) < 0.15 + 0.35 * wet ? [...at(0, 0.5), rr(0.15, 0.32), rr(0.7, 1.8)] : [0, 0, 0, 0];
     const bloom = rr(0, 1) < 0.5 * (wet - 0.15) ? [...at(0.2, 0.6), rr(0.2, 0.4), rr(0.5, 1)] : [0, 0, 0, 0];
     const uniforms = {
-      u_paper: [paper.strength, paper.grain, Density, paper.seed],
+      // The paper's grain is fixed in logical px (scaleBrushes() is about
+      // brush size, and a wash has no brush); its pattern follows brush.seed().
+      u_wcPaper: [FILL_GRAIN, Density, seedHash() % 65536],
       u_wcShape: [
         a * x + c * y + e,
         b * x + d * y + f,

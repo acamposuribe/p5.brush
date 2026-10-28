@@ -64,8 +64,8 @@ const _seedCallbacks = [];
  */
 export const _onSeed = (cb) => _seedCallbacks.push(cb);
 
-// Hash of the value last passed to seed(), for features (like the paper
-// tooth) that follow the seed without consuming random numbers.
+// Hash of the value last passed to seed(), for features (like the fills'
+// paper) that follow the seed without consuming random numbers.
 let _seedHash = _hashSeed(Math.random());
 export const seedHash = () => _seedHash;
 

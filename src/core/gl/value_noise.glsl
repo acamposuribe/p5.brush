@@ -1,5 +1,5 @@
 // Smooth value noise in [0, 1] on an integer lattice, hashed with PCG.
-// Shared by the paper height (strokes) and watercolour fills.
+// Used by watercolour fills and their paper height.
 //
 // No `u`-suffixed literals: glslify renames the `u` of `123u` in modules
 // required from other modules. uint(int) keeps the bit pattern, so

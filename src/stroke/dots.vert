@@ -29,7 +29,6 @@ uniform vec4 u_brush;      // weight, scatter, sharpness, grain
 uniform float u_strokeWeight;
 
 out float v_alpha;
-out float v_pressure;
 
 uint pcg(uint v) {
     uint state = v * 747796405u + 2891336453u;
@@ -53,7 +52,6 @@ void cull() {
     gl_Position = vec4(2.0, 2.0, 2.0, 1.0);
     gl_PointSize = 0.0;
     v_alpha = 0.0;
-    v_pressure = 0.0;
 }
 
 void main() {
@@ -114,5 +112,4 @@ void main() {
     gl_Position = u_matrix * vec4(screen, 0.0, 1.0);
     gl_PointSize = raster;
     v_alpha = alpha / 255.0 * (footprint * footprint) / (raster * raster);
-    v_pressure = p;
 }

@@ -1,5 +1,5 @@
-// Paper height: a fixed height map in canvas space, shared by strokes (paper
-// tooth, paper.glsl) and watercolour fills (granulation).
+// Paper height: a fixed height map in canvas space that watercolour fills
+// granulate on and whose valleys roughen their edges.
 
 #pragma glslify: paperNoise = require(../core/gl/value_noise.glsl)
 

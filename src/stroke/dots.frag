@@ -2,11 +2,7 @@
 precision highp float;
 
 in float v_alpha;
-in float v_pressure;
 out vec4 outColor;
-
-// Paper: (contact strength 0..1, grain size in logical px, pixel density, seed)
-uniform vec4 u_paper;
 
 uniform vec4 u_color;
 uniform bool u_affineCircle;
@@ -15,8 +11,6 @@ uniform mat2 u_tipInverse;
 uniform bool u_clipEnabled;
 uniform mat3 u_clipMatrix;
 uniform vec4 u_clipBounds;
-
-#pragma glslify: paperContact = require(./paper.glsl)
 
 void main() {
     if (u_clipEnabled) {
@@ -42,6 +36,6 @@ void main() {
         discard;
     }
 
-    float contact = paperContact(u_paper, gl_FragCoord.xy, v_pressure);
-    outColor = vec4(u_color.xyz, v_alpha * f * contact);
+    // Ink colour at v_alpha, with a smooth edge from f
+    outColor = vec4(u_color.xyz, v_alpha * f);
 }
