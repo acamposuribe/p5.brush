@@ -864,6 +864,10 @@ function ensureValueInput(id) {
   input.type = 'text';
   input.id = id + '-num';
   input.className = 'val-input';
+  input.addEventListener('input', () => {
+    const sanitized = input.value.replace(/[<>]/g, '');
+    if (sanitized !== input.value) input.value = sanitized;
+  });
   host.textContent = '';
   host.appendChild(input);
   return input;
