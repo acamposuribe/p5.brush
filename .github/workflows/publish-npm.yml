@@ -20,10 +20,11 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24  # ships npm 11, which trusted publishing requires (>= 11.5.1)
           registry-url: https://registry.npmjs.org
 
       - name: Ensure tag matches package version
+        if: startsWith(github.ref, 'refs/tags/')
         run: |
           PACKAGE_VERSION=$(node -p "require('./package.json').version")
           TAG_VERSION=${GITHUB_REF_NAME#v}
@@ -38,11 +39,11 @@ jobs:
       - name: Test
         run: npm test
 
+      # Rebuilds dist and types. The browser smoke test is not run here: it
+      # drives WebGPU through Metal ANGLE, which Linux runners don't have.
+      # Run `npm run test:smoke` locally before tagging.
       - name: Build library
-        run: npx rollup --config
-
-      - name: Browser smoke test
-        run: npm run test:smoke
+        run: npm run build
 
       - name: Publish package
         run: npm publish --provenance --access public
