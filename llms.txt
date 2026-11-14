@@ -336,7 +336,7 @@ Draw native p5 text and other overlays after all brush geometry for the frame so
 | `weight` | Base thickness in canvas units |
 | `scatter` | Sideways spread |
 | `sharpness` | Edge softness 0–1 (`"default"` only) |
-| `grain` | Texture density (`"default"` only) |
+| `grain` | Texture density (`"default"` and `"spray"`; **required** for `"spray"`) |
 | `opacity` | Mark opacity 0–255 |
 | `spacing` | Stamp gap along stroke (1 = no overlap) |
 | `pressure` | `[start, end]` or `[start, mid, end]` or `(t) => value` |

@@ -2,7 +2,7 @@
 // Adapter: p5 Addon Registration
 // =============================================================================
 
-import { flushActiveComposite } from "../../core/color.js";
+import { flushActiveComposite, getLoadTarget } from "../../core/color.js";
 import {
   instance as bindInstance,
   activateInstance,
@@ -44,6 +44,20 @@ export function registerP5Addon(_p5, fn, lifecycles) {
       deactivateInstance();
     }
   };
+
+  // A p5.Framebuffer target is only bound inside its begin()/end() (or draw()) scope, and the
+  // documented pattern calls brush.load() after leaving it. Flush brush work queued on that
+  // framebuffer before end() unbinds it, or it would be composited into the next target.
+  const FB = _p5 && _p5.Framebuffer;
+  if (FB && FB.prototype && typeof FB.prototype.end === "function" && !FB.prototype.end.__brushFlush) {
+    const _end = FB.prototype.end;
+    const end = function () {
+      if (getLoadTarget() === this) flushActiveComposite();
+      return _end.apply(this, arguments);
+    };
+    end.__brushFlush = true;
+    FB.prototype.end = end;
+  }
 
   const _push = fn.push;
   const _pop = fn.pop;

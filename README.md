@@ -437,9 +437,9 @@ This section covers choosing brushes, adding your own brushes, and clipping wher
 ---
 
 - `brush.box()`
-  - **Description**: Retrieves an array containing the unique names of all available brushes. This function is useful for accessing the variety of brushes included in the library, which range from different pencil types to markers and specialized brushes like the hatch brush. Of course, the function will also return the custom brushes you've created.
+  - **Description**: Retrieves an array containing the unique names of all available brushes. This function is useful for accessing the variety of brushes included in the library, which range from different pencil types to pens, markers and dry media such as pastel, crayon and charcoal. Of course, the function will also return the custom brushes you've created.
   - **Returns**: `Array<string>` - An array listing the names of all brushes.
-  - **Default Brushes**: The library includes a default set of 11 brushes: `2B`, `HB`, `2H`, `cpencil`, `pen`, `rotring`, `spray`, `marker`, `marker2`, `charcoal`, and `hatch_brush` (for clean hatching).
+  - **Default Brushes**: The library includes a default set of 11 brushes: `pen`, `rotring`, `2B`, `HB`, `2H`, `cpencil`, `pastel`, `crayon`, `charcoal`, `spray` and `marker`. `pastel` and `crayon` work best with `brush.mass()`. Hatches use the current stroke brush unless `brush.hatchStyle()` sets one.
   - **Usage**:
     ```javascript
     // Retrieve a list of all available brush names
@@ -459,7 +459,7 @@ This section covers choosing brushes, adding your own brushes, and clipping wher
       - `weight`: How thick the brush is, in canvas units.
       - `scatter`: How much the stroke wobbles sideways. Higher = more spread. (in canvas units)
       - `sharpness`: A number from 0 to 1. Lower = softer/fuzzier edge. Only matters for `"default"` type.
-      - `grain`: Controls how dense the texture is. Higher = smoother, more continuous line. Only matters for `"default"` and `"spray"` types.
+      - `grain`: Controls how dense the texture is. Higher = smoother, more continuous line. Only matters for `"default"` and `"spray"` types, and is **required** for `"spray"` (without it the brush throws "Spray pressure/grain must produce a bounded number of dots" when it draws).
       - `opacity`: How opaque each mark is, from 0 to 255. Pressure also affects this.
       - `spacing`: Gap between brush tip stamps along the stroke. `1` means no overlap, lower values create denser strokes.
       - `pressure`: Controls how the brush size changes from start to end of a stroke. Use a simple array — the easiest way:

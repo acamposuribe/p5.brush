@@ -2,8 +2,12 @@
 // effects (p5 global mode: `import "p5.brush"` registers the addon) must keep
 // the library when bundled. The package is installed into a temporary
 // node_modules exactly as a consumer would see it. Run after npm run build.
+//
+// UMD bundles are also checked for global leaks: they load as classic <script>s, where
+// any top-level `var` becomes a global, so they must define nothing but `brush`.
 import assert from "node:assert/strict";
-import { cp, mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
+import { cp, mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import vm from "node:vm";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { rollup } from "rollup";
@@ -33,4 +37,14 @@ try {
   }
 } finally {
   await rm(dir, { recursive: true, force: true });
+}
+
+// A leaked `var t,e;` made `let t` / `let e` at the top of a sketch a SyntaxError
+// ("Identifier 't' has already been declared").
+for (const file of ["dist/p5.brush.js", "dist/brush.js"]) {
+  const context = vm.createContext({});
+  vm.runInContext(await readFile(file, "utf8"), context, { filename: file });
+  const globals = Object.keys(context);
+  assert.deepEqual(globals, ["brush"], `${file} leaks globals besides brush: ${globals.join(", ")}`);
+  console.log(`PASS ${file} defines only the global "brush"`);
 }
