@@ -21,5 +21,6 @@ void main() {
     }
     float inkAlpha = texture(u_tex, v_uv).a;
     if (inkAlpha < 0.01) discard;
-    outColor = vec4(u_color.rgb, inkAlpha * v_alpha);
+    // Coverage in alpha; red is the markers' extra-ink channel (none here).
+    outColor = vec4(0.0, 0.0, 0.0, inkAlpha * v_alpha);
 }

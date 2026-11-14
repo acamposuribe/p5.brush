@@ -290,6 +290,7 @@ float readMask(vec2 uv) {
 
 uniform vec3 u_wcPaper; // paper grain (logical px), pixel density, seed
 uniform vec4 u_wcShape; // centre.xy and radius (mask px), seed
+uniform float u_wcSoft; // edge softness: how much of the edge stays wet and feathers out (0..1)
 uniform vec4 u_wcLook;  // rim, granulation, reticulation, drift (0..1)
 uniform vec4 u_wcFlow;  // flow direction.xy (mask px, unit or 0), edge level (silhouette paint), lost edges (0..1)
 // The mask blurred at half resolution (src/fill/blur.frag): r / a is the mean
@@ -375,6 +376,10 @@ vec3 watercolor(vec2 uv, float coverage) {
     float wet = wetTexel.r > 1e-3 ? wetTexel.r * pow(u_wetInfo.z, max(age - 1.0, 0.0)) : 0.0;
     float wetEdge = smoothstep(0.1, 0.5, wet);
     float lost = max(u_wcFlow.w * smoothstep(0.45, 0.75, fbm(q * 1.8 + 23.0, seed + 67u)), wetEdge);
+    // Edge softness (fillBleed's fourth argument): the whole edge stays this
+    // wet at least, and a softer edge feathers further out, to where only
+    // the outermost bled layers reach.
+    lost = max(lost, u_wcSoft);
 
     // Elsewhere the wash stopped against the paper: it runs into the valleys
     // and halts at the hills, so the edge follows the same paper as the
@@ -387,7 +392,7 @@ vec3 watercolor(vec2 uv, float coverage) {
     float rough = 0.4 + 0.9 * smoothstep(0.45, 0.7, fbm(q * 2.5 + 11.0, seed + 59u));
     float edgeDist = dist - hill * rough * 2.5 * density;
     float hard = clamp(edgeDist + 0.5, 0.0, 1.0);
-    float soft = smoothstep(0.1 * level, 2.5 * level, blurred.b);
+    float soft = smoothstep(mix(0.1, 0.01, u_wcSoft) * level, 2.5 * level, blurred.b);
     // Creep: fingers of pigment of a few pixels, from the wet edge outward.
     float fingers = fbm(px / (density * 3.0), seed + 71u) - 0.5;
     float creep = smoothstep(0.05, 0.9, blurred.b / level + 0.8 * fingers);
@@ -555,9 +560,12 @@ void main(void) {
 
 #ifdef BRUSH
     // Dense brush pixels darken the pigment itself, so they cannot use the
-    // precomputed pigment terms.
-    if (maskAlpha > DARKEN_THRESHOLD) {
-        float blacken = 0.5 * (min(maskAlpha, 1.0) - DARKEN_THRESHOLD);
+    // precomputed pigment terms. So does a marker's extra ink (mask red:
+    // the paper's pits and the spot where the nib rests).
+    float extraInk = min(texture(u_mask, maskUV).r, 1.0);
+    if (maskAlpha > DARKEN_THRESHOLD || extraInk > 0.0) {
+        mixIntensity = min(mixIntensity * (1.0 + 0.4 * extraInk), 1.0);
+        float blacken = 0.5 * max(min(maskAlpha, 1.0) - DARKEN_THRESHOLD, 0.0) + 0.05 * extraInk;
         vec3 pigment = max(u_color * (1.0 - blacken) - vec3(0.5) * blacken, vec3(0.0));
         outColor = vec4(spectral_mix(bgColor, pigment, mixIntensity), 1.);
         return;

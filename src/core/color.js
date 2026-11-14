@@ -384,16 +384,16 @@ export const flushActiveComposite = () => {
   Mix.cachedColor = null;
 };
 
+/** The offscreen target passed to the last load() (false = main canvas). */
+let activeLoadTarget = false;
+export const getLoadTarget = () => activeLoadTarget;
+
 /**
  * Loads and initializes the drawing target, then refreshes compositing
  * resources if the renderer was already active.
  *
  * @param {object|false} [buffer=false] - Optional offscreen target.
  */
-/** The offscreen target passed to the last load() (false = main canvas). */
-let activeLoadTarget = false;
-export const getLoadTarget = () => activeLoadTarget;
-
 export const load = (buffer = false) => {
   // Flush pending stroke/wash composites into the target being left, as the
   // standalone adapter already does (adapters/standalone/target.js). Without

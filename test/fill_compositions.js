@@ -3,7 +3,7 @@
 // studies), and a study of Hilma af Klint's "The Evolution, No. 1".
 // Classic script: defines window.fillCompositions(brush, state), which
 // returns { dots, swatches, klint }, each taking the canvas (w, h). `state`
-// holds the explorer's bleed, opacity, texture, border, shift and seed.
+// holds the explorer's bleed, softness, opacity, texture, border, shift and seed.
 
 window.fillCompositions = (brush, state) => {
   const DOT_COLORS = ["#002185", "#003c32", "#fcd300", "#ff2702", "#6b9404", "#d6336c", "#f08c00", "#1c7ed6"];
@@ -21,7 +21,7 @@ window.fillCompositions = (brush, state) => {
 
   function washDot(color, x, y, d, opacity) {
     brush.fill(color, opacity);
-    brush.fillBleed(state.bleed, "out");
+    brush.fillBleed(state.bleed, "out", null, state.softness);
     brush.fillTexture(state.texture, state.border, true, state.shift);
     brush.circle(x, y, d / 2);
     brush.noFill();
@@ -70,7 +70,7 @@ window.fillCompositions = (brush, state) => {
     const cx = X(0.5), cy = Y(0.5);
     const wash = (color, opacity, bleed = state.bleed) => {
       brush.fill(color, Math.round(opacity * state.opacity / 92));
-      brush.fillBleed(bleed, "out");
+      brush.fillBleed(bleed, "out", null, state.softness);
       brush.fillTexture(state.texture, state.border, true, state.shift);
     };
     const shape = (pts) => {

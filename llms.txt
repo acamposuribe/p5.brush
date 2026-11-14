@@ -248,7 +248,7 @@ Fill simulates watercolor: Hobbs-style grown shapes painted as dried washes (irr
 - `brush.noFill()` — Disable fill.
 - `brush.wash(color, opacity)` — Fast solid fill, no watercolor simulation.
 - `brush.noWash()` — Disable wash.
-- `brush.fillBleed(strength, direction?)` — Edge bleed 0–1. Direction: `"out"` or `"in"`.
+- `brush.fillBleed(strength, direction?, angle?, softness?)` — Edge bleed 0–1. Direction: `"out"` or `"in"`. Angle: wash direction, or `null` for random. Softness 0–1 (default 0.5): how much the edge feathers into the paper; 0 is a crisp dried line.
 - `brush.fillTexture(textureStrength, borderIntensity, scatter?, split?)` — `textureStrength` 0–1: granulation, plus reticulation at higher values. `borderIntensity` 0–1: pigment ring at the edge. `scatter` (default `true`) enables the sparse scattered polygon layers; set to `false` for a cleaner gradient. `split` (default `0.15`) 0–1: how far the paint separates into a warmer and a cooler pigment.
 - Each fill composites on its own (roughly 1 ms per small fill on a fast GPU); a full-canvas fill at pixel density 2 is the expensive case.
 

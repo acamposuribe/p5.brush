@@ -472,7 +472,8 @@ This section covers choosing brushes, adding your own brushes, and clipping wher
       - `tip`: Only for `"custom"` type. A function that draws the tip shape — see **Custom tip brushes** note below.
       - `image`: Only for `"image"` type. An object with a `src` property pointing to your image file: `{ src: "./tip.jpg" }`.
       - `rotate`: How the tip rotates as it moves. `"none"` keeps it fixed, `"natural"` follows the stroke direction, `"random"` spins randomly.
-      - `markerTip`: Only for `"marker"`, `"custom"`, and `"image"` types. Set to `false` to disable the extra soft tip buildup those brushes add at the start and end of each stroke. Defaults to `true`.
+      - `markerTip`: Only for `"marker"`, `"custom"`, and `"image"` types. Set to `false` to disable the extra tip buildup those brushes add at the start and end of each stroke (on a marker, the darker spot where the nib rests). Defaults to `true`.
+      - `nib`: Only for `"marker"` type. A flat (chisel) nib, `{ angle, thickness }`: `angle` in degrees on the canvas, `thickness` from 0.05 to 1 as a fraction of the nib's width. The line is wide where it moves across the nib and thin where it moves along it. Leave it out for a round nib.
       - `noise`: Controls per-stroke opacity variation. Each time a stroke is drawn, the brush samples a Gaussian to randomly shift the whole stroke slightly lighter or darker than its base alpha — giving repeated strokes an organic, non-mechanical feel. `0` disables the variation (every stroke is identical in opacity). `1` is the maximum variation. Defaults to `0.3`.
   - **Usage**:
     ```javascript
@@ -707,15 +708,18 @@ Fills drawn in the same frame interact: a fill whose edge touches a recent one t
 
 ---
 
-- `brush.fillBleed(strength, direction, angle)`
+- `brush.fillBleed(strength, direction, angle, softness)`
   - **Description**: Adjust the bleed intensity for the fill operation, mimicking the edge diffusion of watercolor paints.
   - **Parameters**:
-    - `strength` (Number): The intensity of the bleed effect, ranging from 0 to 1.
+    - `strength` (Number): The intensity of the bleed effect, ranging from 0 to 1. The spread grows faster than the value: at 1 the wash reaches well past the shape.
     - `direction` (String): Optional. `"out"` or `"in"`. Defines the direction of the bleed effect.
-    - `angle` (Number): Optional. Sets the watercolor wash direction in the current angle mode; omit for random direction.
+    - `angle` (Number): Optional. Sets the watercolor wash direction in the current angle mode; omit or pass `null` for a random direction.
+    - `softness` (Number): Optional, default `0.5`. How much the edge stays wet and feathers into the paper instead of drying to a crisp line, from 0 (crisp) to 1.
   - **Usage**:
     ```javascript
     brush.fillBleed(0.3, "out", 0); // left to right
+    brush.fillBleed(0.8, "out", null, 1); // wide and very soft
+    brush.fillBleed(0.3, "in", 90, 0); // crisp dried edge
     ```
 
 ---

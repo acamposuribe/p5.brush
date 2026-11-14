@@ -29,7 +29,7 @@ Every brush type queues path segments of up to 4 logical px. Shaders expand them
    - each pixel's share of the neighbourhood that is inside the shape;
    - the mean paint inside (σ ≈ 7% of the shape).
 3. **Composite.** One pass per fill: the `WATERCOLOR` build of `src/core/gl/shader.frag`. `watercolor()` turns the fields above into a paint amount:
-   - **Edge:** the signed distance to the blurred silhouette's iso-line, bent by noise and by the paper's grain (`src/fill/paper_height.glsl`: a fixed height map in canvas space, 1.26 logical px, pattern following `brush.seed()`, independent of `scaleBrushes()`). Some stretches are *lost* (they fade into the paper).
+   - **Edge:** the signed distance to the blurred silhouette's iso-line, bent by noise and by the paper's grain (`src/fill/paper_height.glsl`: a fixed height map in canvas space, 1.26 logical px, pattern following `brush.seed()`, independent of `scaleBrushes()`). Some stretches are *lost* (they fade into the paper). `fillBleed()`'s softness (default 0.5) keeps that much of the edge wet everywhere, feathering it out toward the outermost bled layers.
    - **Rim:** a coffee-ring band that rises toward the edge and varies along it.
    - **Interior:** granulation, reticulation in patches, drift, and occasional pools, drops and blooms.
    - **Colour:** the fill colour is split into a warmer and a cooler pigment (OKLab hue ±30° × `split`), whose ratio drifts across the wash. The two are blended in K/S and mixed spectrally with the canvas.
@@ -40,6 +40,7 @@ Cost compared with 2.4.0: fillLarge (one 1200² fill at density 2) 82 → 47 ms,
 ### Decisions
 
 - **Watercolour replaced the classic look entirely** (3.0.0). Reference studies (dot sheets, swatches, Lieberman's scanned drops) showed dried washes, rings and hue shifts. The classic look built its texture by stacking 90 translucent layers and erasing circles.
+- **Softer, wider bleed** (after 3.0.0). The crisp iso-line edge looked unnatural, and a strong bleed barely showed past it on large shapes. The bleed geometry is relative to the shape (measured: same growth at ×0.25 to ×2), so the fix is in the look: bleed now spreads by `strength × (1 + strength)`, and `softness` feathers the edge instead of drying it to a line. Tuned by eye on `examples/shape`.
 - **Image-space effects, not a fluid simulation.** Curtis et al.'s shallow-water simulation is expensive and tied to resolution. Rims, backruns, flow and wet-in-wet are approximated from the blurred paint field instead, in the spirit of Bousseau and Montesdeoca.
 - **Rejected on review:**
   - a cold-press paper structure with white sparkle ("bullshit realism");

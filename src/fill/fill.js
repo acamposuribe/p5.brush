@@ -81,6 +81,7 @@ State.fill = {
   border_strength: 0.5,
   direction: "out",
   angle: null,
+  softness: 0.5,
   scatter: true,
   split: 0.15,
   isActive: false,
@@ -110,15 +111,18 @@ export function fill(a, b, c, d) {
 }
 
 /**
- * Sets the bleed (watercolor) intensity and direction.
+ * Sets the bleed (watercolor) intensity, direction and edge softness.
  * @param {number} _i - The bleed intensity (clamped to [0,1]).
  * @param {string} [_direction="out"] - The bleeding direction.
  * @param {number|null} [_angle=null] - Optional wash direction angle in current angle mode.
+ * @param {number} [_softness=0.5] - How far the edge stays wet and feathers into the
+ *   paper instead of drying to a crisp line (clamped to [0,1]); 0 is crisp.
  */
-export function fillBleed(_i, _direction = "out", _angle = null) {
+export function fillBleed(_i, _direction = "out", _angle = null, _softness = 0.5) {
   State.fill.bleed_strength = constrain(_i, 0, 1);
   State.fill.direction = _direction;
   State.fill.angle = _angle == null ? null : toDegreesSigned(_angle);
+  State.fill.softness = constrain(_softness, 0, 1);
 }
 
 /**
@@ -232,7 +236,8 @@ export function createFill(polygon) {
   const v = [...polygon.vertices];
   const _wr = rr(0, 75);
   const fluid = ~~(v.length * 0.25 * (_wr < 5 ? 1 : _wr < 15 ? 2 : 3));
-  const strength = State.fill.bleed_strength;
+  // Spread grows faster than the bleed: a strong bleed reaches about twice as far.
+  const strength = State.fill.bleed_strength * (1 + State.fill.bleed_strength);
   const modifiers = v.map(
     (_, i) => (i > fluid ? 1 : 0.3) * rr(0.85, 1.4) * strength,
   );
@@ -780,6 +785,7 @@ class FillPoly {
         rr(0, 1) < tex * tex ? rr(0.4, 1) : 0,
         0.3 + 0.4 * bleed,
       ],
+      u_wcSoft: State.fill.softness,
       u_wcBloom: bloom,
       u_wcDrop: drop,
       u_wcPool: pool,
@@ -814,6 +820,7 @@ class FillPoly {
  * @param {number} [_border] - The border strength.
  * @param {string} [_direction] - The bleed direction.
  * @param {number|null} [_angle] - Optional wash direction angle in current angle mode.
+ * @param {number} [_softness] - Edge softness, 0 (crisp) to 1.
  */
 Polygon.prototype.fill = function (
   _color = false,
@@ -823,12 +830,13 @@ Polygon.prototype.fill = function (
   _border,
   _direction,
   _angle,
+  _softness,
 ) {
   let state = FillState();
   try {
     if (_color !== false) {
       fill(_color, _opacity);
-      if (_bleed !== undefined) fillBleed(_bleed, _direction, _angle);
+      if (_bleed !== undefined) fillBleed(_bleed, _direction, _angle, _softness);
       fillTexture(_texture, _border);
     }
     if (State.fill.isActive) {

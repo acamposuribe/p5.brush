@@ -580,10 +580,10 @@ function getImageTipOverscan() {
 
 /**
  * Draws the blended end cap for marker and image/custom brushes: a short
- * burst of stamps at the current position with rising pressure. Queued as a
- * zero-length segment whose pressure ramps from 0.1 to 0.9 (marker, 9 dots
- * at 8× alpha) or 0.1 to 0.4 (image tips, 4 stamps at 2× alpha) of the tip
- * pressure.
+ * burst of stamps at the current position. A marker's nib rests there and
+ * soaks a round spot a little wider than the line: 9 dots from 0.85 to 1.15
+ * of the tip pressure at 8× alpha. Image tips ramp from 0.1 to 0.4 (4 stamps
+ * at 2× alpha).
  */
 function markerTip() {
   if (current.p.markerTip === false) return;
@@ -595,7 +595,9 @@ function markerTip() {
   queueSegment(
     _position.x, _position.y, _position.x, _position.y,
     current.cos ?? 1, current.sin ?? 0,
-    pressure * 0.1, pressure * 0.1 * (count + 1), count,
+    isMarker ? pressure * 0.85 : pressure * 0.1,
+    isMarker ? pressure * 1.15 : pressure * 0.1 * (count + 1),
+    count,
     angle, isMarker ? 8 : 2,
   );
 }

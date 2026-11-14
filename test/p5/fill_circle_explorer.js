@@ -6,6 +6,7 @@ const SHAPES = ["circle", "rect", "blob", "grid", "dots", "swatches", "klint"];
 
 const state = {
   bleed: 0.3,
+  softness: 0.5,
   opacity: 92,
   texture: 0.5,
   border: 0.4,
@@ -24,6 +25,8 @@ const controls = {
   texture: document.getElementById("texture"),
   border: document.getElementById("border"),
   bleedVal: document.getElementById("bleedVal"),
+  softness: document.getElementById("softness"),
+  softnessVal: document.getElementById("softnessVal"),
   opacityVal: document.getElementById("opacityVal"),
   textureVal: document.getElementById("textureVal"),
   borderVal: document.getElementById("borderVal"),
@@ -57,6 +60,7 @@ function readUrlNumber(key, fallback, min, max, decimals = null) {
 function syncUrl() {
   const qs = new URLSearchParams({
     bleed: String(state.bleed),
+    softness: String(state.softness),
     opacity: String(state.opacity),
     texture: String(state.texture),
     border: String(state.border),
@@ -81,6 +85,7 @@ function queueUrlSync() {
 
 function syncReadouts() {
   controls.bleedVal.textContent = formatValue(state.bleed);
+  controls.softnessVal.textContent = formatValue(state.softness);
   controls.opacityVal.textContent = formatValue(state.opacity);
   controls.textureVal.textContent = formatValue(state.texture);
   controls.borderVal.textContent = formatValue(state.border);
@@ -133,6 +138,7 @@ function bindSlider(key, input, readout) {
 }
 
 state.bleed = readUrlNumber("bleed", state.bleed, 0, 1, 2);
+state.softness = readUrlNumber("softness", state.softness, 0, 1, 2);
 state.opacity = Math.round(readUrlNumber("opacity", state.opacity, 0, 255));
 state.texture = readUrlNumber("texture", state.texture, 0, 1, 2);
 state.border = readUrlNumber("border", state.border, 0, 1, 2);
@@ -146,12 +152,14 @@ if (urlParams.has("shape") && SHAPES.includes(urlParams.get("shape"))) {
 }
 
 controls.bleed.value = state.bleed;
+controls.softness.value = state.softness;
 controls.opacity.value = state.opacity;
 controls.texture.value = state.texture;
 controls.border.value = state.border;
 controls.shift.value = state.shift;
 
 bindSlider("bleed", controls.bleed, controls.bleedVal);
+bindSlider("softness", controls.softness, controls.softnessVal);
 bindSlider("opacity", controls.opacity, controls.opacityVal);
 bindSlider("texture", controls.texture, controls.textureVal);
 bindSlider("border", controls.border, controls.borderVal);
@@ -234,7 +242,7 @@ function drawGrid(w, h) {
       const x = PAD + col * (cellW + GAP);
       const y = PAD + row * (cellH + GAP);
       brush.fill(color, state.opacity);
-      brush.fillBleed(state.bleed, "out");
+      brush.fillBleed(state.bleed, "out", null, state.softness);
       brush.fillTexture(state.texture, state.border, true, state.shift);
       brush.rect(x, y, cellW, cellH);
       brush.noFill();
@@ -269,7 +277,7 @@ function renderScene() {
     compositions[state.shape](width, height);
   } else {
     brush.fill(state.color, state.opacity);
-    brush.fillBleed(state.bleed, "out");
+    brush.fillBleed(state.bleed, "out", null, state.softness);
     brush.fillTexture(state.texture, state.border, true, state.shift);
     drawShape(width, height);
     brush.noFill();

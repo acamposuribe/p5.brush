@@ -185,7 +185,7 @@
         Seeded standalone page for checking watercolor fill behavior on a single centered circle with a fine HB stroke.
       </p>
       <p>
-        Use the sliders and palette below to inspect bleed, opacity, texture, and border behavior without changing the seed unless you refresh it.
+        Use the sliders and palette below to inspect bleed, edge softness, opacity, texture, and border behavior without changing the seed unless you refresh it.
       </p>
 
       <div class="workspace">
@@ -217,6 +217,13 @@
               <div class="slider-row">
                 <input type="range" id="bleed" min="0" max="1" step="0.01" value="0.3" />
                 <span class="val" id="bleedVal">0.3</span>
+              </div>
+            </label>
+            <label>
+              Softness <span style="color:#8a9aa8">(0 = crisp edge)</span>
+              <div class="slider-row">
+                <input type="range" id="softness" min="0" max="1" step="0.01" value="0.5" />
+                <span class="val" id="softnessVal">0.5</span>
               </div>
             </label>
             <label>
@@ -273,6 +280,7 @@
 
       const state = {
         bleed:   0.3,
+        softness: 0.5,
         opacity: 92,
         texture: 0.5,
         border:  0.4,
@@ -290,6 +298,8 @@
         texture:    document.getElementById("texture"),
         border:     document.getElementById("border"),
         bleedVal:   document.getElementById("bleedVal"),
+        softness:   document.getElementById("softness"),
+        softnessVal: document.getElementById("softnessVal"),
         opacityVal: document.getElementById("opacityVal"),
         textureVal: document.getElementById("textureVal"),
         borderVal:  document.getElementById("borderVal"),
@@ -313,6 +323,7 @@
       }
 
       state.bleed   = readUrl("bleed",   state.bleed,   0, 1, 2);
+      state.softness = readUrl("softness", state.softness, 0, 1, 2);
       state.opacity = Math.round(readUrl("opacity", state.opacity, 0, 255));
       state.texture = readUrl("texture", state.texture, 0, 1, 2);
       state.border  = readUrl("border",  state.border,  0, 1, 2);
@@ -326,6 +337,7 @@
       }
 
       controls.bleed.value   = state.bleed;
+      controls.softness.value = state.softness;
       controls.opacity.value = state.opacity;
       controls.texture.value = state.texture;
       controls.border.value  = state.border;
@@ -333,6 +345,7 @@
 
       function syncReadouts() {
         controls.bleedVal.textContent   = fmt(state.bleed);
+        controls.softnessVal.textContent = fmt(state.softness);
         controls.opacityVal.textContent = fmt(state.opacity);
         controls.textureVal.textContent = fmt(state.texture);
         controls.borderVal.textContent  = fmt(state.border);
@@ -348,7 +361,7 @@
 
       function syncUrl() {
         const qs = new URLSearchParams({
-          bleed: state.bleed, opacity: state.opacity,
+          bleed: state.bleed, softness: state.softness, opacity: state.opacity,
           texture: state.texture, border: state.border,
           color: state.color, seed: state.seed, shape: state.shape,
           shift: state.shift,
@@ -390,7 +403,7 @@
           compositions[state.shape](CW, CH);
         } else {
           brush.fill(state.color, state.opacity);
-          brush.fillBleed(state.bleed, "out");
+          brush.fillBleed(state.bleed, "out", null, state.softness);
           brush.fillTexture(state.texture, state.border, true, state.shift);
           drawShape(CW, CH);
           brush.noFill();
@@ -411,7 +424,7 @@
             const x = PAD + col * (cellW + GAP);
             const y = PAD + row * (cellH + GAP);
             brush.fill(color, state.opacity);
-            brush.fillBleed(state.bleed, "out");
+            brush.fillBleed(state.bleed, "out", null, state.softness);
             brush.fillTexture(state.texture, state.border, true, state.shift);
             brush.rect(x, y, cellW, cellH);
             brush.noFill();
@@ -486,6 +499,7 @@
       }
 
       bindSlider("bleed",   controls.bleed,   controls.bleedVal);
+      bindSlider("softness", controls.softness, controls.softnessVal);
       bindSlider("opacity", controls.opacity, controls.opacityVal);
       bindSlider("texture", controls.texture, controls.textureVal);
       bindSlider("border",  controls.border,  controls.borderVal);

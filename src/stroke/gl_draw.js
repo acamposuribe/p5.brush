@@ -25,6 +25,7 @@ import {
   resetDirectShaderTracking,
 } from "../core/renderer_runtime.js";
 import { getAffineMatrix } from "../core/runtime.js";
+import { seedHash } from "../core/utils.js";
 import { CLIP_UNIFORMS, setClipUniforms } from "./clip.js";
 import dotsVertSrc from "./dots.vert";
 import dotsFragSrc from "./dots.frag";
@@ -225,7 +226,7 @@ export function isReady() {
   setupProgram(dots, dotsVertSrc, dotsFragSrc, attributes, [
     "u_matrix", "u_affine", "u_translate", "u_half", "u_sizeScale", "u_density",
     "u_type", "u_perStep", "u_brush", "u_strokeWeight",
-    "u_color", "u_affineCircle", "u_tipInverse", ...CLIP_UNIFORMS,
+    "u_color", "u_affineCircle", "u_tipInverse", "u_specks", "u_paperSeed", "u_nib", ...CLIP_UNIFORMS,
   ], 0);
   setupProgram(stamps, stampsVertSrc, stampsFragSrc, attributes, [
     "u_proj", "u_tipLinear", "u_translate", "u_half", "u_substeps",
@@ -396,7 +397,8 @@ export function flushStrokes() {
 
   gl.useProgram(prog.program);
   gl.enable(gl.BLEND);
-  gl.blendFunc(gl.ONE_MINUS_DST_ALPHA, gl.ONE);
+  // Coverage (alpha) fills up to 1; the extra-ink channel (red) adds up.
+  gl.blendFuncSeparate(gl.ONE, gl.ONE, gl.ONE_MINUS_DST_ALPHA, gl.ONE);
   gl.bindVertexArray(prog.vao);
   gl.bindBuffer(gl.ARRAY_BUFFER, segBuf);
   if (segCount * SEG_WORDS * 4 > segGpuSize) {
@@ -436,6 +438,11 @@ export function flushStrokes() {
     gl.uniform4f(u.u_brush, b.param.weight, b.param.scatter, b.param.sharpness ?? 0, b.param.grain ?? 0);
     gl.uniform1i(u.u_affineCircle, b.affineCircle);
     gl.uniformMatrix2fv(u.u_tipInverse, false, b.tipInverse);
+    gl.uniform1f(u.u_specks, b.param.type === "marker" ? 1 : 0);
+    const nib = b.param.type === "marker" ? b.param.nib : null;
+    const nibAngle = ((nib?.angle ?? 0) * Math.PI) / 180;
+    gl.uniform3f(u.u_nib, Math.cos(nibAngle), Math.sin(nibAngle), nib ? Math.min(Math.max(nib.thickness ?? 0.25, 0.05), 1) : 1);
+    gl.uniform1ui(u.u_paperSeed, seedHash() % 65536);
     gl.drawArraysInstanced(gl.POINTS, 0, segCount, SUBSTEPS * perStep);
   }
 

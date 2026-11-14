@@ -27,8 +27,12 @@ uniform int u_type;        // 0 default, 1 spray, 2 marker
 uniform int u_perStep;     // instances per step (spray dot capacity, else 1)
 uniform vec4 u_brush;      // weight, scatter, sharpness, grain
 uniform float u_strokeWeight;
+uniform vec3 u_nib;        // markers: flat nib (cos, sin of its angle, thickness); thickness 1 is round
 
 out float v_alpha;
+out float v_rest;    // 1 for a marker's resting nib (its zero-length end caps)
+out vec2 v_dir;      // travel direction on screen, for the paper specks
+flat out uint v_seed; // per dot, for rounding a marker's extra ink
 
 uint pcg(uint v) {
     uint state = v * 747796405u + 2891336453u;
@@ -52,6 +56,8 @@ void cull() {
     gl_Position = vec4(2.0, 2.0, 2.0, 1.0);
     gl_PointSize = 0.0;
     v_alpha = 0.0;
+    v_rest = 0.0;
+    v_seed = 0u;
 }
 
 void main() {
@@ -83,6 +89,13 @@ void main() {
         // Marker: one jittered dot per step.
         float vibration = sw * scatter;
         offset = vibration * vec2(rand(s) * 2.0 - 1.0, rand(s) * 2.0 - 1.0);
+        // A flat nib jitters along its edge, hardly across it, or its thin
+        // stamps would show as parallel lines.
+        vec2 axis = u_nib.xy;
+        vec2 across = vec2(-axis.y, axis.x);
+        // (no dot(): this shader has a variable of that name)
+        offset = axis * (offset.x * axis.x + offset.y * axis.y)
+               + across * (offset.x * across.x + offset.y * across.y) * u_nib.z;
         diameter = sw * weight * p;
         alpha *= max(0.8, p) * (0.9 + 0.2 * rand(s));
     } else {
@@ -112,4 +125,9 @@ void main() {
     gl_Position = u_matrix * vec4(screen, 0.0, 1.0);
     gl_PointSize = raster;
     v_alpha = alpha / 255.0 * (footprint * footprint) / (raster * raster);
+    v_rest = (u_type == 2 && a_start == a_end) ? 1.0 : 0.0;
+    v_seed = pcg(s ^ 0x9e3779b9u);
+    vec2 travel = vec2(a_dir.x, -a_dir.y);
+    v_dir = normalize(vec2(u_affine.x * travel.x + u_affine.z * travel.y,
+                           u_affine.y * travel.x + u_affine.w * travel.y) + 1e-6);
 }
