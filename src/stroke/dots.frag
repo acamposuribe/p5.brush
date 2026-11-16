@@ -15,6 +15,8 @@ uniform vec3 u_nib;        // markers: flat nib (cos, sin of its angle, thicknes
 uniform float u_specks;     // markers: extra ink in the paper's pits and where the nib rests (0 off)
 uniform uint u_paperSeed;
 uniform float u_density;
+uniform mat3 u_paperInverse; // device px -> drawing space (inverse of the stroke's transform)
+uniform float u_paperPx;     // one device px, in drawing units
 
 uniform bool u_clipEnabled;
 uniform mat3 u_clipMatrix;
@@ -30,19 +32,20 @@ float cellHash(ivec2 c, uint s) {
     return float(pcg(uint(c.x) * 1597334677u ^ pcg(uint(c.y) ^ s)) >> 8) * (1.0 / 16777216.0);
 }
 
-// The paper's pits: sparse spots fixed in canvas space that soak up more of a
-// marker's ink. They follow brush.seed() like the fills' paper, so every
-// stroke darkens the same ones. No two are alike: their size, their streak
+// The paper's pits: sparse spots fixed in drawing space that soak up more of
+// a marker's ink. They follow brush.seed() like the fills' paper, so every
+// stroke darkens the same ones, and they scale, rotate and move with the
+// transform like the line does. No two are alike: their size, their streak
 // along the stroke (ink dragged past) and their depth vary, most are faint
 // and a few strong, and each is deepest at its core.
 float paperSpeck() {
-    const float CELL = 2.0; // logical px
-    vec2 q = gl_FragCoord.xy / (u_density * CELL);
+    const float CELL = 2.0; // drawing units (logical px at scale 1)
+    vec2 q = (u_paperInverse * vec3(gl_FragCoord.xy, 1.0)).xy / CELL;
     ivec2 id = ivec2(floor(q));
     if (cellHash(id, u_paperSeed + 21u) > 0.08) return 0.0;
     vec2 centre = vec2(id) + 0.3 + 0.4 * vec2(cellHash(id, u_paperSeed + 22u), cellHash(id, u_paperSeed + 23u));
     float size = cellHash(id, u_paperSeed + 24u);
-    float radius = mix(0.25, 0.7, size * size);                       // logical px
+    float radius = mix(0.25, 0.7, size * size);                       // drawing units
     float stretch = mix(1.2, 2.8, cellHash(id, u_paperSeed + 26u));
     float depth = pow(cellHash(id, u_paperSeed + 25u), 2.0);          // mostly faint
     vec2 rel = (q - centre) * CELL;
@@ -50,8 +53,13 @@ float paperSpeck() {
     float d = length(vec2(dot(rel, dir) / stretch, dot(rel, vec2(-dir.y, dir.x))));
     // Deepest at the core, fading out over the radius plus about a device
     // pixel, so it reads as a soft spot rather than a flat one.
-    float core = 1.0 - smoothstep(0.0, radius + 0.7 / u_density, d);
-    return core * core * mix(0.15, 1.0, depth);
+    float core = 1.0 - smoothstep(0.0, radius + 0.7 * u_paperPx, d);
+    // A transform that shrinks a speck below about a device pixel fades it
+    // out rather than let it flicker. Specks already that small at scale 1
+    // (low pixel density) fade only as the transform shrinks them further.
+    float shrink = 1.0 / (u_paperPx * u_density);                     // transform scale
+    float fade = smoothstep(0.5, 1.0, max(2.0 * radius / u_paperPx, shrink));
+    return core * core * mix(0.15, 1.0, depth) * fade;
 }
 
 void main() {

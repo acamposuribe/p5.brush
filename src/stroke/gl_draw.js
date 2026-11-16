@@ -112,6 +112,28 @@ export function snapshotMatrix() {
   _density = Density;
 }
 
+// The marker's paper lives in drawing space (position space: user coords +
+// Cwidth/2, Cheight/2), so it maps device px back through the inverse of the
+// batch's transform. At the identity this is device px / density.
+function setPaperUniforms(u, b) {
+  const [a, bb, c, d] = b.affine;
+  const det = a * d - bb * c;
+  const k = b.density;
+  if (!det) {
+    gl.uniformMatrix3fv(u.u_paperInverse, false, [1 / k, 0, 0, 0, 1 / k, 0, 0, 0, 1]);
+    gl.uniform1f(u.u_paperPx, 1 / k);
+    return;
+  }
+  const ia = d / det, ib = -bb / det, ic = -c / det, id = a / det;
+  const tx = b.translate[0] + b.half[0], ty = b.translate[1] + b.half[1];
+  gl.uniformMatrix3fv(u.u_paperInverse, false, [
+    ia / k, ib / k, 0,
+    ic / k, id / k, 0,
+    -ia * tx - ic * ty + b.half[0], -ib * tx - id * ty + b.half[1], 1,
+  ]);
+  gl.uniform1f(u.u_paperPx, 1 / (k * Math.sqrt(Math.abs(det))));
+}
+
 // Draw queued strokes before the composite reads or clears the brush mask.
 Mix.beforeBrushMaskAccess = () => flushStrokes();
 
@@ -226,7 +248,7 @@ export function isReady() {
   setupProgram(dots, dotsVertSrc, dotsFragSrc, attributes, [
     "u_matrix", "u_affine", "u_translate", "u_half", "u_sizeScale", "u_density",
     "u_type", "u_perStep", "u_brush", "u_strokeWeight",
-    "u_color", "u_affineCircle", "u_tipInverse", "u_specks", "u_paperSeed", "u_nib", ...CLIP_UNIFORMS,
+    "u_color", "u_affineCircle", "u_tipInverse", "u_specks", "u_paperSeed", "u_paperInverse", "u_paperPx", "u_nib", ...CLIP_UNIFORMS,
   ], 0);
   setupProgram(stamps, stampsVertSrc, stampsFragSrc, attributes, [
     "u_proj", "u_tipLinear", "u_translate", "u_half", "u_substeps",
@@ -443,6 +465,7 @@ export function flushStrokes() {
     const nibAngle = ((nib?.angle ?? 0) * Math.PI) / 180;
     gl.uniform3f(u.u_nib, Math.cos(nibAngle), Math.sin(nibAngle), nib ? Math.min(Math.max(nib.thickness ?? 0.25, 0.05), 1) : 1);
     gl.uniform1ui(u.u_paperSeed, seedHash() % 65536);
+    if (b.param.type === "marker") setPaperUniforms(u, b);
     gl.drawArraysInstanced(gl.POINTS, 0, segCount, SUBSTEPS * perStep);
   }
 

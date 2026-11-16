@@ -31,7 +31,7 @@ uniform vec3 u_nib;        // markers: flat nib (cos, sin of its angle, thicknes
 
 out float v_alpha;
 out float v_rest;    // 1 for a marker's resting nib (its zero-length end caps)
-out vec2 v_dir;      // travel direction on screen, for the paper specks
+out vec2 v_dir;      // travel direction in drawing space, for the paper specks
 flat out uint v_seed; // per dot, for rounding a marker's extra ink
 
 uint pcg(uint v) {
@@ -128,6 +128,5 @@ void main() {
     v_rest = (u_type == 2 && a_start == a_end) ? 1.0 : 0.0;
     v_seed = pcg(s ^ 0x9e3779b9u);
     vec2 travel = vec2(a_dir.x, -a_dir.y);
-    v_dir = normalize(vec2(u_affine.x * travel.x + u_affine.z * travel.y,
-                           u_affine.y * travel.x + u_affine.w * travel.y) + 1e-6);
+    v_dir = normalize(travel + 1e-6);
 }
