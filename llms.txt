@@ -450,6 +450,7 @@ pos.plotTo(plot, length, stepLength, scale)
 ### Standalone build only
 - **Always call `brush.render()` at the end of every drawing pass** — nothing appears otherwise.
 - Use `brush.clear(color?)` to clear, not `background()`.
+- Use `brush.image(source, x, y, w?, h?)` to draw a canvas / ImageBitmap / image / ImageData, not p5's `image()`. Coordinates follow the brush transform; pending strokes are flushed first.
 - Use `brush.push/pop/translate/rotate/scale`, not p5 equivalents.
 - Use `brush.angleMode(brush.DEGREES)`, not `angleMode(DEGREES)`.
 - Use `brush.seed(n)` and `brush.noiseSeed(n)`, not `randomSeed()`/`noiseSeed()`.

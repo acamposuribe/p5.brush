@@ -25,6 +25,7 @@
       "standalone/pushpop_test.html",
       "standalone/hatch_test.html",
       "standalone/field_explorer.html",
+      "standalone/image_test.html",
     ],
   ];
 

@@ -1,0 +1,236 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>brush.image() — Standalone</title>
+    <style>
+      body { margin: 0; padding: 16px; color: #22313f; background: #ece3d3; font: 15px/1.4 Palatino, serif; }
+      main { max-width: 920px; margin: 0 auto; }
+      h1 { font-size: 22px; margin: 0 0 4px; }
+      p { margin: 0 0 12px; }
+      ul { padding: 0; list-style: none; font: 13px/1.6 ui-monospace, Menlo, monospace; }
+      .pass::before { content: "PASS  "; color: #1f7a3a; font-weight: bold; }
+      .fail::before { content: "FAIL  "; color: #b3261e; font-weight: bold; }
+      .row { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-start; }
+      canvas { display: block; max-width: 100%; box-shadow: 0 1px 6px rgba(0, 0, 0, 0.2); touch-action: none; }
+      figure { margin: 0; }
+      figcaption { font-size: 13px; margin-top: 4px; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>brush.image()</h1>
+      <p>Automatic checks, then a visual order check and a live-stroke demo (drag on the right canvas).</p>
+      <ul id="results"></ul>
+      <div class="row">
+        <figure><div id="order"></div><figcaption>Order: HB line below the photo strip, red line above it; the hole shows the paper.</figcaption></figure>
+        <figure><div id="live"></div><figcaption>Live stroke: drag. Snapshot at pen down, image() + stroke + render() per frame.</figcaption></figure>
+      </div>
+    </main>
+    <script type="module">
+      import * as brush from "../../dist/brush.esm.js";
+
+      const results = document.getElementById("results");
+      const report = (name, ok, detail = "") => {
+        const li = document.createElement("li");
+        li.className = ok ? "pass" : "fail";
+        li.textContent = name + (detail ? ` — ${detail}` : "");
+        results.appendChild(li);
+      };
+      const check = (name, fn) => {
+        try { const detail = fn(); report(name, detail === true || detail === undefined, detail === true ? "" : detail ?? ""); }
+        catch (e) { report(name, false, e.message); }
+      };
+
+      // A 2D canvas helper.
+      const canvas2d = (w, h, draw) => {
+        const c = document.createElement("canvas");
+        c.width = w; c.height = h;
+        draw(c.getContext("2d"), w, h);
+        return c;
+      };
+      const solid = (w, h, color) => canvas2d(w, h, (ctx) => { ctx.fillStyle = color; ctx.fillRect(0, 0, w, h); });
+      const readPixel = (canvas, x, y) => {
+        const gl = canvas.getContext("webgl2");
+        const out = new Uint8Array(4);
+        gl.readPixels(x, canvas.height - 1 - y, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, out);
+        return [...out];
+      };
+      const same = (a, b, tol = 0) => a.every((v, i) => Math.abs(v - b[i]) <= tol);
+
+      const S = 64;
+      const target = brush.createCanvas(S, S, { parent: null });
+      const gl = target.getContext("webgl2");
+
+      check("opaque #c9ad85 canvas comes out exact", () => {
+        brush.clear("white");
+        brush.image(solid(S, S, "#c9ad85"), -S / 2, -S / 2);
+        const p = readPixel(target, 10, 10);
+        return same(p, [0xc9, 0xad, 0x85, 255]) || `got ${p}`;
+      });
+
+      check("not flipped: top half red stays on top", () => {
+        brush.clear("white");
+        brush.image(canvas2d(S, S, (ctx) => { ctx.fillStyle = "red"; ctx.fillRect(0, 0, S, S / 2); ctx.fillStyle = "blue"; ctx.fillRect(0, S / 2, S, S / 2); }), -S / 2, -S / 2);
+        const top = readPixel(target, 32, 5), bottom = readPixel(target, 32, 58);
+        return (same(top, [255, 0, 0, 255]) && same(bottom, [0, 0, 255, 255])) || `top ${top} bottom ${bottom}`;
+      });
+
+      check("transparent pixels keep the canvas, half alpha blends once", () => {
+        brush.clear("#000000");
+        brush.image(canvas2d(S, S, (ctx) => { ctx.fillStyle = "rgba(255,255,255,0.5)"; ctx.fillRect(0, 0, S / 2, S); }), -S / 2, -S / 2);
+        const half = readPixel(target, 10, 10), clear = readPixel(target, 50, 10);
+        return (same(half, [128, 128, 128, 255], 1) && same(clear, [0, 0, 0, 255])) || `half ${half} clear ${clear}`;
+      });
+
+      check("ImageData is premultiplied correctly", () => {
+        brush.clear("#000000");
+        const data = new ImageData(S, S);
+        for (let i = 0; i < data.data.length; i += 4) data.data.set([255, 0, 0, 128], i);
+        brush.image(data, -S / 2, -S / 2);
+        const p = readPixel(target, 10, 10);
+        return same(p, [128, 0, 0, 255], 1) || `got ${p}`;
+      });
+
+      check("position, size and transform follow brush coords", () => {
+        brush.clear("white");
+        brush.push();
+        brush.translate(-S / 2, -S / 2);
+        brush.scale(2);
+        brush.image(solid(4, 4, "black"), 5, 5, 5, 5); // covers device 10..20
+        brush.pop();
+        const inside = readPixel(target, 15, 15), before = readPixel(target, 8, 15), after = readPixel(target, 21, 15);
+        return (inside[0] === 0 && before[0] === 255 && after[0] === 255) || `in ${inside} before ${before} after ${after}`;
+      });
+
+      check("pixel density 2: logical size maps to device px", () => {
+        const dense = brush.createCanvas(32, 32, { parent: null, pixelDensity: 2 });
+        brush.clear("white");
+        brush.image(solid(64, 64, "#c9ad85"), -16, -16, 16, 32); // left half
+        const left = readPixel(dense, 30, 30), right = readPixel(dense, 34, 30);
+        brush.load(target);
+        return (same(left, [0xc9, 0xad, 0x85, 255]) && right[0] === 255) || `left ${left} right ${right}`;
+      });
+
+      check("GL state is left as it was", () => {
+        const program = gl.createProgram(), vao = gl.createVertexArray(), fb = gl.createFramebuffer(), tex = gl.createTexture(), tex1 = gl.createTexture();
+        const vs = gl.createShader(gl.VERTEX_SHADER); gl.shaderSource(vs, "#version 300 es\nvoid main(){gl_Position=vec4(0);}"); gl.compileShader(vs);
+        const fs = gl.createShader(gl.FRAGMENT_SHADER); gl.shaderSource(fs, "#version 300 es\nprecision mediump float;out vec4 c;void main(){c=vec4(1);}"); gl.compileShader(fs);
+        gl.attachShader(program, vs); gl.attachShader(program, fs); gl.linkProgram(program);
+        gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, tex);
+        gl.activeTexture(gl.TEXTURE3); gl.bindTexture(gl.TEXTURE_2D, tex1);
+        gl.useProgram(program); gl.bindVertexArray(vao);
+        gl.bindFramebuffer(gl.READ_FRAMEBUFFER, fb);
+        gl.enable(gl.SCISSOR_TEST); gl.scissor(1, 2, 3, 4); gl.viewport(5, 6, 7, 8);
+        gl.enable(gl.DEPTH_TEST); gl.disable(gl.BLEND);
+        gl.blendEquationSeparate(gl.FUNC_SUBTRACT, gl.MAX); gl.blendFuncSeparate(gl.SRC_COLOR, gl.DST_COLOR, gl.ZERO, gl.ONE);
+        gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true); gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false); gl.pixelStorei(gl.UNPACK_COLORSPACE_CONVERSION_WEBGL, gl.NONE);
+        const snap = () => JSON.stringify([
+          gl.CURRENT_PROGRAM, gl.VERTEX_ARRAY_BINDING, gl.DRAW_FRAMEBUFFER_BINDING, gl.READ_FRAMEBUFFER_BINDING, gl.ACTIVE_TEXTURE, gl.TEXTURE_BINDING_2D,
+          gl.VIEWPORT, gl.SCISSOR_BOX, gl.BLEND_EQUATION_RGB, gl.BLEND_EQUATION_ALPHA, gl.BLEND_SRC_RGB, gl.BLEND_DST_RGB, gl.BLEND_SRC_ALPHA, gl.BLEND_DST_ALPHA,
+          gl.UNPACK_FLIP_Y_WEBGL, gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, gl.UNPACK_COLORSPACE_CONVERSION_WEBGL,
+        ].map((p) => { const v = gl.getParameter(p); return v && typeof v === "object" && !ArrayBuffer.isView(v) ? String(v === program || v === vao || v === fb || v === tex1) : ArrayBuffer.isView(v) ? [...v] : v; })
+          .concat([gl.isEnabled(gl.BLEND), gl.isEnabled(gl.SCISSOR_TEST), gl.isEnabled(gl.DEPTH_TEST)]));
+        const unit0 = () => { gl.activeTexture(gl.TEXTURE0); const t = gl.getParameter(gl.TEXTURE_BINDING_2D); gl.activeTexture(gl.TEXTURE3); return t; };
+        const before = snap();
+        brush.image(solid(8, 8, "red"), 0, 0);
+        const after = snap(), unit0Ok = unit0() === tex, error = gl.getError();
+        // Put the context back the way the library expects it.
+        gl.useProgram(null); gl.bindVertexArray(null); gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+        gl.disable(gl.SCISSOR_TEST); gl.disable(gl.DEPTH_TEST); gl.viewport(0, 0, S, S);
+        gl.activeTexture(gl.TEXTURE3); gl.bindTexture(gl.TEXTURE_2D, null); gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, null);
+        gl.blendEquation(gl.FUNC_ADD); gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
+        gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false); gl.pixelStorei(gl.UNPACK_COLORSPACE_CONVERSION_WEBGL, gl.BROWSER_DEFAULT_WEBGL);
+        return (before === after && unit0Ok && error === 0) || `before ${before}\nafter ${after}\nunit0 ${unit0Ok} error ${error}`;
+      });
+
+      const bitmap = await createImageBitmap(solid(S, S, "#c9ad85"));
+      check("ImageBitmap uploads once, canvas every call", () => {
+        let uploads = 0;
+        const original = gl.texImage2D, originalSub = gl.texSubImage2D;
+        gl.texImage2D = function (...a) { uploads++; return original.apply(this, a); };
+        gl.texSubImage2D = function (...a) { uploads++; return originalSub.apply(this, a); };
+        try {
+          for (let i = 0; i < 3; i++) brush.image(bitmap, -S / 2, -S / 2);
+          const bitmapUploads = uploads;
+          const c = solid(S, S, "red");
+          uploads = 0;
+          for (let i = 0; i < 3; i++) brush.image(c, -S / 2, -S / 2);
+          const p = readPixel(target, 5, 5);
+          return (bitmapUploads === 1 && uploads === 3 && same(p, [255, 0, 0, 255])) || `bitmap ${bitmapUploads}, canvas ${uploads}, pixel ${p}`;
+        } finally {
+          gl.texImage2D = original; gl.texSubImage2D = originalSub;
+        }
+      });
+
+      check("works across brush.load() switches", () => {
+        const other = brush.createCanvas(S, S, { parent: null });
+        brush.clear("white"); brush.image(bitmap, -S / 2, -S / 2);
+        brush.load(target); brush.clear("white"); brush.image(bitmap, -S / 2, -S / 2);
+        const a = readPixel(other, 5, 5), b = readPixel(target, 5, 5);
+        return (same(a, [0xc9, 0xad, 0x85, 255]) && same(b, a) && gl.getError() === 0) || `other ${a} target ${b}`;
+      });
+
+      check("in order: stroke before is covered, stroke after mixes on top", () => {
+        brush.clear("white");
+        brush.set("HB", "black", 3);
+        brush.line(-30, 0, 30, 0);
+        brush.image(solid(S, S, "#c9ad85"), -S / 2, -S / 2);
+        const covered = readPixel(target, 32, 32);
+        brush.set("marker", "#1d3557", 2);
+        brush.line(-30, 0, 30, 0);
+        brush.render();
+        const mixed = readPixel(target, 32, 32);
+        return (same(covered, [0xc9, 0xad, 0x85, 255]) && !same(mixed, covered, 10)) || `covered ${covered} after ${mixed}`;
+      });
+
+      // ---- Visual: order ----
+      const W = 360, H = 240, dpr = window.devicePixelRatio || 1;
+      const photo = canvas2d(Math.round(240 * dpr), Math.round(80 * dpr), (ctx, w, h) => {
+        const g = ctx.createLinearGradient(0, 0, w, 0);
+        g.addColorStop(0, "#264653"); g.addColorStop(0.5, "#e9c46a"); g.addColorStop(1, "#e76f51");
+        ctx.fillStyle = g; ctx.fillRect(0, 0, w, h);
+        ctx.globalCompositeOperation = "destination-out";
+        ctx.beginPath(); ctx.arc(w / 2, h / 2, h / 3, 0, Math.PI * 2); ctx.fill();
+      });
+      brush.createCanvas(W, H, { parent: "#order", pixelDensity: dpr });
+      brush.clear("#f5f0e0");
+      brush.push();
+      brush.translate(-W / 2, -H / 2);
+      brush.set("HB", "#222", 2);
+      brush.line(30, 70, 330, 170);
+      brush.image(photo, 60, 80, 240, 80);
+      brush.set("marker", "#c1121f", 1.5);
+      brush.line(30, 170, 330, 70);
+      brush.pop();
+      brush.render();
+
+      // ---- Visual: live stroke ----
+      const live = brush.createCanvas(W, H, { parent: "#live", pixelDensity: dpr });
+      brush.clear("#c9ad85");
+      brush.render();
+      let snapshot = null, points = [];
+      const paint = () => {
+        if (!snapshot || points.length < 2) return;
+        brush.load(live);
+        brush.push();
+        brush.translate(-W / 2, -H / 2);
+        brush.image(snapshot, 0, 0, W, H);
+        brush.set("2B", "#1d3557", 1.5);
+        brush.spline(points, 0.5);
+        brush.pop();
+        brush.render();
+      };
+      const at = (e) => { const r = live.getBoundingClientRect(); return [(e.clientX - r.left) * W / r.width, (e.clientY - r.top) * H / r.height]; };
+      live.addEventListener("pointerdown", async (e) => {
+        live.setPointerCapture(e.pointerId);
+        points = [at(e)];
+        snapshot = await createImageBitmap(live);
+      });
+      live.addEventListener("pointermove", (e) => { if (points.length) { points.push(at(e)); requestAnimationFrame(paint); } });
+      live.addEventListener("pointerup", () => { paint(); snapshot?.close(); snapshot = null; points = []; });
+    </script>
+    <script src="../test-nav.js"></script>
+  </body>
+</html>

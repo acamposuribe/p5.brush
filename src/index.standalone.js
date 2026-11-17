@@ -4,6 +4,7 @@
 
 export * from "./adapters/standalone/runtime.js";
 export * from "./adapters/standalone/frame.js";
+export { image } from "./adapters/standalone/image.js";
 export { createCanvas } from "./adapters/standalone/target.js";
 export * from "./index.shared.js";
 export { random, noise } from "./core/utils.js";

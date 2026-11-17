@@ -123,6 +123,41 @@ brush.clear('#f5f0e0');   // off-white background
 brush.clear(240, 235, 220); // RGB
 ```
 
+### `brush.image(source, x, y, width?, height?)`
+
+Draws a picture onto the active canvas, the way p5's `image()` does in the p5 build. Use it to put back a snapshot of the sheet, or to lay a picture drawn elsewhere onto the brush canvas.
+
+- `source`: an `HTMLCanvasElement`, `OffscreenCanvas`, `ImageBitmap`, loaded `HTMLImageElement` or `ImageData`.
+- `x`, `y`, `width`, `height` are in brush coordinates, under the current `translate()` / `scale()` / `rotate()`, like `rect()`. Width and height default to the source's size in pixels. On a canvas with `pixelDensity: 2`, a source as big as the canvas in device pixels needs `brush.image(src, x, y, W, H)` to cover it.
+- It is drawn source-over with the source's alpha: transparent pixels leave the canvas as it was. It is not mixed spectrally. An opaque pixel comes out exactly the colour it has in the source.
+- It is drawn in order with brush drawing. Pending strokes and fills are flushed first (like `brush.render()`), so the image lands above what was drawn before it and below what is drawn after, and later strokes mix into it.
+- `ImageBitmap` and `HTMLImageElement` are treated as immutable: each one is uploaded to the GPU once and its texture reused on later calls; it is freed when the object is garbage-collected. Canvases and `ImageData` can change, so they are uploaded on every call. For translucent bitmaps, create them with `{ premultiplyAlpha: 'premultiply' }` (or the default), not `'none'`.
+
+**Live stroke.** To repaint a stroke whose look depends on its full length while the pen moves, snapshot the sheet at pen down and put it back each frame:
+
+```js
+let snapshot;
+
+async function penDown() {
+  snapshot = await createImageBitmap(canvas); // uploaded once, on first use
+}
+
+function frame() {
+  brush.push();
+  brush.translate(-W / 2, -H / 2);
+  brush.image(snapshot, 0, 0, W, H); // the sheet as it was before the stroke
+  brush.set('HB', '#333', 1);
+  brush.spline(points);              // the whole stroke so far
+  brush.pop();
+  brush.render();
+}
+
+function penUp() {
+  snapshot.close();
+  snapshot = null;
+}
+```
+
 ---
 
 ## Transforms
@@ -246,6 +281,12 @@ Clears the canvas to transparent (no args) or to a solid color. See [Frame lifec
 
 ---
 
+#### `brush.image(source, x, y, width?, height?)`
+
+Draws a canvas, `OffscreenCanvas`, `ImageBitmap`, loaded image or `ImageData` onto the active canvas, source-over, in order with brush drawing. `ImageBitmap` and image textures are cached per object; canvases and `ImageData` are uploaded on every call. See [Frame lifecycle](#frame-lifecycle).
+
+---
+
 ### Transforms
 
 #### `brush.push()` / `brush.pop()`
@@ -364,6 +405,7 @@ brush.add('p5only', {
 | Loading an existing canvas | `brush.load(p5Graphics\|framebuffer)` for offscreen targets | `brush.load(htmlCanvas\|offscreenCanvas)` for external canvases |
 | Compositing flush | Automatic | `brush.render()` required each frame |
 | Clearing | `background()` | `brush.clear(color?)` |
+| Drawing images | p5's `image()` | `brush.image(source, x, y, w?, h?)` |
 | Transforms | p5's `push/pop`, `translate`, `rotate`, `scale` | `brush.push/pop`, `brush.translate`, `brush.rotate`, `brush.scale` |
 | Angle mode | p5's `angleMode()` | `brush.angleMode(brush.DEGREES \| brush.RADIANS)` |
 | Seeding | `randomSeed()` / `noiseSeed()` seed the library too | `brush.seed()` / `brush.noiseSeed()` |
