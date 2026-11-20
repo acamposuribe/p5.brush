@@ -31,11 +31,10 @@ import {
   rr,
   map,
   randInt,
-  gaussian,
+  gaussianPool,
   rotate,
   cossin,
   toDegreesSigned,
-  _onSeed,
   seedHash,
 } from "../core/utils.js";
 import { isFieldReady } from "../core/flowfield.js";
@@ -156,16 +155,20 @@ export function noFill() {
 let _polygon;
 let _bbMinX, _bbMinY, _bbMaxX, _bbMaxY;
 
-// Pre-compute gaussians for reuse
+// Pre-computed Gaussians for the bleed growth: one pool for vertex reach, one
+// for the per-vertex bleed drift. They follow the seed through its own streams,
+// so seed() costs nothing here; they are rebuilt only when a fill runs after
+// the seed has changed.
 const GAUSSIAN_POOL_SIZE = 512;
-const _gaussians = [[], []]; // [a, b]
-function _fillGaussianPools() {
-  for (let i = 0; i < GAUSSIAN_POOL_SIZE; i++) {
-    _gaussians[0][i] = gaussian(0.5, 0.2);
-    _gaussians[1][i] = gaussian(0, 0.02);
-  }
+let _poolSeed = null;
+let _reachPool, _driftPool;
+function _gaussianPools() {
+  const h = seedHash();
+  if (h === _poolSeed) return;
+  _poolSeed = h;
+  _reachPool = gaussianPool(`${h}:fill-reach`, GAUSSIAN_POOL_SIZE, 0.5, 0.2);
+  _driftPool = gaussianPool(`${h}:fill-drift`, GAUSSIAN_POOL_SIZE, 0, 0.02);
 }
-_onSeed(_fillGaussianPools);
 
 function _fillStartIndex(pts, angle) {
   const cs = cossin(angle);
@@ -495,11 +498,8 @@ class FillPoly {
     const newDirs = _growDirs;
     const bleedDirDeg = State.fill.direction === "out" ? -90 : 90;
 
-    if (_gaussians[0].length === 0) _fillGaussianPools();
-    const gPool = _gaussians[0],
-      gPoolLen = gPool.length;
-    const g2Pool = _gaussians[1],
-      g2PoolLen = g2Pool.length;
+    _gaussianPools();
+    const reach = _reachPool, drift = _driftPool;
 
     let idx = 0;
     let insertedIdx = 0;
@@ -519,8 +519,8 @@ class FillPoly {
         if (f < 997) mod = mi;
         if (mod >= 0.05) {
           rr(-1, 1);
-          gPool[~~(rr(0, 1) * gPoolLen)]; rr(0.65, 1.35);
-          g2Pool[~~(rr(0, 1) * g2PoolLen)];
+          rr(0, 1); rr(0.65, 1.35); // reach
+          rr(0, 1); // drift
         }
       }
       return new FillPoly(tr_v, tr_m, this.midP, tr_dir, false, this.sizeX, this.sizeY);
@@ -556,8 +556,8 @@ class FillPoly {
       const dirX = c * sideX + s * sideY;
       const dirY = c * sideY - s * sideX;
 
-      const d = gPool[~~(rr(0, 1) * gPoolLen)] * rr(0.65, 1.35) * mod;
-      const nextMod = mi + g2Pool[~~(rr(0, 1) * g2PoolLen)];
+      const d = reach[~~(rr(0, 1) * GAUSSIAN_POOL_SIZE)] * rr(0.65, 1.35) * mod;
+      const nextMod = mi + drift[~~(rr(0, 1) * GAUSSIAN_POOL_SIZE)];
 
       newMods[idx] = mi;
       newDirs[idx] = di;

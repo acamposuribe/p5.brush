@@ -59,7 +59,7 @@ const _seedCallbacks = [];
 
 /**
  * Register a callback to be called whenever seed() is invoked.
- * Used internally by modules that maintain gaussian pools.
+ * Used internally by modules that cache seed-dependent state.
  * @param {Function} cb
  */
 export const _onSeed = (cb) => _seedCallbacks.push(cb);
@@ -78,7 +78,7 @@ export const seed = (s) => {
   _seedHash = _hashSeed(s);
   rng = _makePRNG(s);
   rng2 = _makePRNG(`${s}:2`);
-  _gaussCached = false; // reset cached gaussian on reseed
+  gaussian.reset();
   for (const callback of _seedCallbacks) {
     callback();
   }
@@ -156,27 +156,52 @@ export const randInt = (e, r) => Math.floor(rr(e, r));
 export const randInt2 = (e, r) => Math.floor(rr2(e, r));
 
 /**
- * Gaussian (normal) random sample N(mean, stdev²).
+ * Creates a Gaussian sampler that draws its uniforms from `next`.
+ * Box-Muller with the second value cached, which halves the sqrt/log calls.
+ * @param {RNG} next
+ * @returns {((mean?: number, stdev?: number) => number) & { reset: () => void }}
+ */
+function _makeGaussian(next) {
+  let cached = false;
+  let z1 = 0;
+  const sample = (mean = 0, stdev = 1) => {
+    if (cached) {
+      cached = false;
+      return z1 * stdev + mean;
+    }
+    const r = Math.sqrt(-2.0 * Math.log(1 - next()));
+    const angle = 360 * next();
+    z1 = r * sin(angle);
+    cached = true;
+    return r * cos(angle) * stdev + mean;
+  };
+  sample.reset = () => { cached = false; };
+  return sample;
+}
+
+/**
+ * Gaussian (normal) random sample N(mean, stdev²) from the main stream.
  * @param {number} [mean=0]
  * @param {number} [stdev=1]
  * @returns {number}
  */
-// Box-Muller with cached second value — halves Math.sqrt/Math.log calls.
-let _gaussCached = false;
-let _gaussZ1 = 0;
-export const gaussian = (mean = 0, stdev = 1) => {
-  if (_gaussCached) {
-    _gaussCached = false;
-    return _gaussZ1 * stdev + mean;
-  }
-  const u = 1 - rng();
-  const v = rng();
-  const r = Math.sqrt(-2.0 * Math.log(u));
-  const angle = 360 * v;
-  _gaussZ1 = r * sin(angle);
-  _gaussCached = true;
-  return r * cos(angle) * stdev + mean;
-};
+export const gaussian = _makeGaussian(() => rng());
+
+/**
+ * Builds `size` Gaussian samples N(mean, stdev²) from their own stream,
+ * seeded by `key`. Leaves the main stream untouched.
+ * @param {number|string} key
+ * @param {number} size
+ * @param {number} [mean=0]
+ * @param {number} [stdev=1]
+ * @returns {Float64Array}
+ */
+export function gaussianPool(key, size, mean = 0, stdev = 1) {
+  const sample = _makeGaussian(_makePRNG(key));
+  const pool = new Float64Array(size);
+  for (let i = 0; i < size; i++) pool[i] = sample(mean, stdev);
+  return pool;
+}
 
 /**
  * Picks a key from an object according to weighted probabilities.
