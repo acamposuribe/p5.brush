@@ -398,7 +398,7 @@ function drawSegments(totalSteps, stepSize, isPlot, angleScale) {
     const n = Math.min(steps, totalSteps - i);
     const len = stepSize * n;
     const x0 = _position.x, y0 = _position.y;
-    const natural = naturalAngle(isPlot ? _plot.angle(_position.plotted) : _dir);
+    const natural = naturalAngle();
     let cs = current.cos, sn = current.sin;
     if (isPlot) {
       // Use the direction at the segment midpoint: start-of-segment
@@ -422,11 +422,12 @@ function drawSegments(totalSteps, stepSize, isPlot, angleScale) {
 
 /**
  * Stamp rotation (radians) for "natural" image tips: the stroke direction
- * plus the flow-field angle at the current position.
- * @param {number} pathAngle - Plot angle or line direction, in degrees.
+ * plus the flow-field angle at the current position. 0 for other brushes,
+ * without looking up the path's direction.
  */
-function naturalAngle(pathAngle) {
+function naturalAngle() {
   if (current.p.rotate !== "natural") return 0;
+  const pathAngle = _plot ? _plot.angle(_position.plotted) : _dir;
   return (-pathAngle + _position.angle()) * (Math.PI / 180);
 }
 
@@ -449,6 +450,11 @@ function saveState() {
     current.ct = 0;
     current.cs = 1;
     current.ck = 0;
+    // The pressure bump's shape is fixed for the stroke (see gauss()).
+    const width = 1 - pressure.curve[1] * current.b;
+    current.peak = (0.5 + pressure.curve[0] * current.a) * _length;
+    current.halfBefore = width * 1.2 * (_length / 2);
+    current.halfAfter = width * 0.8 * (_length / 2);
   } else {
     const variation = pressure.variation ?? DEFAULT_CUSTOM_PRESSURE_VARIATION;
     current.cp = rr(-variation.offset, variation.offset);
@@ -524,32 +530,19 @@ function simPressure() {
 }
 
 /**
- * Generates a Gaussian-based pressure value.
- * @param {number} [a] - Center parameter.
- * @param {number} [b] - Width parameter.
- * @param {number} [c] - Shape parameter.
- * @param {number} [min] - Minimum pressure.
- * @param {number} [max] - Maximum pressure.
- * @returns {number} Gaussian pressure value.
+ * Pressure along a default stroke: a bump peaking at current.peak, steeper
+ * after the peak than before it, mapped to the brush's pressure range.
+ * @returns {number}
  */
-function gauss(
-  a = 0.5 + current.p.pressure.curve[0] * current.a,
-  b = 1 - current.p.pressure.curve[1] * current.b,
-  c = current.cp,
-  min = current.min,
-  max = current.max,
-) {
-  const peakPos = a * _length;
-  const halfWidth =
-    (_position.plotted < peakPos ? b * 1.2 : b * 0.8) * (_length / 2);
+function gauss() {
+  const d = _position.plotted - current.peak;
+  const halfWidth = _position.plotted < current.peak ? current.halfBefore : current.halfAfter;
   return map(
-    1 /
-      (1 +
-        Math.pow(Math.abs((_position.plotted - peakPos) / halfWidth), 2 * c)),
+    1 / (1 + Math.pow(Math.abs(d / halfWidth), 2 * current.cp)),
     0,
     1,
-    min,
-    max,
+    current.min,
+    current.max,
   );
 }
 
@@ -591,7 +584,7 @@ function markerTip() {
   if (!isMarker && current.p.type !== "custom" && current.p.type !== "image") return;
   const pressure = calculatePressure();
   const count = isMarker ? 9 : 4;
-  const angle = naturalAngle(_plot ? _plot.angle(_position.plotted) : _dir);
+  const angle = naturalAngle();
   queueSegment(
     _position.x, _position.y, _position.x, _position.y,
     current.cos ?? 1, current.sin ?? 0,
