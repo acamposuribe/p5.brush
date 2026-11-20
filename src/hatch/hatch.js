@@ -2,7 +2,7 @@ import { State } from "../core/color.js";
 import { toDegreesSigned, map, rr } from "../core/utils.js";
 import { Polygon } from "../core/polygon.js";
 import { Plot } from "../core/plot.js";
-import { BrushState, BrushSetState, set, line } from "../stroke/stroke.js";
+import { BrushState, BrushSetState, pick, stroke, strokeWeight, line } from "../stroke/stroke.js";
 
 // =============================================================================
 // Module: Classic Hatch
@@ -109,6 +109,9 @@ let _eY1 = new Float64Array(512);
 let _eX2 = new Float64Array(512);
 let _eY2 = new Float64Array(512);
 let _eDir = new Int8Array(512);
+let _eMinY = new Float64Array(512);
+let _eOrder = new Int32Array(512);
+let _eActive = new Int32Array(512);
 
 function scanlineHatch(polygons, angle, dist, gradient, rule = "evenodd") {
   if (!Array.isArray(polygons)) polygons = [polygons];
@@ -140,6 +143,9 @@ function scanlineHatch(polygons, angle, dist, gradient, rule = "evenodd") {
     _eX2 = new Float64Array(totalVerts * 2);
     _eY2 = new Float64Array(totalVerts * 2);
     _eDir = new Int8Array(totalVerts * 2);
+    _eMinY = new Float64Array(totalVerts * 2);
+    _eOrder = new Int32Array(totalVerts * 2);
+    _eActive = new Int32Array(totalVerts * 2);
   }
 
   // Build one flat edge list across all contours so crossings pair globally.
@@ -169,10 +175,18 @@ function scanlineHatch(polygons, angle, dist, gradient, rule = "evenodd") {
         _eX2[eLen] = _sRotX[bj];
         _eY2[eLen] = by;
         _eDir[eLen] = ay < by ? 1 : -1;
+        _eMinY[eLen] = ay < by ? ay : by;
+        _eOrder[eLen] = eLen;
         eLen++;
       }
     }
   }
+
+  // Edges join the active list once the scanline reaches their lowest y and
+  // leave it once the scanline passes their highest, so each scanline only
+  // tests the edges that can cross it.
+  const order = _eOrder.subarray(0, eLen).sort((a, b) => _eMinY[a] - _eMinY[b]);
+  let nextEdge = 0, activeLen = 0;
 
   // Scan, find crossings, rotate back
   const segments = [];
@@ -186,14 +200,20 @@ function scanlineHatch(polygons, angle, dist, gradient, rule = "evenodd") {
     if (++scanCount > 1_000_000 || !(Y + step > Y)) {
       throw new Error("Hatch spacing is too small to advance safely.");
     }
+    while (nextEdge < eLen && _eMinY[order[nextEdge]] <= Y) _eActive[activeLen++] = order[nextEdge++];
     crossings.length = 0;
-    for (let i = 0; i < eLen; i++) {
+    let kept = 0;
+    for (let k = 0; k < activeLen; k++) {
+      const i = _eActive[k];
       const y1 = _eY1[i], y2 = _eY2[i];
-      // Simplified scanline crossing test: (y1<=Y) XOR (y2<=Y)
-      if ((y1 <= Y) !== (y2 <= Y))
-        crossings.push({ x: _eX1[i] + ((Y - y1) / (y2 - y1)) * (_eX2[i] - _eX1[i]), dir: _eDir[i] });
+      // Active edges start at or below Y; an edge crosses while its top is above Y.
+      if ((y1 > y2 ? y1 : y2) <= Y) continue;
+      _eActive[kept++] = i;
+      crossings.push({ x: _eX1[i] + ((Y - y1) / (y2 - y1)) * (_eX2[i] - _eX1[i]), dir: _eDir[i], i });
     }
-    crossings.sort((a, b) => a.x - b.x);
+    activeLen = kept;
+    // Ties keep edge order, as the full scan did.
+    crossings.sort((a, b) => a.x - b.x || a.i - b.i);
     // Walk the crossings with a winding counter; a segment runs while the
     // fill rule counts the winding as inside.
     let wind = 0, start = 0;
@@ -248,6 +268,11 @@ function getHatchSegments(polygons, dist, angle, gradient, rule) {
 function withHatchStyle(drawFn) {
   const save = BrushState();
   try {
+    const style = State.hatch.hBrush;
+    if (style) {
+      pick(style.brush);
+      stroke(style.color);
+    }
     drawFn();
   } finally {
     BrushSetState(save);
@@ -330,6 +355,7 @@ export function getHatchLines(polygons, rule = "evenodd") {
  */
 function renderHatchSegments(polygons, drawSegment, rule) {
   const segs = getHatchLines(polygons, rule);
+  if (segs.length === 0) return;
   withHatchStyle(() => {
     for (let j = 0; j < segs.length; j++) {
       const s = segs[j];
@@ -362,7 +388,8 @@ export function fillRule(options) {
 export function createHatch(polygons, options) {
   const rule = fillRule(options);
   renderHatchSegments(polygons, (x1, y1, x2, y2) => {
-    if (State.hatch.hBrush) set(State.hatch.hBrush.brush, State.hatch.hBrush.color, State.hatch.hBrush.weight * rr(0.9,1.1));
+    // The hatch brush and colour are set once for all lines; only the weight varies.
+    if (State.hatch.hBrush) strokeWeight(State.hatch.hBrush.weight * rr(0.9, 1.1));
     line(x1, y1, x2, y2);
   }, rule);
 }
