@@ -43,6 +43,7 @@ import {
   snapshotMatrix,
   beginStroke,
   queueSegment,
+  queueLine,
   discardStroke,
   setStrokeOverscan,
 } from "./gl_draw.js";
@@ -370,7 +371,8 @@ function draw(angleScale, isPlot) {
   if (!isPlot) _dir = angleScale;
   try {
     saveState();
-    drawSegments(totalSteps, stepSize, isPlot, angleScale);
+    if (!isPlot && walksOnGpu()) queueStraight(totalSteps, stepSize);
+    else drawSegments(totalSteps, stepSize, isPlot, angleScale);
     markerTip();
   } catch (error) {
     discardStroke();
@@ -418,6 +420,48 @@ function drawSegments(totalSteps, stepSize, isPlot, angleScale) {
     queueSegment(x0, y0, _position.x, _position.y, cs, sn, pressure, endPressure, n, natural);
     pressure = endPressure;
   }
+}
+
+/**
+ * Whether a straight stroke can be walked on the GPU: its brush draws dots,
+ * its pressure is the default bump, and no flow field bends it. Others are
+ * walked here, segment by segment.
+ */
+function walksOnGpu() {
+  const type = current.p.type;
+  return !State.field.isActive && !current.isCustomPressure && type !== "image" && type !== "custom";
+}
+
+/**
+ * Queues a straight stroke whole (gl_draw.js queueLine): the GPU computes
+ * every step's position and pressure, so there is no per-step work here.
+ * Steps fall at 0, stepSize, … (totalSteps − 1) × stepSize along the line.
+ */
+function queueStraight(totalSteps, stepSize) {
+  const x0 = _position.x, y0 = _position.y;
+  const length = stepSize * totalSteps;
+  _position.x += length * current.cos;
+  _position.y -= length * current.sin;
+  _position.plotted += length;
+
+  // The bump is highest at its peak and falls away on both sides, so the
+  // pressure's extremes lie at the ends or at the peak.
+  const last = length - stepSize;
+  const samples = [gauss(0), gauss(last)];
+  if (current.peak > 0 && current.peak < last) samples.push(gauss(current.peak));
+  const pMin = Math.min(...samples), pMax = Math.max(...samples);
+  if (!Number.isFinite(pMin) || !Number.isFinite(pMax)) {
+    throw new Error("Brush pressure must be finite.");
+  }
+  const bump = {
+    peak: current.peak,
+    halfBefore: current.halfBefore,
+    halfAfter: current.halfAfter,
+    exponent: 2 * current.cp,
+    min: current.min,
+    max: current.max,
+  };
+  queueLine(x0, y0, _position.x, _position.y, current.cos, current.sin, totalSteps, bump, pMin, pMax);
 }
 
 /**
@@ -532,11 +576,13 @@ function simPressure() {
 /**
  * Pressure along a default stroke: a bump peaking at current.peak, steeper
  * after the peak than before it, mapped to the brush's pressure range.
+ * dots.vert evaluates the same bump for straight strokes walked on the GPU.
+ * @param {number} [at] - Distance along the stroke.
  * @returns {number}
  */
-function gauss() {
-  const d = _position.plotted - current.peak;
-  const halfWidth = _position.plotted < current.peak ? current.halfBefore : current.halfAfter;
+function gauss(at = _position.plotted) {
+  const d = at - current.peak;
+  const halfWidth = at < current.peak ? current.halfBefore : current.halfAfter;
   return map(
     1 / (1 + Math.pow(Math.abs(d / halfWidth), 2 * current.cp)),
     0,
