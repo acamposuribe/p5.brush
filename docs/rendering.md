@@ -10,11 +10,10 @@ Measurements are from an Apple M4 through ANGLE Metal. No Windows (D3D11) or mob
 - `npm run measure:density` measures each brush's ink at densities 1, 2 and 3.
 - `node test/e2e/fill-sheet.mjs --density=2 --angle=metal` writes a contact sheet of fills for side-by-side review.
 - `test/standalone/fill_circle_explorer.html` (`npm run serve`) has sliders for every fill setting and several compositions (dots, swatches, an af Klint study).
-- The compatibility fixtures in `test/e2e/legacy-output.json` pin every scene's pixels. Intentional changes are listed there with their reason.
 
 ## Strokes
 
-Every brush type queues path segments of up to 4 logical px. Shaders expand them into dots (`src/stroke/dots.vert`: default, spray, marker) or textured stamps (`stamps.vert`: image and custom tips). Randomness is hashed from the stroke seed, segment and step, so no dots are generated on the CPU. Strokes that share brush, colour, transform, clip and target draw in one call. Compared with 2.3.0: lines 30 → 3 ms, hatch 39 → 3 ms, mass 250 → 17 ms.
+Every brush type queues path segments of up to 4 logical px. Shaders expand them into dots (`src/stroke/dots.vert`: default, spray, marker) or textured stamps (`stamps.vert`: image and custom tips). Randomness is hashed from the stroke seed, segment and step, so no dots are generated on the CPU. Strokes that share a brush type, colour, transform, clip and target draw in one call; the brush's weight, scatter, sharpness and grain travel with each segment. Compared with 2.3.0: lines 30 → 3 ms, hatch 39 → 3 ms, mass 250 → 17 ms.
 
 - **Density 2 is the reference look.** Dots keep a footprint of at least half a logical pixel, and their alpha scales by footprint over raster area. So fine brushes look the same at any density, within about 6–21% at density 1 (overlapping faint dots in one pixel combine to less ink).
 - **Compositing.** Strokes accumulate in a mask, then one spectral (Kubelka-Munk) pass per colour mixes the mask's ink into the canvas. The pigment's K/S and luminance are computed once per pass on the CPU (`src/core/spectral.js`).
@@ -23,7 +22,7 @@ Every brush type queues path segments of up to 4 logical px. Shaders expand them
 
 `fill()` paints watercolour. The shape is Tyler Hobbs' recursive midpoint displacement: a base polygon grown with per-vertex bleed, three trims, a darker layer and a sparse scatter layer, all on the CPU (`src/fill/fill.js`). Of Hobbs' 20-step layer schedule, 7 evenly spaced layers are drawn. The finest growth level is skipped, because it shows as a saw-tooth on a crisp edge.
 
-1. **Mask.** Layers are drawn into a half-float framebuffer as log-domain paint, so draw order doesn't matter: Σ −ln(1 − α), turned back into coverage with 1 − e^−r. Polygons are filled by stencil-then-cover, which is Canvas2D's nonzero rule, with two jittered samples. The untrimmed outline layers also write a silhouette channel, so trims shade the interior but never move the edge. Washes use the same mask with one polygon and four samples. (`src/fill/gl_fill.js`, `fan.*`)
+1. **Mask.** Layers are drawn into a half-float framebuffer as log-domain paint, so draw order doesn't matter: Σ −ln(1 − α), turned back into coverage with 1 − e^−r. Polygons are filled by stencil-then-cover, which is Canvas2D's nonzero rule, with two jittered samples. The untrimmed outline layers also write a silhouette channel, so trims shade the interior but never move the edge. Washes use the same mask with four samples; consecutive washes queue, and polygons that can't share a pixel are stencilled and covered together, keeping per-pixel paint order. (`src/fill/gl_fill.js`, `fan.*`)
 2. **Blur.** A separable Gaussian blur at half resolution (`blur.frag`) gives:
    - a smooth silhouette (σ/2);
    - each pixel's share of the neighbourhood that is inside the shape;

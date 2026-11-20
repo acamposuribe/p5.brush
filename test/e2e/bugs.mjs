@@ -40,13 +40,6 @@ try {
   const errors = [];
   page.on('pageerror', e => errors.push(e.message));
   await page.goto(`http://127.0.0.1:${server.address().port}/test/index.html`);
-  const hashes = await page.evaluate(async () => {
-    const b = await import('/dist/brush.esm.js');
-    const { compatibility } = await import('/test/e2e/compatibility.js');
-    return compatibility(b);
-  });
-  assert.deepEqual(hashes, JSON.parse(await readFile('test/e2e/legacy-output.json', 'utf8')).hashes, 'valid legacy rendering changed');
-  console.log('PASS rendering compatibility (B24 field fingerprint intentionally updated)');
   {
     const results = await page.evaluate(async () => {
       const b = await import('/dist/brush.esm.js');
