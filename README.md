@@ -833,10 +833,12 @@ These functions control hatching and massing inside shapes, using repeated lines
 ---
 In essence, the hatching system activates hatches for subsequent shapes, similarly to stroke and fill operations. However, you can also directly hatch multiple objects at once, including their intersections, as described below.
 
-- `brush.hatchArray(polygons)`
-  - **Description**: Creates a hatching pattern across specified polygons. This function applies the set hatching parameters to a single polygon or an array of polygons.
+- `brush.hatchArray(polygons, options)`
+  - **Description**: Creates a hatching pattern across specified polygons. This function applies the set hatching parameters to a single polygon or an array of polygons, hatched as one gesture with lines aligned across all of them.
   - **Parameters**:
     - `polygons` (Array|Object): The polygon(s) to apply the hatching. Can be a single polygon object or an array of polygon objects.
+    - `options` (Object, optional):
+      - `rule` (String): How overlapping polygons combine. `"evenodd"` (default) leaves every overlap unhatched, so nested polygons make holes. `"nonzero"` hatches overlaps too; a polygon whose points run the opposite way still cuts a hole.
   - **Note**: This is not the main, but an alternative way of applying hatches. Read above.
   - **Usage**:
     ```javascript
@@ -858,10 +860,11 @@ In essence, the hatching system activates hatches for subsequent shapes, similar
 
 ---
 
-- `brush.massArray(polygons)`
+- `brush.massArray(polygons, options)`
   - **Description**: Applies the current `mass()` state to a single `brush.Polygon` or an array of `brush.Polygon` objects as one combined multi-layer gesture. The array is treated as combined layers: the first polygon defines the outer boundary, additional polygons act as holes or inner layers via even-odd logic.
   - **Parameters**:
     - `polygons` (Array|Object): A single `brush.Polygon` or an array of `brush.Polygon` objects to mass.
+    - `options` (Object, optional): `rule`, `"evenodd"` (default) or `"nonzero"`, as in `hatchArray()`.
   - **Note**: Like `hatchArray()`, this is an alternative to letting shapes pick up mass state automatically — use it when you need to treat multiple polygons as a single gesture.
   - **Usage**:
     ```javascript

@@ -8,7 +8,7 @@ import { Polygon } from "../core/polygon.js";
 import { Plot } from "../core/plot.js";
 import { rr2, dist, calcAngle, noise } from "../core/utils.js";
 import { fromDegrees, usesRadians } from "../core/runtime.js";
-import { HatchState, HatchSetState, hatch, getHatchLines } from "./hatch.js";
+import { HatchState, HatchSetState, hatch, getHatchLines, fillRule } from "./hatch.js";
 import { BrushState, BrushSetState, getBrushParams, set } from "../stroke/stroke.js";
 import { wiggle } from "../core/flowfield.js";
 
@@ -253,27 +253,30 @@ function getShortArcAngles(cx, cy, x1, y1, x2, y2, toAngleUnit) {
   ];
 }
 
-function pointInRing(points, x, y) {
-  let inside = false;
+// Fill rule of the mass being drawn ("evenodd" or "nonzero"); set by createMass.
+let massRule = "evenodd";
+
+/**
+ * Signed crossings of a rightward ray from (x, y) with a ring: +1 per edge
+ * going down, -1 per edge going up. Its parity is the even-odd test and its
+ * value the winding number.
+ */
+function ringWinding(points, x, y) {
+  let wind = 0;
   for (let i = 0, j = points.length - 1; i < points.length; j = i++) {
     const xi = points[i][0], yi = points[i][1];
     const xj = points[j][0], yj = points[j][1];
     const intersects = ((yi > y) !== (yj > y))
       && (x < ((xj - xi) * (y - yi)) / ((yj - yi) || Number.EPSILON) + xi);
-    if (intersects) inside = !inside;
+    if (intersects) wind += yj > yi ? 1 : -1;
   }
-  return inside;
+  return wind;
 }
 
 function pointInMassShape(shape, x, y) {
-  if (Array.isArray(shape)) {
-    let inside = false;
-    for (const polygon of shape) {
-      if (pointInRing(polygon.a, x, y)) inside = !inside;
-    }
-    return inside;
-  }
-  return pointInRing(shape.a, x, y);
+  let wind = 0;
+  for (const polygon of Array.isArray(shape) ? shape : [shape]) wind += ringWinding(polygon.a, x, y);
+  return massRule === "nonzero" ? wind !== 0 : (wind & 1) !== 0;
 }
 
 function getArcSamplePoint(cx, cy, radius, startAngle, endAngle, toDegreesUnit, t) {
@@ -346,7 +349,7 @@ function drawMassArcs(polygon, pivotBias, toAngleUnit, toDegreesUnit) {
   // Geometry is fixed for this pass; avoid rescanning array contours per arc.
   const bounds = getPolygonBounds(polygon);
   const anchor = getPivotAnchor(bounds, pivotBias);
-  for (const seg of getHatchLines(polygon)) {
+  for (const seg of getHatchLines(polygon, massRule)) {
     const parts = !seg.isConnector && rr2() < 0.35 ? splitSegment(seg) : [seg];
     for (const part of parts) {
       const projectedCenter = projectAnchorToBisector(anchor, part.x1, part.y1, part.x2, part.y2);
@@ -547,7 +550,7 @@ function drawMassOutline(shape) {
  * @param {number} y
  * @param {number} scale
  */
-export function createMass(shape, x, y, scale) {
+export function createMass(shape, x, y, scale, rule = "evenodd") {
   const pols = getMassPolygons(shape, x, y, scale);
   const hatchState = HatchState();
   const brushState = BrushState();
@@ -566,6 +569,7 @@ export function createMass(shape, x, y, scale) {
   const toDegreesUnit = getAngleInverseConverter();
 
   try {
+    massRule = rule;
     set(State.mass.brush, State.mass.color, 1);
     if (State.mass.options?.style === "scribble") {
       // Field off: scribbles get their organic drift from their own layout.
@@ -634,11 +638,18 @@ export function createMass(shape, x, y, scale) {
     BrushSetState(brushState);
     HatchSetState(hatchState);
     State.field = { ...fieldState };
+    massRule = "evenodd";
   }
 }
 
-export function createMassArray(polygons) {
-  return createMass(polygons, false);
+/**
+ * Masses one polygon or an array of polygons as one gesture.
+ * @param {Polygon|Polygon[]} polygons
+ * @param {{rule?: "evenodd"|"nonzero"}} [options] How overlapping contours
+ *   combine: "evenodd" (default) leaves overlaps empty, "nonzero" fills them.
+ */
+export function createMassArray(polygons, options) {
+  return createMass(polygons, false, undefined, undefined, fillRule(options));
 }
 
 // ---------------------------------------------------------------------------

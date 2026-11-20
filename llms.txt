@@ -261,8 +261,8 @@ Fill simulates watercolor: Hobbs-style grown shapes painted as dried washes (irr
 - `brush.hatchStyle(name, color, weight)` — Set brush used for hatching.
 - `brush.mass(brushName, color, options?)` — Dry-media, hand-filled hatched fill. Works best with crayon or pastel brushes. `brushName` is always required explicitly. Options: `precision` 0–1, `strength` 0–1, `gradient` 0–1, `outline` bool.
 - `brush.noMass()` — Disable massing.
-- `brush.hatchArray(polygons)` — Apply current hatch style directly to a `brush.Polygon` or array of polygons.
-- `brush.massArray(polygons)` — Apply current mass style to a `brush.Polygon` or array of `brush.Polygon` objects as one combined gesture (array = outer shapes + holes via even-odd logic).
+- `brush.hatchArray(polygons, options?)` — Apply current hatch style directly to a `brush.Polygon` or array of polygons as one gesture. Options: `rule` `"evenodd"` (default: overlaps act as holes) or `"nonzero"` (overlaps are hatched; a contour wound the opposite way still cuts a hole).
+- `brush.massArray(polygons, options?)` — Apply current mass style to a `brush.Polygon` or array of `brush.Polygon` objects as one combined gesture. Same `rule` option as `hatchArray()`.
 
 ---
 
@@ -386,7 +386,7 @@ brush.mass("pastel", "#4b6cb7", { strength: 0.8 })
 frame.mass()               // mass the same geometry
 ```
 
-For multiple polygons as one gesture (even-odd hole logic), use `brush.hatchArray(polygons)` or `brush.massArray(polygons)`.
+For multiple polygons as one gesture, use `brush.hatchArray(polygons)` or `brush.massArray(polygons)`. Overlaps act as holes (even-odd) unless you pass `{ rule: "nonzero" }`.
 
 ---
 

@@ -108,8 +108,9 @@ let _eX1 = new Float64Array(512);
 let _eY1 = new Float64Array(512);
 let _eX2 = new Float64Array(512);
 let _eY2 = new Float64Array(512);
+let _eDir = new Int8Array(512);
 
-function scanlineHatch(polygons, angle, dist, gradient) {
+function scanlineHatch(polygons, angle, dist, gradient, rule = "evenodd") {
   if (!Array.isArray(polygons)) polygons = [polygons];
 
   const rad = (angle * Math.PI) / 180;
@@ -138,6 +139,7 @@ function scanlineHatch(polygons, angle, dist, gradient) {
     _eY1 = new Float64Array(totalVerts * 2);
     _eX2 = new Float64Array(totalVerts * 2);
     _eY2 = new Float64Array(totalVerts * 2);
+    _eDir = new Int8Array(totalVerts * 2);
   }
 
   // Build one flat edge list across all contours so crossings pair globally.
@@ -166,6 +168,7 @@ function scanlineHatch(polygons, angle, dist, gradient) {
         _eY1[eLen] = ay;
         _eX2[eLen] = _sRotX[bj];
         _eY2[eLen] = by;
+        _eDir[eLen] = ay < by ? 1 : -1;
         eLen++;
       }
     }
@@ -173,7 +176,8 @@ function scanlineHatch(polygons, angle, dist, gradient) {
 
   // Scan, find crossings, rotate back
   const segments = [];
-  const cx = [];
+  const crossings = [];
+  const inside = rule === "nonzero" ? (wind) => wind !== 0 : (wind) => (wind & 1) !== 0;
   let Y = minY + dist * 0.5,
     step = dist;
   const useGradient = gradient !== 1;
@@ -182,35 +186,28 @@ function scanlineHatch(polygons, angle, dist, gradient) {
     if (++scanCount > 1_000_000 || !(Y + step > Y)) {
       throw new Error("Hatch spacing is too small to advance safely.");
     }
-    cx.length = 0;
+    crossings.length = 0;
     for (let i = 0; i < eLen; i++) {
       const y1 = _eY1[i], y2 = _eY2[i];
       // Simplified scanline crossing test: (y1<=Y) XOR (y2<=Y)
       if ((y1 <= Y) !== (y2 <= Y))
-        cx.push(_eX1[i] + ((Y - y1) / (y2 - y1)) * (_eX2[i] - _eX1[i]));
+        crossings.push({ x: _eX1[i] + ((Y - y1) / (y2 - y1)) * (_eX2[i] - _eX1[i]), dir: _eDir[i] });
     }
-    // Fast path for the common case of exactly 2 crossings (convex polygon)
-    const cxLen = cx.length;
-    if (cxLen === 2) {
-      let xi = cx[0], xj = cx[1];
-      if (xi > xj) { const t = xi; xi = xj; xj = t; }
-      segments.push({
-        scanY: Y,
-        x1: xi * cosA + Y * sinA,
-        y1: -xi * sinA + Y * cosA,
-        x2: xj * cosA + Y * sinA,
-        y2: -xj * sinA + Y * cosA,
-      });
-    } else if (cxLen > 2) {
-      cx.sort((a, b) => a - b);
-      for (let i = 0; i < cxLen - 1; i += 2) {
-        const xi = cx[i], xj = cx[i + 1];
+    crossings.sort((a, b) => a.x - b.x);
+    // Walk the crossings with a winding counter; a segment runs while the
+    // fill rule counts the winding as inside.
+    let wind = 0, start = 0;
+    for (const c of crossings) {
+      const wasInside = inside(wind);
+      wind += c.dir;
+      if (!wasInside && inside(wind)) start = c.x;
+      else if (wasInside && !inside(wind)) {
         segments.push({
           scanY: Y,
-          x1: xi * cosA + Y * sinA,
-          y1: -xi * sinA + Y * cosA,
-          x2: xj * cosA + Y * sinA,
-          y2: -xj * sinA + Y * cosA,
+          x1: start * cosA + Y * sinA,
+          y1: -start * sinA + Y * cosA,
+          x2: c.x * cosA + Y * sinA,
+          y2: -c.x * sinA + Y * cosA,
         });
       }
     }
@@ -232,8 +229,8 @@ function scanlineHatch(polygons, angle, dist, gradient) {
  * @param {number} gradient
  * @returns {{scanY:number, x1:number, y1:number, x2:number, y2:number}[]}
  */
-function getHatchSegments(polygons, dist, angle, gradient) {
-  const segs = scanlineHatch(polygons, angle, dist, gradient);
+function getHatchSegments(polygons, dist, angle, gradient, rule) {
+  const segs = scanlineHatch(polygons, angle, dist, gradient, rule);
   segs.sort((a, b) => (a.scanY === b.scanY ? a.x1 - b.x1 : a.scanY - b.scanY));
   return segs;
 }
@@ -263,12 +260,12 @@ function withHatchStyle(drawFn) {
  * @param {Polygon|Polygon[]} polygons
  * @returns {{dist:number, options:Object, segs:Object[]}}
  */
-function getActiveHatchConfig(polygons) {
+function getActiveHatchConfig(polygons, rule) {
   const dist = State.hatch.dist;
   const angle = ((State.hatch.angle % 180) + 180) % 180;
   const options = State.hatch.options;
   const gradient = options.gradient ? map(options.gradient, 0, 1, 1, 1.1, true) : 1;
-  const segs = getHatchSegments(polygons, dist, angle, gradient);
+  const segs = getHatchSegments(polygons, dist, angle, gradient, rule);
   return { dist, options, segs };
 }
 
@@ -285,8 +282,8 @@ function getActiveHatchConfig(polygons) {
  * @param {Polygon|Polygon[]} polygons
  * @returns {{x1:number, y1:number, x2:number, y2:number, scanY:number, isConnector:boolean}[]}
  */
-export function getHatchLines(polygons) {
-  const { dist, options, segs } = getActiveHatchConfig(polygons);
+export function getHatchLines(polygons, rule = "evenodd") {
+  const { dist, options, segs } = getActiveHatchConfig(polygons, rule);
   const r = options.rand || 0;
   const lines = [];
 
@@ -331,8 +328,8 @@ export function getHatchLines(polygons) {
  * @param {Polygon|Polygon[]} polygons
  * @param {(x1:number, y1:number, x2:number, y2:number, index:number, segs:Object[]) => void} drawSegment
  */
-function renderHatchSegments(polygons, drawSegment) {
-  const segs = getHatchLines(polygons);
+function renderHatchSegments(polygons, drawSegment, rule) {
+  const segs = getHatchLines(polygons, rule);
   withHatchStyle(() => {
     for (let j = 0; j < segs.length; j++) {
       const s = segs[j];
@@ -342,15 +339,32 @@ function renderHatchSegments(polygons, drawSegment) {
 }
 
 /**
+ * Validates a fill rule option: "evenodd" (default) or "nonzero".
+ *
+ * @param {{rule?: string}} [options]
+ * @returns {"evenodd"|"nonzero"}
+ */
+export function fillRule(options) {
+  const rule = options?.rule ?? "evenodd";
+  if (rule !== "evenodd" && rule !== "nonzero") {
+    throw new Error(`Unknown fill rule "${rule}"; use "evenodd" or "nonzero".`);
+  }
+  return rule;
+}
+
+/**
  * Draws classic hatch lines over one polygon or an array of polygons.
  *
  * @param {Polygon|Polygon[]} polygons
+ * @param {{rule?: "evenodd"|"nonzero"}} [options] How overlapping contours
+ *   combine: "evenodd" (default) leaves overlaps unhatched, "nonzero" hatches them.
  */
-export function createHatch(polygons) {
+export function createHatch(polygons, options) {
+  const rule = fillRule(options);
   renderHatchSegments(polygons, (x1, y1, x2, y2) => {
     if (State.hatch.hBrush) set(State.hatch.hBrush.brush, State.hatch.hBrush.color, State.hatch.hBrush.weight * rr(0.9,1.1));
     line(x1, y1, x2, y2);
-  });
+  }, rule);
 }
 
 // ---------------------------------------------------------------------------
