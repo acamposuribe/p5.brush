@@ -1,9 +1,11 @@
 #version 300 es
 
-// Expands queued path segments into brush dots (default, spray and marker
-// brushes). One vertex per segment; instances enumerate the segment's fine
-// steps (and, for spray, the dots within each step):
-//   instance = step * u_perStep + dot
+// Expands queued records into brush dots (default, spray and marker
+// brushes). A record is a path segment of up to 40 fine steps, or up to 1024
+// steps of a straight stroke. One instance per record; its vertices
+// enumerate the fine steps (and, for spray, the dots within each step):
+//   vertex = step * u_perStep + dot
+// Steps as vertices keep a long record's dots in the same GPU batches.
 //
 // Each step reproduces the brush's tip model: a grain test and gaussian
 // vibration for default brushes, a cloud of dots for spray, and a single
@@ -13,11 +15,12 @@
 in vec2 a_start;     // segment start, position space (logical px)
 in vec2 a_end;       // segment end, after a_info.x steps
 in vec2 a_dir;       // (cos, sin) of the travel direction, for dispersion
-in vec2 a_pressure;  // pressure at segment start and end
+in vec2 a_pressure;  // pressure at segment start and end; for a straight stroke, the range its bump maps to
 in vec4 a_info;      // (step count, stroke alpha 0..255, segment index, unused)
 in uint a_seed;      // per-stroke seed
 in float a_weight;   // stroke weight (per segment, so weights share a batch)
 in vec4 a_brush;     // brush weight, scatter, sharpness, grain (per segment, so brushes share a batch)
+in vec4 a_bump;      // straight strokes: pressure bump (peak, half-width before, after, exponent); exponent 0 on path segments
 
 uniform mat4 u_matrix;
 uniform vec4 u_affine;     // ma, mb, mc, md
@@ -60,13 +63,26 @@ void cull() {
     v_seed = 0u;
 }
 
+// Pressure at a fine step. A path segment interpolates it between its ends.
+// A straight stroke's record carries the stroke's pressure bump instead (see
+// gauss() in stroke.js), evaluated here at the step's distance along it: the
+// peak and half-widths are distances from the record's start.
+float pressureAt(float step, float count) {
+    if (a_bump.w == 0.0) return mix(a_pressure.x, a_pressure.y, step / count);
+    float d = step * length(a_end - a_start) / count - a_bump.x;
+    float halfWidth = d < 0.0 ? a_bump.y : a_bump.z;
+    float bump = 1.0 / (1.0 + pow(max(abs(d / halfWidth), 1e-20), a_bump.w));
+    return mix(a_pressure.x, a_pressure.y, bump);
+}
+
 void main() {
-    int step = gl_InstanceID / u_perStep;
-    int dot = gl_InstanceID - step * u_perStep;
+    int step = gl_VertexID / u_perStep;
+    int dot = gl_VertexID - step * u_perStep;
     float count = a_info.x;
     float t = float(step) / count;
-    float p = mix(a_pressure.x, a_pressure.y, t);
-    if (float(step) >= count || p <= 0.0) { cull(); return; }
+    if (float(step) >= count) { cull(); return; }
+    float p = pressureAt(float(step), count);
+    if (p <= 0.0) { cull(); return; }
 
     float weight = a_brush.x, scatter = a_brush.y, sharpness = a_brush.z, grain = a_brush.w;
     float sw = a_weight;

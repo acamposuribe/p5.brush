@@ -39,6 +39,14 @@ import stampsFragSrc from "./stamps.frag";
 
 /** Fine brush steps per queued path segment. */
 export const SUBSTEPS = 40;
+/** Fine steps per record of a straight stroke walked on the GPU (queueLine). */
+const LINE_CHUNK = 1024;
+// The shaders hash a dot from (record index × 64 + step), so a record of
+// LINE_CHUNK steps takes LINE_CHUNK / 64 indices.
+const HASH_STEPS = 64;
+// Records are drawn in groups by step count; each draw runs every record in
+// its group for the group's largest count, and culls the steps past its own.
+const GROUP_STEPS = [SUBSTEPS, 64, 128, 256, 512, LINE_CHUNK];
 
 const DOT_TYPES = { default: 0, spray: 1, marker: 2 };
 const ROTATE_MODES = { random: 1, natural: 2 };
@@ -71,14 +79,21 @@ let _ma = 1,
   _scale = 1,
   _density = 1;
 
-// Segment layout (18 words): startX, startY, endX, endY, cos, sin,
+// Record layout (22 words): startX, startY, endX, endY, cos, sin,
 // pressure0, pressure1, count, alpha, segIndex, naturalAngle, seed (uint),
-// stroke weight, brush weight, scatter, sharpness, grain. The brush's shape
-// travels with each segment, so brushes that share a shader share a batch.
-const SEG_WORDS = 18;
+// stroke weight, brush weight, scatter, sharpness, grain, and the pressure
+// bump (peak, half-width before and after it, exponent). The brush's shape
+// travels with each record, so brushes that share a shader share a batch.
+// A path segment interpolates its pressure from pressure0 to pressure1 and
+// has no bump (exponent 0). A straight stroke's record (queueLine) evaluates
+// the bump at every step, mapped from pressure0 to pressure1.
+const SEG_WORDS = 22;
 let segData = new Float32Array(1024 * SEG_WORDS);
 let segSeeds = new Uint32Array(segData.buffer);
+let segGroups = new Uint8Array(1024); // each record's draw group (GROUP_STEPS)
 let segCount = 0;
+// The records reordered by draw group, for upload (see sortIntoGroups).
+let drawData = new Float32Array(segData.length);
 // Bounds of the queued segments' endpoints in position space, and the largest
 // dot reach (logical px). The batch shares one transform, so they map to the
 // mask's dirty rect once, at flush, instead of once per segment.
@@ -183,25 +198,41 @@ function releaseGlResources() {
 
 /**
  * Compiles a program, records its locations, and builds a VAO over the shared
- * segment buffer. `divisor` is 0 for per-vertex segments (dots) and SUBSTEPS
- * for per-instance segments (stamps).
+ * record buffer. Records are per instance: `divisor` 1 for dots (one instance
+ * per record, its steps as vertices) and SUBSTEPS for stamps (one instance
+ * per step).
  */
 function setupProgram(target, vertSrc, fragSrc, attributes, uniforms, divisor) {
   target.program = createProgram(gl, vertSrc, fragSrc);
   for (const n of uniforms) target.uni[n] = gl.getUniformLocation(target.program, n);
-  target.vao = gl.createVertexArray();
-  gl.bindVertexArray(target.vao);
-  gl.bindBuffer(gl.ARRAY_BUFFER, segBuf);
-  const stride = SEG_WORDS * 4;
+  target.attributes = [];
   for (const [name, size, offset] of attributes) {
     const loc = gl.getAttribLocation(target.program, name);
-    if (loc < 0) continue;
+    if (loc >= 0) target.attributes.push({ loc, size, offset, integer: name === "a_seed" });
+  }
+  target.vao = gl.createVertexArray();
+  gl.bindVertexArray(target.vao);
+  for (const { loc } of target.attributes) {
     gl.enableVertexAttribArray(loc);
-    if (name === "a_seed") gl.vertexAttribIPointer(loc, 1, gl.UNSIGNED_INT, stride, offset);
-    else gl.vertexAttribPointer(loc, size, gl.FLOAT, false, stride, offset);
     gl.vertexAttribDivisor(loc, divisor);
   }
+  pointAtRecord(target, 0);
   gl.bindVertexArray(null);
+}
+
+/**
+ * Points the bound VAO's attributes at the record buffer, starting from
+ * record `first`. WebGL2 has no base instance, so a draw that starts past the
+ * first record moves the pointers instead.
+ */
+function pointAtRecord(target, first) {
+  gl.bindBuffer(gl.ARRAY_BUFFER, segBuf);
+  const stride = SEG_WORDS * 4;
+  for (const { loc, size, offset, integer } of target.attributes) {
+    const at = first * stride + offset;
+    if (integer) gl.vertexAttribIPointer(loc, size, gl.UNSIGNED_INT, stride, at);
+    else gl.vertexAttribPointer(loc, size, gl.FLOAT, false, stride, at);
+  }
 }
 
 /**
@@ -242,13 +273,13 @@ export function isReady() {
   const attributes = [
     ["a_start", 2, 0], ["a_end", 2, 8], ["a_dir", 2, 16],
     ["a_pressure", 2, 24], ["a_info", 4, 32], ["a_seed", 1, 48], ["a_weight", 1, 52],
-    ["a_brush", 4, 56],
+    ["a_brush", 4, 56], ["a_bump", 4, 72],
   ];
   setupProgram(dots, dotsVertSrc, dotsFragSrc, attributes, [
     "u_matrix", "u_affine", "u_translate", "u_half", "u_sizeScale", "u_density",
     "u_type", "u_perStep",
     "u_color", "u_affineCircle", "u_tipInverse", "u_specks", "u_paperSeed", "u_paperInverse", "u_paperPx", "u_nib", ...CLIP_UNIFORMS,
-  ], 0);
+  ], 1);
   setupProgram(stamps, stampsVertSrc, stampsFragSrc, attributes, [
     "u_proj", "u_tipLinear", "u_translate", "u_half", "u_substeps",
     "u_rotate", "u_color", "u_tex", ...CLIP_UNIFORMS,
@@ -347,28 +378,61 @@ export function queueSegment(x0, y0, x1, y1, cs, sn, p0, p1, count, naturalAngle
   const pMax = Math.max(p0, p1);
   if (pMax <= 0) return;
   const param = stroke.param;
-  const sw = stroke.weight;
-
   if (param.type === "spray") {
-    // Every step needs ceil(grain / p) dots; size the batch for the densest step.
+    // The densest step is the one with the lowest positive pressure.
     let pMin = Infinity;
     for (let s = 0; s < count; s++) {
       const p = p0 + (p1 - p0) * (s / count);
       if (p > 0 && p < pMin) pMin = p;
     }
-    const needed = Math.ceil(param.grain / pMin);
-    if (!Number.isFinite(needed) || needed > 1_000_000) {
-      throw new Error("Spray pressure/grain must produce a bounded number of dots.");
-    }
-    if (needed > perStep) perStep = needed;
+    growPerStep(param.grain, pMin);
   }
+  writeRecord(x0, y0, x1, y1, cs, sn, p0, p1, count, stroke.index++, naturalAngle, alphaScale, NO_BUMP);
+  growBounds(x0, y0, x1, y1, dotReach(param, Math.min(p0, p1), pMax));
+}
 
+const NO_BUMP = { peak: 0, halfBefore: 0, halfAfter: 0, exponent: 0 };
+
+/**
+ * Queues a straight stroke of `steps` fine steps from (x0, y0) towards
+ * (x1, y1), whose pressure is the default bump: `bump` gives its peak and
+ * half-widths as distances from the stroke's start, its exponent, and the
+ * pressure range it maps to (see gauss() in stroke.js). The GPU computes each
+ * step's position and pressure, so the stroke costs one record per LINE_CHUNK
+ * steps. `pMin` and `pMax` are the pressure's extremes along the stroke.
+ */
+export function queueLine(x0, y0, x1, y1, cs, sn, steps, bump, pMin, pMax) {
+  if (_scale === 0 || steps <= 0 || pMax <= 0) return;
+  const param = stroke.param;
+  if (param.type === "spray") growPerStep(param.grain, pMin);
+  const dx = (x1 - x0) / steps, dy = (y1 - y0) / steps;
+  const spacing = Math.hypot(dx, dy);
+  // Start on a fresh range of hash indices, past any tip segment.
+  let index = Math.ceil(stroke.index / (LINE_CHUNK / HASH_STEPS)) * (LINE_CHUNK / HASH_STEPS);
+  for (let i = 0; i < steps; i += LINE_CHUNK) {
+    const n = Math.min(LINE_CHUNK, steps - i);
+    const chunkBump = { ...bump, peak: bump.peak - i * spacing };
+    writeRecord(
+      x0 + dx * i, y0 + dy * i, x0 + dx * (i + n), y0 + dy * (i + n), cs, sn,
+      bump.min, bump.max, n, index, 0, 1, chunkBump,
+    );
+    index += LINE_CHUNK / HASH_STEPS;
+  }
+  stroke.index = index;
+  growBounds(x0, y0, x1, y1, dotReach(param, pMin, pMax));
+}
+
+function writeRecord(x0, y0, x1, y1, cs, sn, p0, p1, count, index, naturalAngle, alphaScale, bump) {
   if ((segCount + 1) * SEG_WORDS > segData.length) {
     const next = new Float32Array(segData.length * 2);
     next.set(segData);
     segData = next;
     segSeeds = new Uint32Array(segData.buffer);
+    const groups = new Uint8Array(segGroups.length * 2);
+    groups.set(segGroups);
+    segGroups = groups;
   }
+  const param = stroke.param;
   const o = segCount * SEG_WORDS;
   segData[o] = x0;
   segData[o + 1] = y0;
@@ -380,30 +444,55 @@ export function queueSegment(x0, y0, x1, y1, cs, sn, p0, p1, count, naturalAngle
   segData[o + 7] = p1;
   segData[o + 8] = count;
   segData[o + 9] = stroke.alpha * alphaScale;
-  segData[o + 10] = stroke.index++;
+  segData[o + 10] = index;
   segData[o + 11] = naturalAngle;
   segSeeds[o + 12] = stroke.seed;
-  segData[o + 13] = sw;
+  segData[o + 13] = stroke.weight;
   segData[o + 14] = param.weight;
   segData[o + 15] = param.scatter;
   segData[o + 16] = param.sharpness ?? 0;
   segData[o + 17] = param.grain ?? 0;
+  segData[o + 18] = bump.peak;
+  segData[o + 19] = bump.halfBefore;
+  segData[o + 20] = bump.halfAfter;
+  segData[o + 21] = bump.exponent;
+  let group = 0;
+  while (GROUP_STEPS[group] < count) group++;
+  segGroups[segCount] = group;
   segCount++;
+}
 
-  // Conservative reach in logical units. Box-Muller from 24-bit uniforms
-  // stays below 6 sigma.
-  let reach;
-  if (param.type === "spray") {
-    reach = 1.1 * sw * param.scatter * (pMax + 2) + param.weight * 0.55;
-  } else if (param.type === "marker") {
-    reach = sw * param.scatter * 1.5 + sw * param.weight * pMax * 0.5;
-  } else if (param.type === "image" || param.type === "custom") {
-    reach = sw * param.scatter * 1.5 + sw * param.weight * pMax * 0.75 + stroke.overscan;
-  } else {
-    const pMin = Math.max(Math.min(p0, p1), 1e-3);
-    reach = sw * param.scatter * (param.sharpness + ((1 - param.sharpness) * 6) / pMin) * 1.05
-      + pMax * pMax * param.weight * 1.15 * sw;
+/** Spray steps need ceil(grain / p) dots; sizes the batch for the densest. */
+function growPerStep(grain, pMin) {
+  const needed = Math.ceil(grain / pMin);
+  if (!Number.isFinite(needed) || needed > 1_000_000) {
+    throw new Error("Spray pressure/grain must produce a bounded number of dots.");
   }
+  if (needed > perStep) perStep = needed;
+}
+
+/**
+ * How far (logical px) the current brush's dots can land from the path, for
+ * pressures between pMin and pMax. Box-Muller from 24-bit uniforms stays
+ * below 6 sigma.
+ */
+function dotReach(param, pMin, pMax) {
+  const sw = stroke.weight;
+  if (param.type === "spray") {
+    return 1.1 * sw * param.scatter * (pMax + 2) + param.weight * 0.55;
+  }
+  if (param.type === "marker") {
+    return sw * param.scatter * 1.5 + sw * param.weight * pMax * 0.5;
+  }
+  if (param.type === "image" || param.type === "custom") {
+    return sw * param.scatter * 1.5 + sw * param.weight * pMax * 0.75 + stroke.overscan;
+  }
+  const p = Math.max(pMin, 1e-3);
+  return sw * param.scatter * (param.sharpness + ((1 - param.sharpness) * 6) / p) * 1.05
+    + pMax * pMax * param.weight * 1.15 * sw;
+}
+
+function growBounds(x0, y0, x1, y1, reach) {
   // Plain comparisons: this runs per segment, where Math.min/max cost more.
   if (reach > segReach) segReach = reach;
   if (x0 < segMinX) segMinX = x0;
@@ -414,6 +503,36 @@ export function queueSegment(x0, y0, x1, y1, cs, sn, p0, p1, count, naturalAngle
   if (y0 > segMaxY) segMaxY = y0;
   if (y1 < segMinY) segMinY = y1;
   if (y1 > segMaxY) segMaxY = y1;
+}
+
+/**
+ * Orders the queued records by draw group into drawData and returns each
+ * group's range. Records keep their queue order within a group. With only
+ * path segments queued (one group), segData is drawn as it is.
+ * @returns {{data: Float32Array, groups: {first: number, count: number, steps: number}[]}}
+ */
+function sortIntoGroups() {
+  const sizes = new Array(GROUP_STEPS.length).fill(0);
+  for (let i = 0; i < segCount; i++) sizes[segGroups[i]]++;
+  if (sizes[0] === segCount) {
+    return { data: segData, groups: [{ first: 0, count: segCount, steps: GROUP_STEPS[0] }] };
+  }
+  if (drawData.length < segData.length) drawData = new Float32Array(segData.length);
+  const groups = [];
+  const next = [];
+  let first = 0;
+  for (let g = 0; g < GROUP_STEPS.length; g++) {
+    next.push(first);
+    if (sizes[g]) groups.push({ first, count: sizes[g], steps: GROUP_STEPS[g] });
+    first += sizes[g];
+  }
+  // Copy whole words through integer views, so the seeds' bits are untouched.
+  const from = new Uint32Array(segData.buffer), to = new Uint32Array(drawData.buffer);
+  for (let i = 0; i < segCount; i++) {
+    const o = next[segGroups[i]]++ * SEG_WORDS;
+    to.set(from.subarray(i * SEG_WORDS, (i + 1) * SEG_WORDS), o);
+  }
+  return { data: drawData, groups };
 }
 
 /**
@@ -478,11 +597,12 @@ export function flushStrokes() {
   gl.blendFuncSeparate(gl.ONE, gl.ONE, gl.ONE_MINUS_DST_ALPHA, gl.ONE);
   gl.bindVertexArray(prog.vao);
   gl.bindBuffer(gl.ARRAY_BUFFER, segBuf);
+  const { data, groups } = sortIntoGroups();
   if (segCount * SEG_WORDS * 4 > segGpuSize) {
-    gl.bufferData(gl.ARRAY_BUFFER, segData, gl.DYNAMIC_DRAW);
-    segGpuSize = segData.byteLength;
+    gl.bufferData(gl.ARRAY_BUFFER, data, gl.DYNAMIC_DRAW);
+    segGpuSize = data.byteLength;
   } else {
-    gl.bufferSubData(gl.ARRAY_BUFFER, 0, segData.subarray(0, segCount * SEG_WORDS));
+    gl.bufferSubData(gl.ARRAY_BUFFER, 0, data.subarray(0, segCount * SEG_WORDS));
   }
 
   gl.uniform4f(u.u_color, ...b.color);
@@ -518,7 +638,10 @@ export function flushStrokes() {
     gl.uniform3f(u.u_nib, Math.cos(nibAngle), Math.sin(nibAngle), nib ? Math.min(Math.max(nib.thickness ?? 0.25, 0.05), 1) : 1);
     gl.uniform1ui(u.u_paperSeed, seedHash() % 65536);
     if (b.param.type === "marker") setPaperUniforms(u, b);
-    gl.drawArraysInstanced(gl.POINTS, 0, segCount, SUBSTEPS * perStep);
+    for (const group of groups) {
+      pointAtRecord(dots, group.first);
+      gl.drawArraysInstanced(gl.POINTS, 0, group.steps * perStep, group.count);
+    }
   }
 
   gl.bindVertexArray(null);
