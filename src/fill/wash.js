@@ -10,7 +10,7 @@
 
 import { Cwidth, Cheight, Density, isCanvasReady } from "../core/target.js";
 import { Mix, State } from "../core/color.js";
-import { setFillTransform, queuePolygon, flushFill } from "./gl_fill.js";
+import { setFillTransform, queuePolygon } from "./gl_fill.js";
 import { Polygon } from "../core/polygon.js";
 import { Plot } from "../core/plot.js";
 import { createColor, getAffineMatrix } from "../core/runtime.js";
@@ -80,8 +80,9 @@ function drawWashPolygon(polygon) {
     Density * (m.x + Cwidth / 2),
     Density * (m.y + Cheight / 2),
   ]);
+  // Queued, not drawn: consecutive washes draw together, and the mask flushes
+  // itself before it is read or cleared.
   queuePolygon(polygon.vertices, State.wash.opacity / 255, 4);
-  flushFill();
 }
 
 // =============================================================================

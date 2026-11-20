@@ -10,7 +10,8 @@
  * and the composite shader turns it back into coverage, 1 − e^−r. That is
  * exactly what Canvas2D source-over painting produces, but every term is a
  * sum, so draw order does not matter. Polygons are filled by
- * stencil-then-cover (fan.vert), two draws each.
+ * stencil-then-cover (fan.vert), two draws per antialiasing sample; polygons
+ * that cannot share a pixel share those draws.
  */
 
 import { Renderer, Cwidth, Cheight, Density } from "../core/target.js";
@@ -50,8 +51,12 @@ const wet = { program: null, vao: null };
 let fanData = new Float32Array(4096 * FAN_WORDS);
 let fanCount = 0;
 // Queued polygons: first triangle, triangle count, log-domain weight,
-// antialiasing sample count and silhouette flag.
+// antialiasing sample count, silhouette flag, and padded device-pixel bounds
+// (minX, minY, maxX, maxY).
+const POLY_WORDS = 9;
 let polygons = [];
+// The queued fans regrouped for drawing (see groupPolygons).
+let drawData = new Float32Array(4096 * FAN_WORDS);
 
 // User space → device pixels (a, b, c, d, e, f, as in DOMMatrix).
 const matrix = new Float64Array(6);
@@ -154,6 +159,7 @@ function markBounds(minX, minY, maxX, maxY) {
     if (x1 > dirtyRect.maxX) dirtyRect.maxX = x1;
     if (y1 > dirtyRect.maxY) dirtyRect.maxY = y1;
   }
+  return [x0, y0, x1, y1];
 }
 
 /**
@@ -196,7 +202,7 @@ export function queuePolygon(vertices, alpha, samples = 2, shape = false) {
   cy /= n;
 
   growFan(n);
-  polygons.push(fanCount, n, logWeight(alpha), samples, shape ? 1 : 0);
+  polygons.push(fanCount, n, logWeight(alpha), samples, shape ? 1 : 0, ...markBounds(minX, minY, maxX, maxY));
   let o = fanCount * FAN_WORDS;
   for (let i = 0; i < n; i++, o += FAN_WORDS) {
     const p = vertices[i];
@@ -209,7 +215,56 @@ export function queuePolygon(vertices, alpha, samples = 2, shape = false) {
     fanData[o + 5] = q.y;
   }
   fanCount += n;
-  markBounds(minX, minY, maxX, maxY);
+}
+
+/**
+ * Regroups the queued polygons so that polygons that cannot share a pixel are
+ * drawn together. A polygon goes one level above every earlier polygon whose
+ * bounds it touches, so polygons on one level are disjoint, and at any pixel
+ * the polygons covering it still paint in the order they were queued: the
+ * mask comes out bit for bit the same, in far fewer draws when many small
+ * polygons are queued. Copies the fans into drawData, group by group.
+ * @returns {{first: number, count: number, weight: number, samples: number, shape: number}[]}
+ */
+function groupPolygons() {
+  const n = polygons.length / POLY_WORDS;
+  const level = new Int32Array(n);
+  const groups = new Map();
+  for (let i = 0; i < n; i++) {
+    const a = i * POLY_WORDS;
+    let l = 0;
+    for (let j = 0; j < i; j++) {
+      const b = j * POLY_WORDS;
+      if (level[j] >= l &&
+          polygons[a + 5] <= polygons[b + 7] && polygons[b + 5] <= polygons[a + 7] &&
+          polygons[a + 6] <= polygons[b + 8] && polygons[b + 6] <= polygons[a + 8]) {
+        l = level[j] + 1;
+      }
+    }
+    level[i] = l;
+    const key = `${l}|${polygons[a + 2]}|${polygons[a + 3]}|${polygons[a + 4]}`;
+    let group = groups.get(key);
+    if (!group) {
+      group = { level: l, polys: [], weight: polygons[a + 2], samples: polygons[a + 3], shape: polygons[a + 4] };
+      groups.set(key, group);
+    }
+    group.polys.push(a);
+  }
+
+  if (drawData.length < fanData.length) drawData = new Float32Array(fanData.length);
+  const ordered = [...groups.values()].sort((g, h) => g.level - h.level);
+  let o = 0;
+  for (const group of ordered) {
+    group.first = o / FAN_WORDS;
+    for (const a of group.polys) {
+      const start = polygons[a] * FAN_WORDS;
+      const words = polygons[a + 1] * FAN_WORDS;
+      drawData.set(fanData.subarray(start, start + words), o);
+      o += words;
+    }
+    group.count = o / FAN_WORDS - group.first;
+  }
+  return ordered;
 }
 
 /**
@@ -262,13 +317,14 @@ export function flushFill() {
     gl.useProgram(fan.program);
     gl.uniformMatrix3fv(fan.uMatrix, false, clip);
     gl.bindVertexArray(fan.vao);
-    upload(fan, fanData, fanCount, FAN_WORDS);
+    const groups = groupPolygons();
+    upload(fan, drawData, fanCount, FAN_WORDS);
     gl.enable(gl.STENCIL_TEST);
     gl.stencilMask(0xff);
-    for (let k = 0; k < polygons.length; k += 5) {
-      const first = polygons[k] * 3;
-      const count = polygons[k + 1] * 3;
-      const jitter = JITTER[polygons[k + 3]];
+    for (const group of groups) {
+      const first = group.first * 3;
+      const count = group.count * 3;
+      const jitter = JITTER[group.samples];
       for (const [jx, jy] of jitter) {
         gl.uniform2f(fan.uJitter, (2 * jx) / w, (2 * jy) / h);
         // Count the winding number: front faces add, back faces subtract.
@@ -281,8 +337,8 @@ export function flushFill() {
         gl.colorMask(true, true, true, true);
         gl.stencilFunc(gl.NOTEQUAL, 0, 0xff);
         gl.stencilOp(gl.KEEP, gl.KEEP, gl.ZERO);
-        gl.uniform1f(fan.uWeight, polygons[k + 2] / jitter.length);
-        gl.uniform1f(fan.uShape, polygons[k + 4]);
+        gl.uniform1f(fan.uWeight, group.weight / jitter.length);
+        gl.uniform1f(fan.uShape, group.shape);
         gl.drawArrays(gl.TRIANGLES, first, count);
       }
     }
