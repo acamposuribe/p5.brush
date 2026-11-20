@@ -7,8 +7,9 @@
  * or textured stamps (stamps.vert) and draw them into the shared
  * framebuffer-backed brush mask.
  *
- * Consecutive strokes that share brush, colour, transform, clip and target are
- * drawn together in one call. The queue is flushed when that state changes
+ * Consecutive strokes that share a brush type, colour, transform, clip and
+ * target are drawn together in one call, whatever their brush's weight,
+ * scatter, sharpness or grain. The queue is flushed when that state changes
  * and before the brush mask is cleared or composited.
  */
 
@@ -70,9 +71,11 @@ let _ma = 1,
   _scale = 1,
   _density = 1;
 
-// Segment layout (13 words): startX, startY, endX, endY, cos, sin,
-// pressure0, pressure1, count, alpha, segIndex, naturalAngle, seed (uint)
-const SEG_WORDS = 14;
+// Segment layout (18 words): startX, startY, endX, endY, cos, sin,
+// pressure0, pressure1, count, alpha, segIndex, naturalAngle, seed (uint),
+// stroke weight, brush weight, scatter, sharpness, grain. The brush's shape
+// travels with each segment, so brushes that share a shader share a batch.
+const SEG_WORDS = 18;
 let segData = new Float32Array(1024 * SEG_WORDS);
 let segSeeds = new Uint32Array(segData.buffer);
 let segCount = 0;
@@ -244,15 +247,16 @@ export function isReady() {
   const attributes = [
     ["a_start", 2, 0], ["a_end", 2, 8], ["a_dir", 2, 16],
     ["a_pressure", 2, 24], ["a_info", 4, 32], ["a_seed", 1, 48], ["a_weight", 1, 52],
+    ["a_brush", 4, 56],
   ];
   setupProgram(dots, dotsVertSrc, dotsFragSrc, attributes, [
     "u_matrix", "u_affine", "u_translate", "u_half", "u_sizeScale", "u_density",
-    "u_type", "u_perStep", "u_brush",
+    "u_type", "u_perStep",
     "u_color", "u_affineCircle", "u_tipInverse", "u_specks", "u_paperSeed", "u_paperInverse", "u_paperPx", "u_nib", ...CLIP_UNIFORMS,
   ], 0);
   setupProgram(stamps, stampsVertSrc, stampsFragSrc, attributes, [
     "u_proj", "u_tipLinear", "u_translate", "u_half", "u_substeps",
-    "u_rotate", "u_brush", "u_color", "u_tex", ...CLIP_UNIFORMS,
+    "u_rotate", "u_color", "u_tex", ...CLIP_UNIFORMS,
   ], SUBSTEPS);
 
   isLoaded = true;
@@ -277,7 +281,11 @@ export function beginStroke(seed, alpha, param, tip = null) {
     gl, Mix.glMask, framebufferProjMatrix, State.stroke.clip, tip?.key,
     color[0], color[1], color[2], color[3],
     _ma, _mb, _mc, _md, _mx, _my, _halfW, _halfH, _density, _scale, _affineCircle, ..._tipInverse,
-    param.type, param.rotate, param.weight, param.scatter, param.sharpness, param.grain,
+    // Only what the shaders read as uniforms; the brush's shape is per segment.
+    param.type,
+    param.type === "image" || param.type === "custom" ? param.rotate : null,
+    param.type === "marker" ? param.nib?.angle : null,
+    param.type === "marker" ? param.nib?.thickness : null,
   ];
   if (segCount > 0 && (!batch || key.some((v, i) => v !== batch.key[i]))) flushStrokes();
   if (segCount === 0) {
@@ -360,6 +368,10 @@ export function queueSegment(x0, y0, x1, y1, cs, sn, p0, p1, count, naturalAngle
   segData[o + 11] = naturalAngle;
   segSeeds[o + 12] = stroke.seed;
   segData[o + 13] = sw;
+  segData[o + 14] = param.weight;
+  segData[o + 15] = param.scatter;
+  segData[o + 16] = param.sharpness ?? 0;
+  segData[o + 17] = param.grain ?? 0;
   segCount++;
 
   // Conservative reach in logical units. Box-Muller from 24-bit uniforms
@@ -446,7 +458,6 @@ export function flushStrokes() {
     gl.uniformMatrix2fv(u.u_tipLinear, false, b.affine);
     gl.uniform1i(u.u_substeps, SUBSTEPS);
     gl.uniform1i(u.u_rotate, ROTATE_MODES[b.param.rotate] ?? 0);
-    gl.uniform2f(u.u_brush, b.param.weight, b.param.scatter);
     gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, segCount * SUBSTEPS);
     gl.bindTexture(gl.TEXTURE_2D, null);
   } else {
@@ -456,7 +467,6 @@ export function flushStrokes() {
     gl.uniform1f(u.u_density, b.density);
     gl.uniform1i(u.u_type, DOT_TYPES[b.param.type] ?? 0);
     gl.uniform1i(u.u_perStep, perStep);
-    gl.uniform4f(u.u_brush, b.param.weight, b.param.scatter, b.param.sharpness ?? 0, b.param.grain ?? 0);
     gl.uniform1i(u.u_affineCircle, b.affineCircle);
     gl.uniformMatrix2fv(u.u_tipInverse, false, b.tipInverse);
     gl.uniform1f(u.u_specks, b.param.type === "marker" ? 1 : 0);
