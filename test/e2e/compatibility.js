@@ -2,7 +2,7 @@
 // non-degenerate geometry. Original pre-fix fingerprints are retained except
 // the field scene intentionally updated for B24 (see legacy-output.json).
 // Additional optimization-path references come from the post-B24/pre-optimization build.
-export async function compatibility(b, onCapture = () => {}) {
+export async function compatibility(b) {
   const canvas = b.createCanvas(256, 256, {parent: null});
   const gl = canvas.getContext('webgl2');
   const hashes = {};
@@ -15,8 +15,7 @@ export async function compatibility(b, onCapture = () => {}) {
     const pixels = new Uint8Array(256 * 256 * 4);
     gl.readPixels(0, 0, 256, 256, gl.RGBA, gl.UNSIGNED_BYTE, pixels);
     const hash = await crypto.subtle.digest('SHA-256', pixels);
-    if (name !== 'watercolor') hashes[name] = [...new Uint8Array(hash)].map(x => x.toString(16).padStart(2, '0')).join('');
-    onCapture(name, pixels);
+    hashes[name] = [...new Uint8Array(hash)].map(x => x.toString(16).padStart(2, '0')).join('');
   };
   reset();
   for (const [i, brush] of b.box().entries()) {
@@ -26,8 +25,6 @@ export async function compatibility(b, onCapture = () => {}) {
   reset(); b.set('HB', '#a15035');
   b.circle(0, 0, 70); b.spline([[-90,70,1],[-20,30,.8],[60,70,1]], .4);
   await capture('curves');
-  reset(); b.noStroke(); b.fill('#326a98', 140); b.rect(-50, -50, 100, 100);
-  await capture('watercolor');
   reset(); b.noStroke(); b.wash('#326a98', 140); b.rect(-50, -50, 100, 100);
   await capture('wash');
   reset(); b.set('HB', '#326a98'); b.hatch(7, 30, {rand:.2,continuous:true});

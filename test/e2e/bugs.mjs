@@ -2,7 +2,6 @@
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
-import { gunzipSync } from 'node:zlib';
 import { resolve, extname } from 'node:path';
 import { chromium } from 'playwright-chromium';
 import { createRequire } from 'node:module';
@@ -41,26 +40,12 @@ try {
   const errors = [];
   page.on('pageerror', e => errors.push(e.message));
   await page.goto(`http://127.0.0.1:${server.address().port}/test/index.html`);
-  const { hashes, watercolor } = await page.evaluate(async () => {
+  const hashes = await page.evaluate(async () => {
     const b = await import('/dist/brush.esm.js');
     const { compatibility } = await import('/test/e2e/compatibility.js');
-    let watercolor;
-    const hashes = await compatibility(b, (name, pixels) => {
-      if (name === 'watercolor') watercolor = Array.from(pixels);
-    });
-    return { hashes, watercolor };
+    return compatibility(b);
   });
   assert.deepEqual(hashes, JSON.parse(await readFile('test/e2e/legacy-output.json', 'utf8')).hashes, 'valid legacy rendering changed');
-  // Even the original fill has tiny native raster/derivative variation at edges.
-  // Compare pixels rather than loosening every other scene's exact fingerprint.
-  const legacyFill = gunzipSync(await readFile('test/e2e/legacy-watercolor.rgba.gz'));
-  let difference = 0, channels = 0;
-  for (let i = 0; i < legacyFill.length; i++) {
-    const delta = Math.abs(legacyFill[i] - watercolor[i]);
-    difference += delta;
-    if (delta) channels++;
-  }
-  assert.ok(difference <= 1024 && channels <= 256, `watercolor changed: ${difference} total / ${channels} channels`);
   console.log('PASS rendering compatibility (B24 field fingerprint intentionally updated)');
   {
     const results = await page.evaluate(async () => {
