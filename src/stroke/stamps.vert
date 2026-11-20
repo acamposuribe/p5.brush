@@ -10,6 +10,7 @@ in vec2 a_end;       // segment end, after a_info.x steps
 in vec2 a_pressure;  // pressure at segment start and end
 in vec4 a_info;      // (step count, stroke alpha 0..255, segment index, natural angle in radians)
 in uint a_seed;      // per-stroke seed
+in float a_weight;   // stroke weight (per segment, so weights share a batch)
 
 uniform mat4 u_proj;
 uniform mat2 u_tipLinear;  // ma, mb, mc, md
@@ -18,7 +19,6 @@ uniform vec2 u_half;       // Cwidth / 2, Cheight / 2
 uniform int u_substeps;
 uniform int u_rotate;      // 0 none, 1 random, 2 natural
 uniform vec2 u_brush;      // weight, scatter
-uniform float u_strokeWeight;
 
 out vec2  v_uv;
 out float v_alpha;
@@ -39,7 +39,7 @@ void main() {
     float count = a_info.x;
     float t = float(step) / count;
     float p = mix(a_pressure.x, a_pressure.y, t);
-    float size = u_brush.x * u_strokeWeight * p;
+    float size = u_brush.x * a_weight * p;
     if (float(step) >= count || size <= 0.0) {
         gl_Position = vec4(2.0, 2.0, 2.0, 1.0);
         v_uv = vec2(0.0);
@@ -48,7 +48,7 @@ void main() {
     }
 
     uint s = pcg(a_seed ^ pcg(uint(a_info.z) * 64u + uint(step)));
-    float vibration = u_strokeWeight * u_brush.y;
+    float vibration = a_weight * u_brush.y;
     vec2 offset = vibration * vec2(rand(s) * 2.0 - 1.0, rand(s) * 2.0 - 1.0);
     float angle = u_rotate == 1 ? floor(rand(s) * 360.0) * 0.017453292519943295
                 : u_rotate == 2 ? a_info.w

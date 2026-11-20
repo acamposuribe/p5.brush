@@ -16,6 +16,7 @@ in vec2 a_dir;       // (cos, sin) of the travel direction, for dispersion
 in vec2 a_pressure;  // pressure at segment start and end
 in vec4 a_info;      // (step count, stroke alpha 0..255, segment index, unused)
 in uint a_seed;      // per-stroke seed
+in float a_weight;   // stroke weight (per segment, so weights share a batch)
 
 uniform mat4 u_matrix;
 uniform vec4 u_affine;     // ma, mb, mc, md
@@ -26,7 +27,6 @@ uniform float u_density;
 uniform int u_type;        // 0 default, 1 spray, 2 marker
 uniform int u_perStep;     // instances per step (spray dot capacity, else 1)
 uniform vec4 u_brush;      // weight, scatter, sharpness, grain
-uniform float u_strokeWeight;
 uniform vec3 u_nib;        // markers: flat nib (cos, sin of its angle, thickness); thickness 1 is round
 
 out float v_alpha;
@@ -69,7 +69,7 @@ void main() {
     if (float(step) >= count || p <= 0.0) { cull(); return; }
 
     float weight = u_brush.x, scatter = u_brush.y, sharpness = u_brush.z, grain = u_brush.w;
-    float sw = u_strokeWeight;
+    float sw = a_weight;
     float alpha = a_info.y;
     uint s = pcg(a_seed ^ pcg(uint(a_info.z) * 64u + uint(step)));
     vec2 offset;
