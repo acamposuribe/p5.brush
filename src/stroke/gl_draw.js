@@ -79,7 +79,11 @@ const SEG_WORDS = 18;
 let segData = new Float32Array(1024 * SEG_WORDS);
 let segSeeds = new Uint32Array(segData.buffer);
 let segCount = 0;
-let segDirtyRect = null;
+// Bounds of the queued segments' endpoints in position space, and the largest
+// dot reach (logical px). The batch shares one transform, so they map to the
+// mask's dirty rect once, at flush, instead of once per segment.
+let segMinX = Infinity, segMinY = Infinity, segMaxX = -Infinity, segMaxY = -Infinity;
+let segReach = 0;
 let perStep = 1; // spray dots per step needed by the current batch
 
 // The stroke being queued, and the batch it belongs to. Everything the shaders
@@ -151,15 +155,6 @@ function ensureBrushMaskTarget() {
   rendererMask.isDrawn ??= false;
   Mix.glMask = rendererMask;
   return rendererMask;
-}
-
-function accumulateDirtyRect(currentRect, minX, minY, maxX, maxY) {
-  if (!currentRect) return { minX, minY, maxX, maxY };
-  if (minX < currentRect.minX) currentRect.minX = minX;
-  if (minY < currentRect.minY) currentRect.minY = minY;
-  if (maxX > currentRect.maxX) currentRect.maxX = maxX;
-  if (maxY > currentRect.maxY) currentRect.maxY = maxY;
-  return currentRect;
 }
 
 /**
@@ -276,21 +271,11 @@ export function isReady() {
  */
 export function beginStroke(seed, alpha, param, tip = null) {
   const color = State.stroke.color._array;
-  const strokeWeight = State.stroke.weight;
-  const key = [
-    gl, Mix.glMask, framebufferProjMatrix, State.stroke.clip, tip?.key,
-    color[0], color[1], color[2], color[3],
-    _ma, _mb, _mc, _md, _mx, _my, _halfW, _halfH, _density, _scale, _affineCircle, ..._tipInverse,
-    // Only what the shaders read as uniforms; the brush's shape is per segment.
-    param.type,
-    param.type === "image" || param.type === "custom" ? param.rotate : null,
-    param.type === "marker" ? param.nib?.angle : null,
-    param.type === "marker" ? param.nib?.thickness : null,
-  ];
-  if (segCount > 0 && (!batch || key.some((v, i) => v !== batch.key[i]))) flushStrokes();
+  if (segCount > 0 && !joinsBatch(batch, param, tip, color)) flushStrokes();
   if (segCount === 0) {
     batch = {
-      key,
+      gl,
+      mask: Mix.glMask,
       tip,
       projection: framebufferProjMatrix,
       color: [...color],
@@ -298,6 +283,7 @@ export function beginStroke(seed, alpha, param, tip = null) {
       affine: [_ma, _mb, _mc, _md],
       translate: [_mx, _my],
       half: [_halfW, _halfH],
+      scale: _scale,
       sizeScale: _density * _scale,
       density: _density,
       affineCircle: _affineCircle,
@@ -310,7 +296,37 @@ export function beginStroke(seed, alpha, param, tip = null) {
   stroke.index = 0;
   stroke.start = segCount;
   stroke.param = param;
-  stroke.weight = strokeWeight;
+  stroke.weight = State.stroke.weight;
+}
+
+/**
+ * Whether a stroke can join the queued batch. Everything the shaders read as
+ * a uniform must match: target, colour, transform, and the brush state that
+ * is not per segment (type, stamp tip and rotation, marker nib).
+ */
+function joinsBatch(b, param, tip, color) {
+  if (!b) return false;
+  const sameTarget =
+    b.gl === gl && b.mask === Mix.glMask &&
+    b.projection === framebufferProjMatrix && b.clip === State.stroke.clip;
+  const sameColor = sameValues(b.color, color);
+  const sameTransform =
+    b.affine[0] === _ma && b.affine[1] === _mb && b.affine[2] === _mc && b.affine[3] === _md &&
+    b.translate[0] === _mx && b.translate[1] === _my &&
+    b.half[0] === _halfW && b.half[1] === _halfH &&
+    b.density === _density && b.scale === _scale &&
+    b.affineCircle === _affineCircle && sameValues(b.tipInverse, _tipInverse);
+  const p = b.param;
+  const sameBrush =
+    p.type === param.type && b.tip?.key === tip?.key &&
+    p.rotate === param.rotate &&
+    p.nib?.angle === param.nib?.angle && p.nib?.thickness === param.nib?.thickness;
+  return sameTarget && sameColor && sameTransform && sameBrush;
+}
+
+function sameValues(a, b) {
+  for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false;
+  return true;
 }
 
 /**
@@ -388,18 +404,47 @@ export function queueSegment(x0, y0, x1, y1, cs, sn, p0, p1, count, naturalAngle
     reach = sw * param.scatter * (param.sharpness + ((1 - param.sharpness) * 6) / pMin) * 1.05
       + pMax * pMax * param.weight * 1.15 * sw;
   }
-  const r = reach * _scale * _density + 1;
-  const ax = (_ma * (x0 - _halfW) + _mc * (y0 - _halfH) + _mx + _halfW) * _density;
-  const ay = (_mb * (x0 - _halfW) + _md * (y0 - _halfH) + _my + _halfH) * _density;
-  const bx = (_ma * (x1 - _halfW) + _mc * (y1 - _halfH) + _mx + _halfW) * _density;
-  const by = (_mb * (x1 - _halfW) + _md * (y1 - _halfH) + _my + _halfH) * _density;
-  segDirtyRect = accumulateDirtyRect(
-    segDirtyRect,
-    Math.min(ax, bx) - r,
-    Math.min(ay, by) - r,
-    Math.max(ax, bx) + r,
-    Math.max(ay, by) + r,
-  );
+  // Plain comparisons: this runs per segment, where Math.min/max cost more.
+  if (reach > segReach) segReach = reach;
+  if (x0 < segMinX) segMinX = x0;
+  if (x0 > segMaxX) segMaxX = x0;
+  if (x1 < segMinX) segMinX = x1;
+  if (x1 > segMaxX) segMaxX = x1;
+  if (y0 < segMinY) segMinY = y0;
+  if (y0 > segMaxY) segMaxY = y0;
+  if (y1 < segMinY) segMinY = y1;
+  if (y1 > segMaxY) segMaxY = y1;
+}
+
+/**
+ * The device-pixel rect the queued segments can touch: their endpoint bounds
+ * through the batch's transform, padded by the largest dot reach.
+ */
+function segmentsDirtyRect(b) {
+  const [a, bb, c, d] = b.affine;
+  const [tx, ty] = b.translate;
+  const [hw, hh] = b.half;
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  for (const x of [segMinX, segMaxX]) {
+    for (const y of [segMinY, segMaxY]) {
+      const dx = (a * (x - hw) + c * (y - hh) + tx + hw) * b.density;
+      const dy = (bb * (x - hw) + d * (y - hh) + ty + hh) * b.density;
+      if (dx < minX) minX = dx;
+      if (dx > maxX) maxX = dx;
+      if (dy < minY) minY = dy;
+      if (dy > maxY) maxY = dy;
+    }
+  }
+  const r = segReach * b.scale * b.density + 1;
+  return { minX: minX - r, minY: minY - r, maxX: maxX + r, maxY: maxY + r };
+}
+
+function resetSegments() {
+  segCount = 0;
+  perStep = 1;
+  segMinX = segMinY = Infinity;
+  segMaxX = segMaxY = -Infinity;
+  segReach = 0;
 }
 
 /**
@@ -417,9 +462,7 @@ export function flushStrokes() {
   const b = batch;
   // The context may have been lost since the batch started.
   if (!gl || gl.isContextLost?.() || !Mix.glMask || !b) {
-    segCount = 0;
-    segDirtyRect = null;
-    perStep = 1;
+    resetSegments();
     return;
   }
 
@@ -481,12 +524,8 @@ export function flushStrokes() {
   gl.bindVertexArray(null);
   endDirectMaskDraw(Renderer, gl, targetState);
 
-  if (segDirtyRect) {
-    Mix.markDirtyRect(Mix.glMask, segDirtyRect);
-    segDirtyRect = null;
-  }
-  segCount = 0;
-  perStep = 1;
+  Mix.markDirtyRect(Mix.glMask, segmentsDirtyRect(b));
+  resetSegments();
 
   // We called gl.useProgram() directly, bypassing host shader tracking.
   // Reset it so the host is forced to re-activate its own shader next time
