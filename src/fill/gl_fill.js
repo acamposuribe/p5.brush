@@ -129,6 +129,8 @@ function upload(target, data, count, words) {
 // =============================================================================
 
 const logWeight = (alpha) => -Math.log1p(-Math.min(alpha, MAX_ALPHA));
+// Paint whose coverage alone rounds to full in 8 bits (an opaque wash).
+const OPAQUE_WEIGHT = Math.log(512);
 
 function growFan(extra) {
   if ((fanCount + extra) * FAN_WORDS <= fanData.length) return;
@@ -203,10 +205,13 @@ export function queuePolygon(vertices, alpha, samples = 2, shape = false) {
 
   growFan(n);
   polygons.push(fanCount, n, logWeight(alpha), samples, shape ? 1 : 0, ...markBounds(minX, minY, maxX, maxY));
+  // Every fan winds the same way, so polygons stencilled together add up
+  // instead of cancelling where they overlap.
+  const flip = area < 0;
   let o = fanCount * FAN_WORDS;
   for (let i = 0; i < n; i++, o += FAN_WORDS) {
-    const p = vertices[i];
-    const q = vertices[i + 1 < n ? i + 1 : 0];
+    const p = vertices[flip ? (i + 1 < n ? i + 1 : 0) : i];
+    const q = vertices[flip ? i : (i + 1 < n ? i + 1 : 0)];
     fanData[o] = cx;
     fanData[o + 1] = cy;
     fanData[o + 2] = p.x;
@@ -220,10 +225,8 @@ export function queuePolygon(vertices, alpha, samples = 2, shape = false) {
 /**
  * Regroups the queued polygons so that polygons that cannot share a pixel are
  * drawn together. A polygon goes one level above every earlier polygon whose
- * bounds it touches, so polygons on one level are disjoint, and at any pixel
- * the polygons covering it still paint in the order they were queued: the
- * mask comes out bit for bit the same, in far fewer draws when many small
- * polygons are queued. Copies the fans into drawData, group by group.
+ * bounds it touches, so polygons on one level are disjoint and each pixel
+ * still paints in queue order. Copies the fans into drawData, group by group.
  * @returns {{first: number, count: number, weight: number, samples: number, shape: number}[]}
  */
 function groupPolygons() {
@@ -232,8 +235,11 @@ function groupPolygons() {
   const groups = new Map();
   for (let i = 0; i < n; i++) {
     const a = i * POLY_WORDS;
-    let l = 0;
-    for (let j = 0; j < i; j++) {
+    // An opaque polygon looks the same however many overlap it, so opaque
+    // polygons all share one level, drawn first, with no overlap test.
+    const opaque = polygons[a + 2] >= OPAQUE_WEIGHT && polygons[a + 4] === 0;
+    let l = opaque ? -1 : 0;
+    for (let j = 0; j < i && !opaque; j++) {
       const b = j * POLY_WORDS;
       if (level[j] >= l &&
           polygons[a + 5] <= polygons[b + 7] && polygons[b + 5] <= polygons[a + 7] &&
