@@ -31,7 +31,7 @@ import {
 import { createColor, getAffineMatrix } from "../core/runtime.js";
 import { Position, isFieldReady } from "../core/flowfield.js";
 import { Polygon } from "../core/polygon.js";
-import { Plot } from "../core/plot.js";
+import { Plot, pathPoint } from "../core/plot.js";
 import { createTipSurface, loadImageTip } from "./runtime.js";
 
 // Internal module imports
@@ -43,7 +43,11 @@ import {
   snapshotMatrix,
   beginStroke,
   queueSegment,
-  queueLine,
+  queuePiece,
+  setStrokePressure,
+  PRESSURE_BUMP,
+  PRESSURE_CUSTOM,
+  TABLE_SAMPLES,
   discardStroke,
   setStrokeOverscan,
 } from "./gl_draw.js";
@@ -162,6 +166,18 @@ export function normalizePressure(p) {
         t < 0.5 ? ns + (nm - ns) * t * 2 : nm + (ne - nm) * (t - 0.5) * 2,
     };
   }
+}
+
+/**
+ * A custom pressure curve sampled for the GPU (pressure.glsl): TABLE_SAMPLES
+ * values for t from 0 to 1.
+ * @param {(t: number) => number} curve
+ * @returns {Float32Array}
+ */
+function sampleCurve(curve) {
+  const table = new Float32Array(TABLE_SAMPLES);
+  for (let i = 0; i < TABLE_SAMPLES; i++) table[i] = curve(i / (TABLE_SAMPLES - 1));
+  return table;
 }
 
 export function add(name, params) {
@@ -371,8 +387,9 @@ function draw(angleScale, isPlot) {
   if (!isPlot) _dir = angleScale;
   try {
     saveState();
-    if (!isPlot && walksOnGpu()) queueStraight(totalSteps, stepSize);
-    else drawSegments(totalSteps, stepSize, isPlot, angleScale);
+    // A flow field bends the path step by step, so only the CPU can walk it.
+    if (State.field.isActive) drawSegments(totalSteps, stepSize, isPlot, angleScale);
+    else walkOnGpu(totalSteps, stepSize, isPlot ? angleScale : 1);
     markerTip();
   } catch (error) {
     discardStroke();
@@ -384,10 +401,11 @@ function draw(angleScale, isPlot) {
 const SEGMENT_LENGTH = 4;
 
 /**
- * Walks the path in segments of up to SEGMENT_LENGTH logical px (and at most
- * SUBSTEPS fine steps) and queues them for the GPU, which expands each
- * segment into the brush's dots or stamps. Pressure is evaluated at segment
- * ends and interpolated along each segment.
+ * Walks a stroke through a flow field on the CPU, in segments of up to
+ * SEGMENT_LENGTH logical px (and at most SUBSTEPS fine steps), and queues
+ * them for the GPU, which expands each segment into the brush's dots or
+ * stamps. Pressure is evaluated at segment ends and interpolated along each
+ * segment.
  */
 function drawSegments(totalSteps, stepSize, isPlot, angleScale) {
   const steps = Math.max(1, Math.min(SUBSTEPS, Math.round(SEGMENT_LENGTH / stepSize)));
@@ -422,47 +440,120 @@ function drawSegments(totalSteps, stepSize, isPlot, angleScale) {
   }
 }
 
+// A line is a single straight piece, reused from stroke to stroke.
+const LINE = [{ x: 0, y: 0, heading: 0, turn: 0, start: 0, length: 0, pressure: 1, pressureSlope: 0 }];
+
 /**
- * Whether a straight stroke can be walked on the GPU: its brush draws dots,
- * its pressure is the default bump, and no flow field bends it. Others are
- * walked here, segment by segment.
+ * Queues the stroke for the GPU to walk (gl_draw.js queuePiece()): its path
+ * as straight runs and arcs, and its pressure, with no per-step work here.
+ * Steps fall at 0, stepSize, … (totalSteps − 1) × stepSize along the path,
+ * in position space; `scale` is the plot's scale (1 for lines).
  */
-function walksOnGpu() {
-  const type = current.p.type;
-  return !State.field.isActive && !current.isCustomPressure && type !== "image" && type !== "custom";
+function walkOnGpu(totalSteps, stepSize, scale) {
+  const length = totalSteps * stepSize;
+  let pieces = LINE;
+  if (_plot) {
+    pieces = _plot.pieces(_position.x, _position.y, scale);
+  } else {
+    const line = LINE[0];
+    line.x = _position.x;
+    line.y = _position.y;
+    line.heading = (_dir * Math.PI) / 180;
+    line.length = length;
+  }
+  if (pieces.length === 0) return;
+  setStrokePressure(gpuPressure(scale, totalSteps, stepSize));
+  // Each piece takes the steps that fall on it; the last also takes any that
+  // the rounding of totalSteps puts past the path's end.
+  for (let i = 0; i < pieces.length; i++) {
+    const piece = pieces[i];
+    const first = Math.ceil(piece.start / stepSize);
+    const end = i === pieces.length - 1
+      ? totalSteps
+      : Math.min(totalSteps, Math.ceil((piece.start + piece.length) / stepSize));
+    queuePiece(piece, first, end - first, stepSize);
+  }
+  // Leave the position where the CPU walk would: one step past the last.
+  const last = pieces[pieces.length - 1];
+  [_position.x, _position.y] = pathPoint(last, length - last.start);
+  _position.plotted = length / scale;
 }
 
 /**
- * Queues a straight stroke whole (gl_draw.js queueLine): the GPU computes
- * every step's position and pressure, so there is no per-step work here.
- * Steps fall at 0, stepSize, … (totalSteps − 1) × stepSize along the line.
+ * The stroke's pressure for the GPU walk (pressure.glsl): the default bump or
+ * the brush's custom curve, with distances in position space, and the range
+ * it stays within along the stroke. The object is reused from stroke to
+ * stroke; gl_draw.js reads it as it queues.
  */
-function queueStraight(totalSteps, stepSize) {
-  const x0 = _position.x, y0 = _position.y;
-  const length = stepSize * totalSteps;
-  _position.x += length * current.cos;
-  _position.y -= length * current.sin;
-  _position.plotted += length;
+function gpuPressure(scale, totalSteps, stepSize) {
+  const custom = current.isCustomPressure;
+  const pressure = GPU_PRESSURE;
+  pressure.model = custom ? PRESSURE_CUSTOM : PRESSURE_BUMP;
+  pressure.from = current.min;
+  pressure.to = current.max;
+  pressure.length = _length * scale;
+  const shape = pressure.shape;
+  if (custom) {
+    shape[0] = current.ct;
+    shape[1] = current.cs;
+    shape[2] = current.cp;
+    shape[3] = current.ck;
+    // Sampled on first use, so the curve runs only once a stroke needs it.
+    pressure.table = current.p.pressure.table ??= sampleCurve(current.p.pressure.curve);
+  } else {
+    shape[0] = current.peak * scale;
+    shape[1] = current.halfBefore * scale;
+    shape[2] = current.halfAfter * scale;
+    shape[3] = 2 * current.cp;
+    pressure.table = null;
+  }
+  setPressureRange(pressure, ((totalSteps - 1) * stepSize) / scale);
+  return pressure;
+}
 
-  // The bump is highest at its peak and falls away on both sides, so the
-  // pressure's extremes lie at the ends or at the peak.
-  const last = length - stepSize;
-  const samples = [gauss(0), gauss(last)];
-  if (current.peak > 0 && current.peak < last) samples.push(gauss(current.peak));
-  const pMin = Math.min(...samples), pMax = Math.max(...samples);
-  if (!Number.isFinite(pMin) || !Number.isFinite(pMax)) {
+/**
+ * Sets the range the stroke's pressure stays within, up to its last step at
+ * distance `last` (in the plot's units): `min`, `max` and the lowest positive
+ * value, `minPositive`, including the plot's own pressure. The bump's
+ * extremes lie at its ends and its peak; a custom curve is sampled.
+ */
+function setPressureRange(pressure, last) {
+  let min = Infinity, max = -Infinity, minPositive = Infinity;
+  const include = (p) => {
+    if (p < min) min = p;
+    if (p > max) max = p;
+    if (p > 0 && p < minPositive) minPositive = p;
+  };
+  if (current.isCustomPressure) {
+    for (let i = 0; i <= 32; i++) include(simPressure((last * i) / 32));
+  } else {
+    include(simPressure(0));
+    include(simPressure(last));
+    if (current.peak > 0 && current.peak < last) include(simPressure(current.peak));
+  }
+  if (_plot) {
+    let plotMin = Infinity, plotMax = -Infinity, plotMinPositive = Infinity;
+    for (const p of _plot.pres) {
+      if (p < plotMin) plotMin = p;
+      if (p > plotMax) plotMax = p;
+      if (p > 0 && p < plotMinPositive) plotMinPositive = p;
+    }
+    min *= plotMin;
+    max *= plotMax;
+    minPositive *= plotMinPositive;
+  }
+  if (!Number.isFinite(min) || !Number.isFinite(max)) {
     throw new Error("Brush pressure must be finite.");
   }
-  const bump = {
-    peak: current.peak,
-    halfBefore: current.halfBefore,
-    halfAfter: current.halfAfter,
-    exponent: 2 * current.cp,
-    min: current.min,
-    max: current.max,
-  };
-  queueLine(x0, y0, _position.x, _position.y, current.cos, current.sin, totalSteps, bump, pMin, pMax);
+  pressure.min = min;
+  pressure.max = max;
+  pressure.minPositive = minPositive;
 }
+
+const GPU_PRESSURE = {
+  model: PRESSURE_BUMP, from: 0, to: 0, shape: [0, 0, 0, 0], length: 0,
+  table: null, min: 0, max: 0, minPositive: 0,
+};
 
 /**
  * Stamp rotation (radians) for "natural" image tips: the stroke direction
@@ -533,7 +624,7 @@ function saveState() {
 
   const tipKey = param.type === "image" ? param.image.src : param.type === "custom" ? param.tipKey : null;
   beginStroke(current.seed, current.alpha, param, tipKey ? { key: tipKey, image: T.tips.get(tipKey) } : null);
-  setStrokeOverscan(getImageTipOverscan());
+  if (tipKey) setStrokeOverscan(getImageTipOverscan());
 
   markerTip();
 }
@@ -554,11 +645,12 @@ function calculatePressure() {
 
 /**
  * Simulates brush pressure based on stroke parameters.
+ * @param {number} [at] - Distance along the stroke.
  * @returns {number} Simulated pressure value.
  */
-function simPressure() {
-  if (!current.isCustomPressure) return gauss();
-  const t = _position.plotted / _length;
+function simPressure(at = _position.plotted) {
+  if (!current.isCustomPressure) return gauss(at);
+  const t = at / _length;
   return map(
     current.p.pressure.curve(
       Math.max(0, Math.min(1, 0.5 + (t - 0.5 + current.ct) * current.cs)),
@@ -576,7 +668,7 @@ function simPressure() {
 /**
  * Pressure along a default stroke: a bump peaking at current.peak, steeper
  * after the peak than before it, mapped to the brush's pressure range.
- * dots.vert evaluates the same bump for straight strokes walked on the GPU.
+ * pressure.glsl evaluates the same bump for strokes walked on the GPU.
  * @param {number} [at] - Distance along the stroke.
  * @returns {number}
  */
@@ -597,7 +689,8 @@ function gauss(at = _position.plotted) {
  * @returns {number} The calculated opacity.
  */
 function calculateAlpha() {
-  return ["default", "spray"].includes(current.p.type)
+  const type = current.p.type;
+  return type === "default" || type === "spray"
     ? current.p.opacity
     : current.p.opacity / Math.min(State.stroke.weight, 1.3);
 }

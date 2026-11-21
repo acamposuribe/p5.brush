@@ -1,26 +1,32 @@
 #version 300 es
 
-// Expands queued records into brush dots (default, spray and marker
-// brushes). A record is a path segment of up to 40 fine steps, or up to 1024
-// steps of a straight stroke. One instance per record; its vertices
-// enumerate the fine steps (and, for spray, the dots within each step):
-//   vertex = step * u_perStep + dot
-// Steps as vertices keep a long record's dots in the same GPU batches.
+// Expands stroke records into brush dots (default, spray and marker
+// brushes). A record covers up to 1024 fine steps of one piece of a stroke's
+// path: a straight run or an arc (path.glsl), or a short straight segment of
+// a stroke the CPU walked through a flow field. One instance per record; its
+// vertices enumerate the fine steps, and for spray the dots in each step,
+// each dot once:
+//   vertex = dot * u_groupSteps + slot,  step = slot * u_stride mod u_groupSteps
+// Steps as vertices keep a long record's dots in the same GPU batches. The
+// stride scatters the order the steps are drawn in, so consecutive dots
+// rarely cover the same pixels and their blending need not wait on each
+// other (see scatterStride() in gl_draw.js).
 //
 // Each step reproduces the brush's tip model: a grain test and gaussian
 // vibration for default brushes, a cloud of dots for spray, and a single
-// jittered dot for markers. Randomness is a hash of (stroke seed, segment,
-// step, dot), so output does not depend on how strokes are batched.
+// jittered dot for markers. Randomness is a hash of (stroke seed, step, dot),
+// so output does not depend on how strokes are batched.
 
-in vec2 a_start;     // segment start, position space (logical px)
-in vec2 a_end;       // segment end, after a_info.x steps
-in vec2 a_dir;       // (cos, sin) of the travel direction, for dispersion
-in vec2 a_pressure;  // pressure at segment start and end; for a straight stroke, the range its bump maps to
-in vec4 a_info;      // (step count, stroke alpha 0..255, segment index, unused)
+// The record (see its layout in gl_draw.js), in position space (logical px).
+in vec4 a_path;      // piece origin xy, heading as a unit vector (path.glsl)
+in vec4 a_steps;     // first step's distance from the origin, step length, step count, first step's distance from the stroke start
+in vec4 a_press;     // pressure model (pressure.glsl)
+in vec4 a_shape;     // pressure curve shape (pressure.glsl)
+in vec4 a_plot;      // plot pressure at the origin and per unit, stroke length, stroke alpha 0..255
+in vec4 a_misc;      // first step's hash index, turn per unit (path.glsl), natural tip angle at the origin, stroke weight
+in vec2 a_disp;      // dispersion's direction relative to the heading, as a unit vector
 in uint a_seed;      // per-stroke seed
-in float a_weight;   // stroke weight (per segment, so weights share a batch)
-in vec4 a_brush;     // brush weight, scatter, sharpness, grain (per segment, so brushes share a batch)
-in vec4 a_bump;      // straight strokes: pressure bump (peak, half-width before, after, exponent); exponent 0 on path segments
+in vec4 a_brush;     // brush weight, scatter, sharpness, grain (per record, so brushes share a batch)
 
 uniform mat4 u_matrix;
 uniform vec4 u_affine;     // ma, mb, mc, md
@@ -29,8 +35,11 @@ uniform vec2 u_half;       // Cwidth / 2, Cheight / 2
 uniform float u_sizeScale; // density * transform scale
 uniform float u_density;
 uniform int u_type;        // 0 default, 1 spray, 2 marker
-uniform int u_perStep;     // instances per step (spray dot capacity, else 1)
+uniform int u_perStep;     // dots per step (spray dot capacity, else 1)
+uniform int u_groupSteps;  // steps drawn per record in this draw (its group's)
+uniform int u_stride;      // scatters the order of the steps (see above)
 uniform vec3 u_nib;        // markers: flat nib (cos, sin of its angle, thickness); thickness 1 is round
+uniform sampler2D u_pressureTable; // custom pressure curves (pressure.glsl)
 
 out float v_alpha;
 out float v_rest;    // 1 for a marker's resting nib (its zero-length end caps)
@@ -63,31 +72,29 @@ void cull() {
     v_seed = 0u;
 }
 
-// Pressure at a fine step. A path segment interpolates it between its ends.
-// A straight stroke's record carries the stroke's pressure bump instead (see
-// gauss() in stroke.js), evaluated here at the step's distance along it: the
-// peak and half-widths are distances from the record's start.
-float pressureAt(float step, float count) {
-    if (a_bump.w == 0.0) return mix(a_pressure.x, a_pressure.y, step / count);
-    float d = step * length(a_end - a_start) / count - a_bump.x;
-    float halfWidth = d < 0.0 ? a_bump.y : a_bump.z;
-    float bump = 1.0 / (1.0 + pow(max(abs(d / halfWidth), 1e-20), a_bump.w));
-    return mix(a_pressure.x, a_pressure.y, bump);
-}
+#pragma glslify: pathAt = require(./path.glsl)
+#pragma glslify: strokePressure = require(./pressure.glsl)
 
 void main() {
-    int step = gl_VertexID / u_perStep;
-    int dot = gl_VertexID - step * u_perStep;
-    float count = a_info.x;
-    float t = float(step) / count;
-    if (float(step) >= count) { cull(); return; }
-    float p = pressureAt(float(step), count);
+    int slot = gl_VertexID % u_groupSteps;
+    int dot = gl_VertexID / u_groupSteps;
+    int step = slot * u_stride % u_groupSteps;
+    float j = float(step);
+    float count = a_steps.z;
+    if (j >= count) { cull(); return; }
+    float along = a_steps.x + j * a_steps.y;  // from the piece's origin
+    float fromStart = a_steps.w + j * a_steps.y;
+    float p = strokePressure(a_press, a_shape, a_plot, j, count, fromStart, along, u_pressureTable);
     if (p <= 0.0) { cull(); return; }
+    vec2 heading;
+    vec2 point = pathAt(a_path, a_misc.y, along, heading);
+    // The direction dots disperse across (y up): the heading turned by a_disp.
+    vec2 dir = vec2(heading.x * a_disp.x - heading.y * a_disp.y, heading.y * a_disp.x + heading.x * a_disp.y);
 
     float weight = a_brush.x, scatter = a_brush.y, sharpness = a_brush.z, grain = a_brush.w;
-    float sw = a_weight;
-    float alpha = a_info.y;
-    uint s = pcg(a_seed ^ pcg(uint(a_info.z) * 64u + uint(step)));
+    float sw = a_misc.w;
+    float alpha = a_plot.w;
+    uint s = pcg(a_seed ^ pcg(uint(a_misc.x) + uint(step)));
     vec2 offset;
     float diameter;
 
@@ -119,14 +126,14 @@ void main() {
         if (rand(s) >= grain * p) { cull(); return; }
         float vibration = sw * scatter * (sharpness + (1.0 - sharpness) * gauss(s) / p);
         float perp = vibration * (rand(s) * 2.0 - 1.0);
-        float along = 0.3 * vibration * (rand(s) * 2.0 - 1.0);
-        offset = vec2(perp * a_dir.y + along * a_dir.x, perp * a_dir.x - along * a_dir.y);
+        float lengthwise = 0.3 * vibration * (rand(s) * 2.0 - 1.0);
+        offset = vec2(perp * dir.y + lengthwise * dir.x, perp * dir.x - lengthwise * dir.y);
         diameter = p * p * weight * (0.85 + 0.3 * rand(s)) * sw;
         alpha *= max(0.9, p) * (0.75 + 0.35 * rand(s));
     }
     if (diameter <= 0.0) { cull(); return; }
 
-    vec2 local = mix(a_start, a_end, t) + offset - u_half;
+    vec2 local = point + offset - u_half;
     vec2 screen = vec2(
         u_affine.x * local.x + u_affine.z * local.y,
         u_affine.y * local.x + u_affine.w * local.y
@@ -141,8 +148,8 @@ void main() {
     gl_Position = u_matrix * vec4(screen, 0.0, 1.0);
     gl_PointSize = raster;
     v_alpha = alpha / 255.0 * (footprint * footprint) / (raster * raster);
-    v_rest = (u_type == 2 && a_start == a_end) ? 1.0 : 0.0;
+    v_rest = (u_type == 2 && a_steps.y == 0.0) ? 1.0 : 0.0;
     v_seed = pcg(s ^ 0x9e3779b9u);
-    vec2 travel = vec2(a_dir.x, -a_dir.y);
+    vec2 travel = vec2(dir.x, -dir.y);
     v_dir = normalize(travel + 1e-6);
 }
