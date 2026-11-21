@@ -836,7 +836,7 @@ In essence, the hatching system activates hatches for subsequent shapes, similar
 - `brush.hatchArray(polygons, options)`
   - **Description**: Creates a hatching pattern across specified polygons. This function applies the set hatching parameters to a single polygon or an array of polygons, hatched as one gesture with lines aligned across all of them.
   - **Parameters**:
-    - `polygons` (Array|Object): The polygon(s) to apply the hatching. Can be a single polygon object or an array of polygon objects.
+    - `polygons` (Array|Object): The polygon(s) to apply the hatching. Can be a single polygon object, or an array of polygon objects or plain arrays of `[x, y]` points (cheaper for many shapes).
     - `options` (Object, optional):
       - `rule` (String): How overlapping polygons combine. `"evenodd"` (default) leaves every overlap unhatched, so nested polygons make holes. `"nonzero"` hatches overlaps too; a polygon whose points run the opposite way still cuts a hole.
   - **Note**: This is not the main, but an alternative way of applying hatches. Read above.

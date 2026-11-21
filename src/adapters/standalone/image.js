@@ -152,12 +152,6 @@ export function image(source, x, y, width, height) {
     activeTexture: gl.getParameter(gl.ACTIVE_TEXTURE),
     viewport: gl.getParameter(gl.VIEWPORT),
     blend: gl.isEnabled(gl.BLEND),
-    blendEquationRgb: gl.getParameter(gl.BLEND_EQUATION_RGB),
-    blendEquationAlpha: gl.getParameter(gl.BLEND_EQUATION_ALPHA),
-    blendSrcRgb: gl.getParameter(gl.BLEND_SRC_RGB),
-    blendDstRgb: gl.getParameter(gl.BLEND_DST_RGB),
-    blendSrcAlpha: gl.getParameter(gl.BLEND_SRC_ALPHA),
-    blendDstAlpha: gl.getParameter(gl.BLEND_DST_ALPHA),
     scissor: gl.isEnabled(gl.SCISSOR_TEST),
     depth: gl.isEnabled(gl.DEPTH_TEST),
     flipY: gl.getParameter(gl.UNPACK_FLIP_Y_WEBGL),
@@ -194,10 +188,10 @@ export function image(source, x, y, width, height) {
     gl.useProgram(saved.program);
     gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, saved.drawFramebuffer);
     gl.viewport(...saved.viewport);
+    // The blend function stays premultiplied over, the renderer's default:
+    // every draw sets its own, and querying it would stall on the GPU.
     if (saved.blend) gl.enable(gl.BLEND);
     else gl.disable(gl.BLEND);
-    gl.blendEquationSeparate(saved.blendEquationRgb, saved.blendEquationAlpha);
-    gl.blendFuncSeparate(saved.blendSrcRgb, saved.blendDstRgb, saved.blendSrcAlpha, saved.blendDstAlpha);
     if (saved.scissor) gl.enable(gl.SCISSOR_TEST);
     if (saved.depth) gl.enable(gl.DEPTH_TEST);
     gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, saved.flipY);

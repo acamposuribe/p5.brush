@@ -122,8 +122,10 @@ function scanlineHatch(polygons, angle, dist, gradient, rule = "evenodd") {
   // cos(-rad) = cosA, sin(-rad) = -sinA — no extra trig needed
   const sinB = -sinA;
 
+  // Polygons, or plain arrays of [x, y] points.
+  const contours = polygons.map((polygon) => polygon.a ?? polygon);
   let totalVerts = 0;
-  for (const polygon of polygons) totalVerts += polygon.a.length;
+  for (const verts of contours) totalVerts += verts.length;
   if (totalVerts === 0) return [];
 
   // Grow reusable vertex buffers if needed
@@ -149,8 +151,7 @@ function scanlineHatch(polygons, angle, dist, gradient, rule = "evenodd") {
   }
 
   // Build one flat edge list across all contours so crossings pair globally.
-  for (const polygon of polygons) {
-    const verts = polygon.a;
+  for (const verts of contours) {
     const n = verts.length;
     const base = vLen;
 
@@ -381,7 +382,8 @@ export function fillRule(options) {
 /**
  * Draws classic hatch lines over one polygon or an array of polygons.
  *
- * @param {Polygon|Polygon[]} polygons
+ * @param {Polygon|Array<Polygon|number[][]>} polygons - Polygons, or arrays
+ *   of [x, y] points.
  * @param {{rule?: "evenodd"|"nonzero"}} [options] How overlapping contours
  *   combine: "evenodd" (default) leaves overlaps unhatched, "nonzero" hatches them.
  */
