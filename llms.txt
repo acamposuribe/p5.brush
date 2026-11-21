@@ -261,7 +261,7 @@ Fill simulates watercolor: Hobbs-style grown shapes painted as dried washes (irr
 - `brush.hatchStyle(name, color, weight)` — Set brush used for hatching.
 - `brush.mass(brushName, color, options?)` — Dry-media, hand-filled hatched fill. Works best with crayon or pastel brushes. `brushName` is always required explicitly. Options: `precision` 0–1, `strength` 0–1, `gradient` 0–1, `outline` bool.
 - `brush.noMass()` — Disable massing.
-- `brush.hatchArray(polygons, options?)` — Apply current hatch style directly to a `brush.Polygon` or array of polygons as one gesture. Options: `rule` `"evenodd"` (default: overlaps act as holes) or `"nonzero"` (overlaps are hatched; a contour wound the opposite way still cuts a hole).
+- `brush.hatchArray(polygons, options?)` — Apply current hatch style directly to a `brush.Polygon` or array of polygons (or plain `[x, y]` point arrays) as one gesture. Options: `rule` `"evenodd"` (default: overlaps act as holes) or `"nonzero"` (overlaps are hatched; a contour wound the opposite way still cuts a hole).
 - `brush.massArray(polygons, options?)` — Apply current mass style to a `brush.Polygon` or array of `brush.Polygon` objects as one combined gesture. Same `rule` option as `hatchArray()`.
 
 ---
