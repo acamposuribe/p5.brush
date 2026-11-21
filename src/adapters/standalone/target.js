@@ -34,9 +34,12 @@ function isSupportedTarget(target) {
 }
 
 function getTargetContext(target) {
+  // Every draw lands in a mask and reaches the canvas through a full-target
+  // pass, so multisampling the canvas changes no pixel; it only costs storing
+  // and resolving a 4× buffer at every composite (~1–3 ms a frame on tiling GPUs).
   return (
-    target.getContext("webgl2", { premultipliedAlpha: true, preserveDrawingBuffer: true }) ??
-    target.getContext("webgl2", { preserveDrawingBuffer: true })
+    target.getContext("webgl2", { premultipliedAlpha: true, preserveDrawingBuffer: true, antialias: false }) ??
+    target.getContext("webgl2", { preserveDrawingBuffer: true, antialias: false })
   );
 }
 
