@@ -5,16 +5,15 @@ import { Position, isFieldReady } from "./flowfield.js";
 import { Polygon } from "./polygon.js";
 
 /**
- * The point at distance `s` along a piece of path (see Plot.pieces()): from
- * its origin at its heading, turning `turn` radians per unit of length. The
- * stroke shaders compute the same in src/stroke/path.glsl.
+ * The point at distance `s` along a piece of path (see Plot.pieces());
+ * src/stroke/path.glsl mirrors it on the GPU.
  * @param {{x: number, y: number, heading: number, turn: number}} piece
  * @param {number} s
  * @returns {[number, number]}
  */
 export function pathPoint(piece, s) {
   const turn = 0.5 * piece.turn * s;
-  // The chord to the point, as a fraction of the arc length (sin x / x).
+  // The chord as a fraction of the arc length.
   const chord = Math.abs(turn) < 1e-3 ? 1 - (turn * turn) / 6 : Math.sin(turn) / turn;
   const heading = piece.heading + turn;
   return [piece.x + s * chord * Math.cos(heading), piece.y - s * chord * Math.sin(heading)];
@@ -150,18 +149,14 @@ export class Plot {
   }
 
   /**
-   * The plot as pieces of path, for strokes walked on the GPU: each segment
-   * is a straight run, or in a curve an arc whose heading turns evenly to the
-   * next segment's, as angle() describes. Lengths are scaled by `scale`;
-   * headings are in radians, with y pointing down the canvas.
+   * The plot as pieces of path for the GPU: each segment a straight run or,
+   * in a curve, an arc turning evenly to the next segment's heading, as
+   * angle() describes. Headings in radians (y up), lengths times `scale`.
    * @param {number} x - Start, in position space.
    * @param {number} y
    * @param {number} scale
    * @returns {{x: number, y: number, heading: number, turn: number, start: number,
-   *   length: number, pressure: number, pressureSlope: number}[]} Each piece's
-   *   origin, heading there, turn per unit of length, distance of its origin
-   *   from the plot's start, length, and the plot's pressure at its origin and
-   *   change per unit of length.
+   *   length: number, pressure: number, pressureSlope: number}[]}
    */
   pieces(x, y, scale) {
     const pieces = [];
@@ -170,7 +165,7 @@ export class Plot {
       const length = this.segments[i] * scale;
       let a0 = this.angles[i];
       let a1 = this.type === "curve" ? this.angles[i + 1] : a0;
-      // Turn the short way round, as angle() does.
+      // The short way round, as in angle().
       if (Math.abs(a1 - a0) > 180) {
         if (a1 > a0) a1 = -(360 - a1);
         else a0 = -(360 - a0);

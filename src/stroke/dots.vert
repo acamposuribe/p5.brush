@@ -1,32 +1,24 @@
 #version 300 es
 
 // Expands stroke records into brush dots (default, spray and marker
-// brushes). A record covers up to 1024 fine steps of one piece of a stroke's
-// path: a straight run or an arc (path.glsl), or a short straight segment of
-// a stroke the CPU walked through a flow field. One instance per record; its
-// vertices enumerate the fine steps, and for spray the dots in each step,
-// each dot once:
+// brushes). One instance per record; its vertices are the fine steps (and
+// for spray the dots in each step), drawn in a scattered order:
 //   vertex = dot * u_groupSteps + slot,  step = slot * u_stride mod u_groupSteps
-// Steps as vertices keep a long record's dots in the same GPU batches. The
-// stride scatters the order the steps are drawn in, so consecutive dots
-// rarely cover the same pixels and their blending need not wait on each
-// other (see scatterStride() in gl_draw.js).
 //
 // Each step reproduces the brush's tip model: a grain test and gaussian
 // vibration for default brushes, a cloud of dots for spray, and a single
 // jittered dot for markers. Randomness is a hash of (stroke seed, step, dot),
 // so output does not depend on how strokes are batched.
 
-// The record (see its layout in gl_draw.js), in position space (logical px).
-in vec4 a_path;      // piece origin xy, heading as a unit vector (path.glsl)
-in vec4 a_steps;     // first step's distance from the origin, step length, step count, first step's distance from the stroke start
-in vec4 a_press;     // pressure model (pressure.glsl)
-in vec4 a_shape;     // pressure curve shape (pressure.glsl)
-in vec4 a_plot;      // plot pressure at the origin and per unit, stroke length, stroke alpha 0..255
-in vec4 a_misc;      // first step's hash index, turn per unit (path.glsl), natural tip angle at the origin, stroke weight
-in vec2 a_disp;      // dispersion's direction relative to the heading, as a unit vector
-in uint a_seed;      // per-stroke seed
-in vec4 a_brush;     // brush weight, scatter, sharpness, grain (per record, so brushes share a batch)
+// The record, in position space (layout in gl_draw.js).
+in vec4 a_path;
+in vec4 a_steps;
+in vec4 a_press;
+in vec4 a_shape;
+in vec4 a_plot;
+in vec4 a_misc;
+in uint a_seed;
+in vec4 a_brush;
 
 uniform mat4 u_matrix;
 uniform vec4 u_affine;     // ma, mb, mc, md
@@ -36,8 +28,8 @@ uniform float u_sizeScale; // density * transform scale
 uniform float u_density;
 uniform int u_type;        // 0 default, 1 spray, 2 marker
 uniform int u_perStep;     // dots per step (spray dot capacity, else 1)
-uniform int u_groupSteps;  // steps drawn per record in this draw (its group's)
-uniform int u_stride;      // scatters the order of the steps (see above)
+uniform int u_groupSteps;
+uniform int u_stride;
 uniform vec3 u_nib;        // markers: flat nib (cos, sin of its angle, thickness); thickness 1 is round
 uniform sampler2D u_pressureTable; // custom pressure curves (pressure.glsl)
 
@@ -82,14 +74,12 @@ void main() {
     float j = float(step);
     float count = a_steps.z;
     if (j >= count) { cull(); return; }
-    float along = a_steps.x + j * a_steps.y;  // from the piece's origin
+    float along = a_steps.x + j * a_steps.y;
     float fromStart = a_steps.w + j * a_steps.y;
     float p = strokePressure(a_press, a_shape, a_plot, j, count, fromStart, along, u_pressureTable);
     if (p <= 0.0) { cull(); return; }
-    vec2 heading;
-    vec2 point = pathAt(a_path, a_misc.y, along, heading);
-    // The direction dots disperse across (y up): the heading turned by a_disp.
-    vec2 dir = vec2(heading.x * a_disp.x - heading.y * a_disp.y, heading.y * a_disp.x + heading.x * a_disp.y);
+    vec2 dir;
+    vec2 point = pathAt(a_path, a_misc.y, along, dir);
 
     float weight = a_brush.x, scatter = a_brush.y, sharpness = a_brush.z, grain = a_brush.w;
     float sw = a_misc.w;

@@ -1,29 +1,26 @@
 #version 300 es
 
 // Expands stroke records into textured stamps (image and custom tip
-// brushes). Records are the same as for dots (dots.vert): one instance per
-// record, and six vertices (two triangles) per fine step, its steps drawn in
-// the same scattered order as dots:
+// brushes), like dots.vert: one instance per record, two triangles per step:
 //   vertex = slot * 6 + corner,  step = slot * u_stride mod u_groupSteps
 
-// The record (see its layout in gl_draw.js), in position space (logical px).
-in vec4 a_path;      // piece origin xy, heading as a unit vector (path.glsl)
-in vec4 a_steps;     // first step's distance from the origin, step length, step count, first step's distance from the stroke start
-in vec4 a_press;     // pressure model (pressure.glsl)
-in vec4 a_shape;     // pressure curve shape (pressure.glsl)
-in vec4 a_plot;      // plot pressure at the origin and per unit, stroke length, stroke alpha 0..255
-in vec4 a_misc;      // first step's hash index, turn per unit (path.glsl), natural tip angle at the origin, stroke weight
-in vec2 a_disp;      // dispersion's direction relative to the heading, as a unit vector
-in uint a_seed;      // per-stroke seed
-in vec4 a_brush;     // brush weight, scatter (per record, so brushes share a batch)
+// The record, in position space (layout in gl_draw.js).
+in vec4 a_path;
+in vec4 a_steps;
+in vec4 a_press;
+in vec4 a_shape;
+in vec4 a_plot;
+in vec4 a_misc;
+in uint a_seed;
+in vec4 a_brush;
 
 uniform mat4 u_proj;
 uniform mat2 u_tipLinear;  // ma, mb, mc, md
 uniform vec2 u_translate;  // mx, my
 uniform vec2 u_half;       // Cwidth / 2, Cheight / 2
 uniform int u_rotate;      // 0 none, 1 random, 2 natural
-uniform int u_groupSteps;  // steps drawn per record in this draw (its group's)
-uniform int u_stride;      // scatters the order of the steps (dots.vert)
+uniform int u_groupSteps;
+uniform int u_stride;
 uniform sampler2D u_pressureTable; // custom pressure curves (pressure.glsl)
 
 out vec2  v_uv;
@@ -51,7 +48,7 @@ void main() {
     int step = slot * u_stride % u_groupSteps;
     float j = float(step);
     float count = a_steps.z;
-    float along = a_steps.x + j * a_steps.y;  // from the piece's origin
+    float along = a_steps.x + j * a_steps.y;
     float fromStart = a_steps.w + j * a_steps.y;
     float p = j < count
         ? strokePressure(a_press, a_shape, a_plot, j, count, fromStart, along, u_pressureTable)
@@ -67,7 +64,6 @@ void main() {
     uint s = pcg(a_seed ^ pcg(uint(a_misc.x) + uint(step)));
     float vibration = a_misc.w * a_brush.y;
     vec2 offset = vibration * vec2(rand(s) * 2.0 - 1.0, rand(s) * 2.0 - 1.0);
-    // A natural tip turns with the path: its angle at the origin, less the turn since.
     float angle = u_rotate == 1 ? floor(rand(s) * 360.0) * 0.017453292519943295
                 : u_rotate == 2 ? a_misc.z - a_misc.y * along
                 : 0.0;
