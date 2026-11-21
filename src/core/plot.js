@@ -163,6 +163,8 @@ export class Plot {
     let start = 0;
     for (let i = 0; i < this.segments.length; i++) {
       const length = this.segments[i] * scale;
+      // Corners and spacers take no steps.
+      if (length === 0 && pieces.length > 0) continue;
       let a0 = this.angles[i];
       let a1 = this.type === "curve" ? this.angles[i + 1] : a0;
       // The short way round, as in angle().
