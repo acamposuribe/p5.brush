@@ -267,6 +267,10 @@ export function spline(_array_points, _curvature = 0.5) {
   return p;
 }
 
+// Joints whose rounding arc would come closer than this to its corner (in
+// user units) stay corners.
+const MIN_ARC = 1;
+
 /**
  * Creates a new Plot object representing a spline curve.
  *
@@ -310,7 +314,11 @@ function _createSpline(points, curvature = 0.5, close = false) {
         const a2 = calcAngle(p2[0], p2[1], p3[0], p3[1]);
 
         // Compute the adjustment length based on curvature
-        const curvAdjust = curvature * Math.min(d1, d2, 0.5 * Math.min(d1, d2));
+        // The arc stays within curvAdjust of the corner it rounds, so below
+        // MIN_ARC it can't be told from it: keep the corner (a zero-length
+        // arc), as for points densely sampled along a curve.
+        let curvAdjust = curvature * Math.min(d1, d2, 0.5 * Math.min(d1, d2));
+        if (curvAdjust < MIN_ARC) curvAdjust = 0;
         const dmax = Math.max(d1, d2);
         const s1 = d1 - curvAdjust;
         const s2 = d2 - curvAdjust;
@@ -334,28 +342,32 @@ function _createSpline(points, curvature = 0.5, close = false) {
           }
         } else {
           // For a curved segment, compute control points and arc segment details
-          const point1 = {
-            x: p2[0] - curvAdjust * cos(-a1),
-            y: p2[1] - curvAdjust * sin(-a1),
-          };
-          const point2 = {
-            x: point1.x + dmax * cos(-a1 + 90),
-            y: point1.y + dmax * sin(-a1 + 90),
-          };
-          const point3 = {
-            x: p2[0] + curvAdjust * cos(-a2),
-            y: p2[1] + curvAdjust * sin(-a2),
-          };
-          const point4 = {
-            x: point3.x + dmax * cos(-a2 + 90),
-            y: point3.y + dmax * sin(-a2 + 90),
-          };
+          let point1 = { x: p2[0], y: p2[1] };
+          let arcLength = 0;
+          if (curvAdjust > 0) {
+            point1 = {
+              x: p2[0] - curvAdjust * cos(-a1),
+              y: p2[1] - curvAdjust * sin(-a1),
+            };
+            const point2 = {
+              x: point1.x + dmax * cos(-a1 + 90),
+              y: point1.y + dmax * sin(-a1 + 90),
+            };
+            const point3 = {
+              x: p2[0] + curvAdjust * cos(-a2),
+              y: p2[1] + curvAdjust * sin(-a2),
+            };
+            const point4 = {
+              x: point3.x + dmax * cos(-a2 + 90),
+              y: point3.y + dmax * sin(-a2 + 90),
+            };
 
-          const intPt = intersectLines(point1, point2, point3, point4, true);
-          const radius = dist(point1.x, point1.y, intPt.x, intPt.y);
-          const halfDist = dist(point1.x, point1.y, point3.x, point3.y) / 2;
-          const arcAngle = 2 * Math.asin(halfDist / radius) * (180 / Math.PI);
-          const arcLength = (PI2 * radius * arcAngle) / 360;
+            const intPt = intersectLines(point1, point2, point3, point4, true);
+            const radius = dist(point1.x, point1.y, intPt.x, intPt.y);
+            const halfDist = dist(point1.x, point1.y, point3.x, point3.y) / 2;
+            const arcAngle = 2 * Math.asin(halfDist / radius) * (180 / Math.PI);
+            arcLength = (PI2 * radius * arcAngle) / 360;
+          }
 
           const temp = close ? (i === 0 ? 0 : s1 - done) : s1 - done;
           const temp2 =
