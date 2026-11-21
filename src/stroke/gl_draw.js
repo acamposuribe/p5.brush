@@ -2,17 +2,14 @@
 // Module: GL Draw
 // =============================================================================
 /**
- * The GL Draw module renders brush strokes on the GPU. A stroke is queued as
- * records, each covering up to RECORD_STEPS fine steps of one piece of its
- * path, a straight run or an arc; the shaders compute every step's position
- * and pressure and expand it into the brush's dots (dots.vert) or textured
- * stamps (stamps.vert), drawn into the shared framebuffer-backed brush mask.
- * Strokes bent by a flow field are walked on the CPU instead and queued as
- * short straight segments (queueSegment).
+ * Renders brush strokes on the GPU. A stroke is queued as records, each
+ * covering up to RECORD_STEPS fine steps of one piece of its path (a straight
+ * run or an arc). The shaders compute every step's position and pressure and
+ * draw it as the brush's dots (dots.vert) or stamps (stamps.vert) into the
+ * brush mask.
  *
  * Consecutive strokes that share a brush type, colour, transform, clip and
- * target are drawn together in one call, whatever their brush's weight,
- * scatter, sharpness or grain. The queue is flushed when that state changes
+ * target are drawn together. The queue is flushed when that state changes
  * and before the brush mask is cleared or composited.
  */
 
@@ -41,23 +38,20 @@ import stampsFragSrc from "./stamps.frag";
 // Section: State
 // =============================================================================
 
-/** Most fine steps in a segment of a stroke walked on the CPU (stroke.js). */
+/** Most fine steps in a piece of a stroke walked through a flow field (stroke.js). */
 export const SUBSTEPS = 40;
 /** Most fine steps in one record. */
 const RECORD_STEPS = 1024;
 
-// Records are drawn in groups by step count: each draw runs its records for
-// the group's step count and culls the steps past their own. Counts round up
-// to a multiple of 8 up to 64, and of 64 above.
+// Records are drawn in groups by step count, rounded up to a multiple of 8
+// below 64 and of 64 above; each record culls the steps past its own count.
 const GROUPS = 23;
 const groupOf = (count) => (count <= 64 ? Math.ceil(count / 8) - 1 : 6 + Math.ceil(count / 64));
 const groupSteps = (group) => (group < 8 ? (group + 1) * 8 : (group - 6) * 64);
 
-// The shaders visit a record's steps in a scattered order, step = (i ×
-// stride) mod n, so dots drawn one after another land far apart along the
-// path: at fine spacing, consecutive dots on the same pixels make each blend
-// wait for the last. A stride coprime with n visits every step exactly once;
-// one near n / φ spreads them evenly.
+// The shaders draw a record's steps in a scattered order, step = i × stride
+// mod n: dots drawn in path order overlap the same pixels and each blend
+// waits for the last. A stride coprime with n visits every step once.
 const gcd = (a, b) => (b ? gcd(b, a % b) : a);
 function scatterStride(n) {
   let stride = Math.round(n * 0.618) | 1;
@@ -66,10 +60,8 @@ function scatterStride(n) {
 }
 const GROUP_STRIDES = Array.from({ length: GROUPS }, (_, group) => scatterStride(groupSteps(group)));
 
-// Pressure models (pressure.glsl).
-const PRESSURE_LINEAR = 0;
-export const PRESSURE_BUMP = 1, PRESSURE_CUSTOM = 2;
-// Samples per custom pressure curve (t = 0, 1/256, … 1).
+// Pressure models (pressure.glsl), and samples per custom pressure curve.
+export const PRESSURE_LINEAR = 0, PRESSURE_BUMP = 1, PRESSURE_CUSTOM = 2;
 export const TABLE_SAMPLES = 257;
 
 const DOT_TYPES = { default: 0, spray: 1, marker: 2 };
@@ -103,37 +95,29 @@ let _ma = 1,
   _scale = 1,
   _density = 1;
 
-// Record layout (31 words, read by dots.vert and stamps.vert):
-//   0  path:  origin x, y, and heading as a unit vector (y up) (path.glsl)
-//   4  steps: first step's distance from the origin, step length, step
-//             count, first step's distance from the stroke's start
-//   8  pressure model: from, to, model, custom curve's table row
-//   12 pressure shape: bump or custom curve (pressure.glsl)
+// Record layout, in words:
+//   0  origin x, y, heading as a unit vector (y up)
+//   4  first step's distance from the origin, step length, step count,
+//      first step's distance from the stroke's start
+//   8  pressure from, to, model, custom curve's table row
+//   12 pressure shape (pressure.glsl)
 //   16 plot pressure at the origin and per unit, stroke length, alpha
-//   20 first step's hash index, turn per unit (path.glsl), natural tip
-//      angle at the origin, stroke weight
-//   24 dispersion's direction relative to the heading, as a unit vector
-//   26 seed (uint)
-//   27 brush weight, scatter, sharpness, grain
-// The brush's shape travels with each record, so brushes that share a shader
-// share a batch.
-const RECORD_WORDS = 31;
+//   20 first step's hash index, turn per unit, natural tip angle, stroke weight
+//   24 seed (uint)
+//   25 brush weight, scatter, sharpness, grain
+const RECORD_WORDS = 29;
 let recordData = new Float32Array(1024 * RECORD_WORDS);
 let recordSeeds = new Uint32Array(recordData.buffer);
-let recordGroups = new Uint8Array(1024); // each record's draw group
+let recordGroups = new Uint8Array(1024);
 let recordCount = 0;
-// The records reordered by draw group, for upload (see sortIntoGroups).
 let sortedData = new Float32Array(recordData.length);
-// Bounds of the queued steps in position space, and the largest dot reach
-// (logical px). The batch shares one transform, so they map to the mask's
-// dirty rect once, at flush.
+// Bounds of the queued steps in position space and the largest dot reach,
+// mapped to the mask's dirty rect at flush.
 let queuedMinX = Infinity, queuedMinY = Infinity, queuedMaxX = -Infinity, queuedMaxY = -Infinity;
 let queuedReach = 0;
 let perStep = 1; // spray dots per step needed by the current batch
 
-// Custom pressure curves, a row of TABLE_SAMPLES each in a float texture the
-// shaders read (pressure.glsl). Rows are assigned once per curve; the
-// texture is rebuilt when a curve is added or the GL context changes.
+// Custom pressure curves, one row each in a float texture.
 const tableRows = new Map(); // Float32Array → row
 let tableTexture = null;
 let tableDirty = true;
@@ -141,7 +125,7 @@ let tableDirty = true;
 // The stroke being queued, and the batch it belongs to. Everything the shaders
 // read as a uniform is captured in the batch, because by the time it is
 // flushed the live transform, colour or clip may belong to a later stroke.
-const stroke = { seed: 0, alpha: 0, hash: 0, start: 0, param: null, weight: 1, overscan: 0, pressure: null };
+const stroke = { seed: 0, alpha: 0, hash: 0, start: 0, param: null, weight: 1, overscan: 0 };
 let batch = null;
 
 /**
@@ -237,9 +221,8 @@ function releaseGlResources() {
 }
 
 /**
- * Compiles a program, records its locations, and builds a VAO over the shared
- * record buffer, one record per instance: the shaders take a record's fine
- * steps from the vertex index.
+ * Compiles a program and builds a VAO over the record buffer, one record per
+ * instance; the shaders take its fine steps from the vertex index.
  */
 function setupProgram(target, vertSrc, fragSrc, attributes, uniforms) {
   target.program = createProgram(gl, vertSrc, fragSrc);
@@ -260,9 +243,8 @@ function setupProgram(target, vertSrc, fragSrc, attributes, uniforms) {
 }
 
 /**
- * Points the bound VAO's attributes at the record buffer, starting from
- * record `first`. WebGL2 has no base instance, so a draw that starts past the
- * first record moves the pointers instead.
+ * Points the bound VAO's attributes at record `first` (WebGL2 has no base
+ * instance).
  */
 function pointAtRecord(target, first) {
   gl.bindBuffer(gl.ARRAY_BUFFER, recordBuffer);
@@ -311,7 +293,7 @@ export function isReady() {
 
   const attributes = [
     ["a_path", 4, 0], ["a_steps", 4, 16], ["a_press", 4, 32], ["a_shape", 4, 48],
-    ["a_plot", 4, 64], ["a_misc", 4, 80], ["a_disp", 2, 96], ["a_seed", 1, 104], ["a_brush", 4, 108],
+    ["a_plot", 4, 64], ["a_misc", 4, 80], ["a_seed", 1, 96], ["a_brush", 4, 100],
   ];
   setupProgram(dots, dotsVertSrc, dotsFragSrc, attributes, [
     "u_matrix", "u_affine", "u_translate", "u_half", "u_sizeScale", "u_density",
@@ -407,30 +389,17 @@ export function discardStroke() {
 }
 
 /**
- * Sets the current stroke's pressure for queuePiece(): the default bump or a
- * custom curve (pressure.glsl), with distances measured in position space
- * from the stroke's start.
+ * Queues `count` fine steps along one piece of the stroke's path (see
+ * Plot.pieces()), from the stroke's step `first`, `stepSize` apart.
  * @param {{model: number, from: number, to: number, shape: number[],
  *   length: number, table: Float32Array|null, min: number, max: number,
- *   minPositive: number}} pressure - `model` is PRESSURE_BUMP or
- *   PRESSURE_CUSTOM (with its curve's `table`); `min`, `max` and
- *   `minPositive` bound the pressure along the stroke, for how far dots land
- *   and how dense spray gets.
+ *   minPositive: number}} pressure - Its model (pressure.glsl), and the range
+ *   it stays within over these steps.
+ * @param {number} [alphaScale=1] - Brightens end caps.
  */
-export function setStrokePressure(pressure) {
-  stroke.pressure = pressure;
-}
-
-/**
- * Queues `count` fine steps along one piece of the stroke's path (see
- * Plot.pieces()), starting at the stroke's step `first`, `stepSize` apart.
- * The GPU computes each step's position and pressure.
- */
-export function queuePiece(piece, first, count, stepSize) {
-  if (_scale === 0 || count <= 0) return;
+export function queuePiece(piece, first, count, stepSize, pressure, alphaScale = 1) {
+  if (_scale === 0 || count <= 0 || pressure.max <= 0) return;
   const param = stroke.param;
-  const pressure = stroke.pressure;
-  if (pressure.max <= 0) return;
   if (param.type === "spray") growPerStep(param.grain, pressure.minPositive);
   const row = pressure.table ? tableRow(pressure.table) : 0;
   const cos = Math.cos(piece.heading), sin = Math.sin(piece.heading);
@@ -438,8 +407,7 @@ export function queuePiece(piece, first, count, stepSize) {
   for (let i = 0; i < count; i += RECORD_STEPS) {
     const n = Math.min(RECORD_STEPS, count - i);
     const fromStart = (first + i) * stepSize;
-    const o = appendRecord(n, 1);
-    // Path: the piece; steps: this record's share of it.
+    const o = appendRecord(n, alphaScale);
     recordData[o] = piece.x;
     recordData[o + 1] = piece.y;
     recordData[o + 2] = cos;
@@ -448,7 +416,6 @@ export function queuePiece(piece, first, count, stepSize) {
     recordData[o + 5] = stepSize;
     recordData[o + 6] = n;
     recordData[o + 7] = fromStart;
-    // Pressure: the stroke's model, times the plot's own pressure.
     recordData[o + 8] = pressure.from;
     recordData[o + 9] = pressure.to;
     recordData[o + 10] = pressure.model;
@@ -461,22 +428,15 @@ export function queuePiece(piece, first, count, stepSize) {
     recordData[o + 17] = piece.pressureSlope;
     recordData[o + 18] = pressure.length;
     recordData[o + 21] = piece.turn;
-    // A natural tip turns with the path, from its heading at the origin.
     recordData[o + 22] = -piece.heading;
-    // Dots disperse across the heading itself.
-    recordData[o + 24] = 1;
-    recordData[o + 25] = 0;
   }
 
-  // The steps lie on the piece between s0 and s1 from its origin. An arc
-  // stays within half its length of its midpoint.
+  // An arc stays within half its length of its midpoint.
   const s0 = first * stepSize - piece.start;
   const s1 = s0 + (count - 1) * stepSize;
   const reach = dotReach(param, pressure.min, pressure.max);
   if (piece.turn === 0) {
-    const [x0, y0] = pathPoint(piece, s0);
-    const [x1, y1] = pathPoint(piece, s1);
-    growBounds(x0, y0, x1, y1, reach);
+    growBounds(piece.x + s0 * cos, piece.y - s0 * sin, piece.x + s1 * cos, piece.y - s1 * sin, reach);
   } else {
     const [x, y] = pathPoint(piece, (s0 + s1) / 2);
     const r = (s1 - s0) / 2;
@@ -485,62 +445,9 @@ export function queuePiece(piece, first, count, stepSize) {
 }
 
 /**
- * Queues one straight segment of up to SUBSTEPS fine steps from (x0, y0) to
- * (x1, y1), in position space (user coords + Cwidth/2, Cheight/2), for
- * strokes the CPU walks through a flow field, and for marker and tip end
- * caps. Pressure is interpolated from p0 to p1 along it. (cs, sn) is the
- * stroke's direction there, for dispersion; `alphaScale` brightens end caps.
- */
-export function queueSegment(x0, y0, x1, y1, cs, sn, p0, p1, count, naturalAngle = 0, alphaScale = 1) {
-  if (_scale === 0 || count <= 0) return;
-  const pMax = Math.max(p0, p1);
-  if (pMax <= 0) return;
-  const param = stroke.param;
-  if (param.type === "spray") {
-    // The densest step is the one with the lowest positive pressure.
-    let pMin = Infinity;
-    for (let s = 0; s < count; s++) {
-      const p = p0 + (p1 - p0) * (s / count);
-      if (p > 0 && p < pMin) pMin = p;
-    }
-    growPerStep(param.grain, pMin);
-  }
-  const dx = x1 - x0, dy = y1 - y0;
-  const length = Math.hypot(dx, dy);
-  // The chord's heading (y up); a zero-length end cap has none, so any will do.
-  const ux = length > 0 ? dx / length : 1, uy = length > 0 ? -dy / length : 0;
-  const o = appendRecord(count, alphaScale);
-  recordData[o] = x0;
-  recordData[o + 1] = y0;
-  recordData[o + 2] = ux;
-  recordData[o + 3] = uy;
-  recordData[o + 4] = 0;
-  recordData[o + 5] = length / count;
-  recordData[o + 6] = count;
-  recordData[o + 7] = 0;
-  recordData[o + 8] = p0;
-  recordData[o + 9] = p1;
-  recordData[o + 10] = PRESSURE_LINEAR;
-  recordData[o + 11] = 0;
-  recordData[o + 12] = recordData[o + 13] = recordData[o + 14] = recordData[o + 15] = 0;
-  recordData[o + 16] = 1;
-  recordData[o + 17] = 0;
-  recordData[o + 18] = 0;
-  recordData[o + 21] = 0;
-  recordData[o + 22] = naturalAngle;
-  // Dots disperse across (cs, sn), the path's own heading, not the chord's:
-  // that direction relative to the chord, (cs, sn) × conj(ux, uy).
-  recordData[o + 24] = cs * ux + sn * uy;
-  recordData[o + 25] = sn * ux - cs * uy;
-  growBounds(x0, y0, x1, y1, dotReach(param, Math.min(p0, p1), pMax));
-}
-
-/**
- * Appends a record of `count` steps for the current stroke, fills in the
- * stroke's own fields (alpha, hash index, weight, seed, brush) and returns
- * its first word; the caller writes the path, steps and pressure. Every
- * record takes the next `count` hash indices, so no two steps of a stroke
- * share their randomness.
+ * Appends a record of `count` steps with the current stroke's own fields and
+ * returns its first word. Each record takes the stroke's next `count` hash
+ * indices, so no two of its steps share their randomness.
  */
 function appendRecord(count, alphaScale) {
   if ((recordCount + 1) * RECORD_WORDS > recordData.length) {
@@ -557,11 +464,11 @@ function appendRecord(count, alphaScale) {
   recordData[o + 19] = stroke.alpha * alphaScale;
   recordData[o + 20] = stroke.hash;
   recordData[o + 23] = stroke.weight;
-  recordSeeds[o + 26] = stroke.seed;
-  recordData[o + 27] = param.weight;
-  recordData[o + 28] = param.scatter;
-  recordData[o + 29] = param.sharpness ?? 0;
-  recordData[o + 30] = param.grain ?? 0;
+  recordSeeds[o + 24] = stroke.seed;
+  recordData[o + 25] = param.weight;
+  recordData[o + 26] = param.scatter;
+  recordData[o + 27] = param.sharpness ?? 0;
+  recordData[o + 28] = param.grain ?? 0;
   stroke.hash += count;
   recordGroups[recordCount] = groupOf(count);
   recordCount++;
@@ -626,7 +533,6 @@ function dotReach(param, pMin, pMax) {
 }
 
 function growBounds(x0, y0, x1, y1, reach) {
-  // Plain comparisons: this runs per segment, where Math.min/max cost more.
   if (reach > queuedReach) queuedReach = reach;
   if (x0 < queuedMinX) queuedMinX = x0;
   if (x0 > queuedMaxX) queuedMaxX = x0;
@@ -639,9 +545,7 @@ function growBounds(x0, y0, x1, y1, reach) {
 }
 
 /**
- * Orders the queued records by draw group into sortedData and returns each
- * group's range. Records keep their queue order within a group. With a
- * single group, recordData is drawn as it is.
+ * Orders the queued records by draw group and returns each group's range.
  * @returns {{data: Float32Array, groups: {first: number, count: number, steps: number, stride: number}[]}}
  */
 function sortIntoGroups() {
@@ -660,7 +564,7 @@ function sortIntoGroups() {
     if (sizes[g]) groups.push({ first, count: sizes[g], steps: groupSteps(g), stride: GROUP_STRIDES[g] });
     first += sizes[g];
   }
-  // Copy whole words through integer views, so the seeds' bits are untouched.
+  // Integer views copy the seeds' bits untouched.
   const from = new Uint32Array(recordData.buffer), to = new Uint32Array(sortedData.buffer);
   for (let i = 0; i < recordCount; i++) {
     const o = next[recordGroups[i]]++ * RECORD_WORDS;
@@ -671,8 +575,8 @@ function sortIntoGroups() {
 }
 
 /**
- * The device-pixel rect the queued segments can touch: their endpoint bounds
- * through the batch's transform, padded by the largest dot reach.
+ * The device-pixel rect the queued steps can touch: their bounds through the
+ * batch's transform, padded by the largest dot reach.
  */
 function queuedDirtyRect(b) {
   const [a, bb, c, d] = b.affine;
@@ -757,7 +661,6 @@ export function flushStrokes() {
     gl.uniformMatrix4fv(u.u_proj, false, b.projection);
     gl.uniformMatrix2fv(u.u_tipLinear, false, b.affine);
     gl.uniform1i(u.u_rotate, ROTATE_MODES[b.param.rotate] ?? 0);
-    // Two triangles per step.
     for (const group of groups) {
       pointAtRecord(stamps, group.first);
       gl.uniform1i(u.u_groupSteps, group.steps);

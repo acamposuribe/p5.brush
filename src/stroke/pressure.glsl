@@ -1,15 +1,11 @@
-// Brush pressure at one fine step of a stroke record (see its layout in
-// gl_draw.js and calculatePressure() in stroke.js).
-//   press = (from, to, model, table row). Model 0 interpolates from → to
-//           across the record. Model 1 is the default bump and model 2 a
-//           custom curve, each mapped from → to.
-//   shape = the bump's (peak, half-width before it, after it, exponent), or
-//           the custom curve's (warp, scale, offset, tilt).
-//   plot  = (the plot's own pressure at the piece's origin, its change per
-//           unit of length, the stroke's length, -).
-//   j is the step within the record, of `count`; c is the step's distance
-//   from the stroke's start and s its distance from the piece's origin.
-//   table holds the custom curves, 257 samples per row.
+// Brush pressure at step j of a record's `count`, at distance c from the
+// stroke's start and s from the piece's origin (see gauss() and simPressure()
+// in stroke.js).
+//   press = (from, to, model, table row): model 0 is a linear ramp across the
+//           record, 1 the default bump and 2 a custom curve, mapped from → to
+//   shape = bump (peak, half-width before, after, exponent) or custom curve
+//           (warp, scale, offset, tilt)
+//   plot  = (plot pressure at the origin, its change per unit, stroke length, -)
 float strokePressure(vec4 press, vec4 shape, vec4 plot, float j, float count, float c, float s, sampler2D table) {
     if (press.z == 0.0) return mix(press.x, press.y, j / count);
     float v;
