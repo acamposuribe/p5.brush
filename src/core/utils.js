@@ -142,7 +142,7 @@ export const rr2 = (e = 0, r = 1) => e + rng2() * (r - e);
  * @param {T[]} array - Input array.
  * @returns {T}
  */
-export const rArray = (array) => array[~~(rng() * array.length)];
+const rArray = (array) => array[~~(rng() * array.length)];
 
 /**
  * Returns a uniformly sampled integer in [min, max), for integer bounds.

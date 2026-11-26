@@ -221,7 +221,7 @@ function _center(pts) {
  * Fills a given polygon with a watercolor effect.
  * @param {Polygon} polygon - The polygon to fill.
  */
-export function createFill(polygon) {
+function createFill(polygon) {
   if (!State.fill.isActive || !State.fill.color) {
     throw new Error(
       "No fill color set. Call brush.fill(color) before drawing shapes.",

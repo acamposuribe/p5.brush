@@ -550,7 +550,7 @@ function drawMassOutline(shape) {
  * @param {number} y
  * @param {number} scale
  */
-export function createMass(shape, x, y, scale, rule = "evenodd") {
+function createMass(shape, x, y, scale, rule = "evenodd") {
   const pols = getMassPolygons(shape, x, y, scale);
   const hatchState = HatchState();
   const brushState = BrushState();

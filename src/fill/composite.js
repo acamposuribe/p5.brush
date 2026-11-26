@@ -41,7 +41,7 @@ function needsFillMaskFramebuffer(Renderer, Cwidth, Cheight, Density) {
  * @param {number} Density - Active pixel density.
  * @returns {{mask: object}} Fill mask resources.
  */
-export function ensureFillCompositeResources(Renderer, Cwidth, Cheight, Density) {
+function ensureFillCompositeResources(Renderer, Cwidth, Cheight, Density) {
   if (needsFillMaskFramebuffer(Renderer, Cwidth, Cheight, Density)) {
     if (Renderer.fillMaskFramebuffer?.remove) {
       Renderer.fillMaskFramebuffer.remove();
@@ -72,7 +72,7 @@ export function ensureFillCompositeResources(Renderer, Cwidth, Cheight, Density)
  *
  * @param {object|null} target - Fill mask framebuffer.
  */
-export function clearFillMask(target) {
+function clearFillMask(target) {
   if (!target) return;
   clearFillTarget(target);
   target.isDrawn = false;
@@ -93,7 +93,7 @@ export function clearFillMask(target) {
  * @param {Function} normalizeDirtyRect - Clamps a rect to target bounds.
  * @returns {{minX:number,minY:number,maxX:number,maxY:number}|null} Composite rect.
  */
-export function getFillCompositeRect(
+function getFillCompositeRect(
   target,
   _getActiveFramebuffer,
   getFullDirtyRect,
@@ -115,7 +115,7 @@ export function getFillCompositeRect(
  * @param {object} mask - Fill mask framebuffer.
  * @returns {object} Fill mask framebuffer.
  */
-export function getFillShaderMask(_Renderer, mask) {
+function getFillShaderMask(_Renderer, mask) {
   return mask;
 }
 
