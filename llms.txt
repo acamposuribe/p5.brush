@@ -232,7 +232,7 @@ Everything below works identically in both builds. The only differences are setu
 
 ### Stroke Operations
 
-- `brush.set(name, color, weight)` — Set brush name, color (hex string or p5.Color in p5 build; hex/CSS string in standalone), and weight multiplier. Enables stroke.
+- `brush.set(name, color, weight)` — Set brush name, color (hex string or p5.Color in p5 build; hex/CSS string or `brush.Color` in standalone), and weight multiplier. Enables stroke.
 - `brush.pick(name)` — Change brush type only, keeping current color and weight.
 - `brush.stroke(r, g, b)` or `brush.stroke(color)` — Set stroke color. Enables stroke.
 - `brush.strokeWeight(weight)` — Set weight multiplier only.
@@ -320,6 +320,23 @@ brush.endStroke(angle, pressure)
 Prefer the main drawing primitives (`line`, `flowLine`, `spline`, `rect`, `circle`, `arc`, `polygon`, and `beginShape`/`vertex`/`endShape`) whenever rendering visible geometry. To redraw a shape with another style, call the same main primitive again with the new brush state; do not default to `Polygon.draw()` or `Plot.draw()` in examples. Use `brush.Polygon`/`brush.Plot` methods only when their stored geometry is specifically required, such as inputs to `hatchArray()`/`massArray()` or advanced geometry reuse.
 
 Draw native p5 text and other overlays after all brush geometry for the frame so they remain visibly on top.
+
+---
+
+### Performance and structure
+
+How to structure a sketch or app so p5.brush stays fast and stable:
+
+- **Make each canvas once.** Every brush canvas is a WebGL context, and browsers allow only a few. Create one per size and pixel density and keep it; never create a canvas per redraw. Switch between canvases with `brush.load(canvas)`.
+- **Load the target at the start of every pass.** p5.brush draws into the target loaded last. If several parts of a page draw into their own canvases at different times, each pass starts with `brush.load(itsCanvas)`, or it draws into another part's canvas.
+- **Scale once.** `brush.scaleBrushes()` multiplies the brushes' current sizes, so every call compounds. Call it once, at setup, never per frame or per redraw. Let the scale set the size of the marks and keep `brush.set()` weights near 1 (about 0.5–1.5).
+- **Group by colour.** Strokes accumulate in a mask that is composited once per colour: changing colour, or switching between strokes and fills/washes, composites what came before. Draw everything of one colour together, and change colour only where something must cover something else.
+- **Reuse colour objects.** A colour string is parsed again on every call. Make the colour once (`new brush.Color("#223")` in the standalone build, p5's `color()` in the p5 build) and pass that object to `brush.set()` / `brush.stroke()`.
+- **Batch by brush type.** Consecutive strokes that share a brush type, colour, transform and clip go to the GPU in one draw, whatever their weight; pencil-like brushes (`"default"` type: `pen`, `HB`, `2B`, `charcoal`, `crayon`…) batch with each other. Switching to a marker, spray, image or custom brush starts a new draw, so group those marks.
+- **Draw polylines as one stroke.** A line made of many short segments drawn segment by segment restarts the brush's pressure at every joint and doubles the ink there, so it beads. Join the points and draw `brush.spline(points, 0)` (or a curvature for a smooth line; a third value per point is pressure). It is also much faster.
+- **Seed each mark for stable animation.** Randomness flows from the seed, so a mark's wobble changes whenever something drawn before it changes. To keep marks still from frame to frame, seed each one from something stable, such as its position or id (`brush.seed(n)` in the standalone build, `randomSeed(n)` in the p5 build); seeding is cheap. For a still drawing, seed once per pass.
+
+---
 
 ### Brush Management
 
@@ -440,6 +457,8 @@ pos.plotTo(plot, length, stepLength, scale)
 - `brush.rect()` mode uses strings: `"corner"` or `"center"` — not p5 constants.
 - Fill opacity is 0–255, not 0–100.
 - `brush.flowLine()` and `brush.hatch()` angles follow the current `angleMode()`.
+- `brush.scaleBrushes()` compounds: call it once, never per frame.
+- Never create a brush canvas per redraw; make it once and switch with `brush.load()`.
 
 ### p5 build only
 - Canvas must be WEBGL: `createCanvas(w, h, WEBGL)`.
