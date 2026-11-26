@@ -1,0 +1,1285 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Paint &amp; Marker Prototype — Standalone</title>
+    <style>
+      :root {
+        --ink: #22313f;
+        --muted: #52616e;
+        --line: #d4c8b8;
+        --panel: rgba(255, 252, 245, 0.86);
+        --accent: #153e5c;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        color: var(--ink);
+        background: linear-gradient(180deg, #f7f2e7 0%, #ece3d3 100%);
+        font-family: "Iowan Old Style", "Palatino Linotype", Palatino, serif;
+      }
+      main { width: min(1480px, calc(100vw - 24px)); margin: 0 auto; padding: 18px 0 24px; }
+      .nav { margin-bottom: 14px; font: 11px/1.2 Menlo, Monaco, monospace; }
+      .nav a { color: var(--accent); text-decoration: none; }
+      h1 { margin: 0 0 8px; font-size: clamp(24px, 3.6vw, 34px); letter-spacing: -0.04em; }
+      p { margin: 0 0 8px; max-width: 860px; color: var(--muted); line-height: 1.45; font-size: 13px; }
+      .workspace { margin-top: 18px; display: grid; grid-template-columns: 270px minmax(0, 1fr); gap: 18px; align-items: start; }
+      .panel { border: 1px solid var(--line); border-radius: 8px; background: var(--panel); }
+      #controls { padding: 14px 16px; display: grid; gap: 9px; font: 12px/1.3 Menlo, Monaco, monospace; position: sticky; top: 12px; }
+      #controls h2 { margin: 6px 0 0; font: 600 12px/1.2 Menlo, Monaco, monospace; color: var(--accent); text-transform: uppercase; letter-spacing: 0.06em; }
+      #controls label.s { display: grid; grid-template-columns: 1fr auto; gap: 2px 8px; }
+      #controls label.s input { grid-column: 1 / -1; width: 100%; }
+      #controls output { color: var(--muted); }
+      #controls .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+      #controls .hint { color: var(--muted); font-size: 11px; }
+      select, button { font: 12px Menlo, Monaco, monospace; padding: 4px 8px; border: 1px solid var(--line); border-radius: 6px; background: #fffaf0; }
+      button { cursor: pointer; }
+      #stage { overflow: auto; padding: 8px; }
+      #frame { position: relative; width: max-content; }
+      #frame canvas { display: block; }
+      #labels { position: absolute; inset: 0; pointer-events: none; font: 11px/1.2 Menlo, Monaco, monospace; color: var(--muted); transform-origin: 0 0; }
+      #labels div { position: absolute; white-space: nowrap; }
+      #labels .sel { color: var(--accent); font-weight: 600; }
+      #lib-host { display: none; }
+      @media (max-width: 820px) { .workspace { grid-template-columns: 1fr; } #controls { position: static; } }
+    </style>
+  </head>
+  <body>
+    <main>
+      <div class="nav"><a href="../index.html">← tests</a></div>
+      <h1>Paint brushes &amp; markers</h1>
+      <p>
+        <b>Paint brushes</b> (oil, gouache, ink, watercolour on a brush): bristles that spread with pressure,
+        split into tufts and run out of paint as they go, skip over the paper when dry or barely touching, and
+        pick up wet paint they cross and drag it along. <b>Markers</b> are the library's own, with two
+        additions: a darker blob where the nib rests at the start and end, and flat (chisel) nibs.
+        Both catch the paper's pits as small darker specks. Colours mix with the library's own spectral code.
+        Paint brushes are prototype code; the markers are drawn by the library itself.
+      </p>
+      <div class="workspace">
+        <div id="controls" class="panel">
+          <div class="row"><button id="reseed">New seed</button><span id="seedVal"></span></div>
+          <label class="row"><input type="checkbox" id="zoom" /> zoom ×2</label>
+          <label class="row"><input type="checkbox" id="relief" checked /> relief: light on the paint</label>
+          <label class="s">relief amount <output id="reliefOut">1</output><input type="range" id="reliefAmt" min="0" max="2" step="0.05" value="1" /></label>
+          <label class="row"><input type="checkbox" id="amount" /> experiment: paint as an amount</label>
+          <h2>Edit preset</h2>
+          <select id="preset"></select>
+          <div class="hint">Sliders edit every stroke drawn with the selected preset.</div>
+          <div id="sliders"></div>
+          <button id="dump">Copy preset JSON</button>
+        </div>
+        <div id="stage" class="panel">
+          <div id="frame">
+            <canvas id="proto"></canvas>
+            <div id="labels"></div>
+          </div>
+        </div>
+      </div>
+      <div id="lib-host"></div>
+    </main>
+
+    <script type="module">
+      import * as brush from "../../dist/brush.esm.js";
+      import { splitPigment, pigmentTerms } from "../../src/core/spectral.js";
+
+      // The library's spectral (Kubelka-Munk, 38 wavelengths) mixing code,
+      // taken from its composite shader so the prototype mixes exactly as it does.
+      const FRAG_SRC = await (await fetch("../../src/core/gl/shader.frag")).text();
+      const SPECTRAL_GLSL = FRAG_SRC.slice(FRAG_SRC.indexOf("const int SPECTRAL_SIZE"), FRAG_SRC.indexOf("// Same as spectral_mix(color1, u_color"));
+
+      const SCENE = new URLSearchParams(location.search).get("scene");
+      const [CW, CH] = SCENE === "sunflowers" ? [900, 1120] : [1180, 3780];
+      const PAPER = "#fffceb";
+      const density = Math.max(2, Math.round(window.devicePixelRatio || 1));
+
+      // ---------------------------------------------------------------------
+      // Brush presets. Units: width in logical px; paint in stroke widths
+      // travelled before a typical bristle runs dry.
+      // ---------------------------------------------------------------------
+      const PAINT_PARAMS = [
+        ["bristles", 6, 64, 1, "bristle count"],
+        ["shape", 0, 1, 0.01, "0 flat … 1 round"],
+        ["thick", 0.3, 2.5, 0.01, "bristle thickness"],
+        ["load", 0, 1.2, 0.01, "paint loaded"],
+        ["paint", 2, 60, 0.5, "widths before dry"],
+        ["scratch", 0, 0.6, 0.01, "early-dry bristles"],
+        ["clump", 0, 1, 0.01, "tuft splitting"],
+        ["wander", 0, 2, 0.01, "track wander"],
+        ["spread", 0.2, 1, 0.01, "width at light touch"],
+        ["grain", 0, 1, 0.01, "paper vs bristle break"],
+        ["tone", 0, 1, 0.01, "per-bristle tone"],
+        ["rails", 0, 1.5, 0.01, "paint at the sides"],
+        ["pool", 0, 1.5, 0.01, "touch-down pool"],
+        ["groove", 0, 1, 0.01, "thin paint between bristles"],
+        ["tilt", -1, 1, 0.01, "slanted brush: tip side"],
+        ["specks", 0, 1, 0.01, "paper pits catching paint"],
+        ["body", 0, 1, 0.01, "0 transparent ink … 1 opaque paint"],
+        ["relief", 0, 1.5, 0.01, "light on the paint's relief"],
+        ["split", 0, 1, 0.01, "two pigments, unevenly mixed"],
+        ["pickup", 0, 1, 0.01, "wet paint picked up"],
+        ["drag", 0, 6, 0.05, "how far it is dragged (widths)"],
+      ];
+      const PARAMS_OF = { paint: PAINT_PARAMS };
+      const PRESETS = {
+        "round": { type: "paint", bristles: 32, shape: 1, thick: 1.25, load: 1.1, paint: 45, scratch: 0.08, clump: 0.35, wander: 0.5, spread: 0.35, grain: 0.6, tone: 0.55, rails: 0.3, pool: 0.5, groove: 0.3, tilt: 0, specks: 0.4, body: 0.9, relief: 0.65, split: 0.18, pickup: 0.45, drag: 2.0 },
+        "round, running dry": { type: "paint", bristles: 36, shape: 1, thick: 1.1, load: 0.85, paint: 9, scratch: 0.2, clump: 0.7, wander: 0.6, spread: 0.4, grain: 0.6, tone: 0.4, rails: 0.15, pool: 0.4, groove: 0.3, tilt: 0, specks: 0.4, body: 0.85, relief: 0.26, split: 0.15, pickup: 0.35, drag: 1.5 },
+        "flat": { type: "paint", bristles: 52, shape: 0.1, thick: 1.2, load: 1.05, paint: 35, scratch: 0.1, clump: 0.25, wander: 0.4, spread: 0.85, grain: 0.55, tone: 0.4, rails: 0.6, pool: 0.3, groove: 0.4, tilt: 0, specks: 0.4, body: 0.95, relief: 0.65, split: 0.2, pickup: 0.55, drag: 2.5 },
+        "flat, dry (scumble)": { type: "paint", bristles: 44, shape: 0.15, thick: 0.9, load: 0.6, paint: 8, scratch: 0.3, clump: 0.45, wander: 0.8, spread: 0.8, grain: 0.75, tone: 0.5, rails: 0.2, pool: 0.15, groove: 0.4, tilt: 0, specks: 0.3, body: 0.85, relief: 0.2, split: 0.15, pickup: 0.3, drag: 1.2 },
+        "stiff bristle": { type: "paint", bristles: 16, shape: 0.45, thick: 1.0, load: 0.95, paint: 14, scratch: 0.25, clump: 0.5, wander: 1.3, spread: 0.6, grain: 0.5, tone: 0.55, rails: 0.4, pool: 0.3, groove: 0.5, tilt: 0, specks: 0.4, body: 0.95, relief: 0.72, split: 0.25, pickup: 0.6, drag: 2.0 },
+        "sumi": { type: "paint", bristles: 48, shape: 1, thick: 1.15, load: 1.0, paint: 12, scratch: 0.15, clump: 0.85, wander: 0.35, spread: 0.2, grain: 0.7, tone: 0.3, rails: 0.1, pool: 0.7, groove: 0.2, tilt: 0, specks: 0.5, body: 0.1, relief: 0, split: 0.15, pickup: 0.25, drag: 1.5 },
+        "sumi, slanted": { type: "paint", bristles: 48, shape: 1, thick: 1.15, load: 0.95, paint: 10, scratch: 0.2, clump: 0.7, wander: 0.4, spread: 0.45, grain: 0.7, tone: 0.3, rails: 0.1, pool: 0.4, groove: 0.2, tilt: 0.8, specks: 0.5, body: 0.1, relief: 0, split: 0.15, pickup: 0.25, drag: 1.5 },
+      };
+
+      // ---------------------------------------------------------------------
+      // Seeds: the fills' paper follows brush.seed() through this hash (a
+      // copy of _hashSeed in src/core/utils.js).
+      // ---------------------------------------------------------------------
+      function hashSeed(seed) {
+        let h = 0;
+        const s = String(seed);
+        for (let i = 0; i < s.length; i++) {
+          h = Math.imul(h ^ s.charCodeAt(i), 0x9e3779b9) | 0;
+          h ^= h >>> 15;
+        }
+        h = Math.imul(h ^ h >>> 16, 0x85ebca6b) | 0;
+        h = Math.imul(h ^ h >>> 13, 0xc2b2ae35) | 0;
+        return (h ^ h >>> 16) >>> 0 || 1;
+      }
+      function mkRng(seed) {
+        let s = seed;
+        return () => {
+          s |= 0; s = s + 0x6D2B79F5 | 0;
+          let t = Math.imul(s ^ s >>> 15, 1 | s);
+          t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+          return ((t ^ t >>> 14) >>> 0) / 4294967296;
+        };
+      }
+      const smooth = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
+
+      const PROF = { full: false, nocomp: new URLSearchParams(location.search).has("nocomp"), bristles: Number(new URLSearchParams(location.search).get("maxb")) || 0 };
+      let seed = Number(new URLSearchParams(location.search).get("seed")) || 100000 + Math.floor(Math.random() * 900000);
+
+      // ---------------------------------------------------------------------
+      // Paths and pressure profiles.
+      // ---------------------------------------------------------------------
+      function wave(x0, y, len, amp, rng, turns = 1.6) {
+        const pts = [], ph = rng() * 6.28, f2 = 3 + rng() * 2;
+        for (let i = 0; i <= 120; i++) {
+          const t = i / 120;
+          pts.push([x0 + t * len, y + amp * (Math.sin(t * turns * 6.28 + ph) + 0.2 * Math.sin(t * f2 * 6.28)) * smooth(0, 0.25, t)]);
+        }
+        return pts;
+      }
+      function arc(cx, cy, r, a0, a1) {
+        const pts = [];
+        for (let i = 0; i <= 120; i++) { const a = a0 + (a1 - a0) * (i / 120); pts.push([cx + r * Math.cos(a), cy + r * Math.sin(a)]); }
+        return pts;
+      }
+      function sCurve(x0, y0, x1, y1, bend) {
+        const pts = [];
+        for (let i = 0; i <= 80; i++) {
+          const t = i / 80;
+          const nx = -(y1 - y0), ny = x1 - x0, l = Math.hypot(nx, ny);
+          const o = bend * Math.sin(t * 3.14159);
+          pts.push([x0 + (x1 - x0) * t + nx / l * o, y0 + (y1 - y0) * t + ny / l * o]);
+        }
+        return pts;
+      }
+      // Pressure: a short touch-down, a body that breathes, and a lift.
+      function pressureFn({ start = 0.55, body = 1, end = 0.15, lift = 0.25, swell = 0.12 }, rng) {
+        const ph = rng() * 6.28;
+        return (t) => {
+          const down = start + (body - start) * smooth(0, 0.1, t);
+          const breathe = 1 + swell * Math.sin(t * 7 + ph) * 0.5;
+          const up = 1 - (1 - end / body) * smooth(1 - lift, 1, t);
+          return Math.min(1, down * breathe * up);
+        };
+      }
+
+      // A study after a small oil of sunflowers: a warm ground of short
+      // strokes, green below, the blue rim of a vase, three flowers with
+      // petals pulled out from the centre, and centres dabbed in many colours.
+      function buildSunflowers() {
+        const rng = mkRng(seed);
+        const s = [];
+        const hexToHsl = (hex) => {
+          const n = parseInt(hex.slice(1), 16), r = ((n >> 16) & 255) / 255, g = ((n >> 8) & 255) / 255, b = (n & 255) / 255;
+          const mx = Math.max(r, g, b), mn = Math.min(r, g, b), l = (mx + mn) / 2, d = mx - mn;
+          let h = 0;
+          if (d) h = mx === r ? ((g - b) / d) % 6 : mx === g ? (b - r) / d + 2 : (r - g) / d + 4;
+          return [h * 60, d ? d / (1 - Math.abs(2 * l - 1)) : 0, l];
+        };
+        const hsl = (h, sat, l) => {
+          const c = (1 - Math.abs(2 * l - 1)) * sat, x = c * (1 - Math.abs(((h / 60) % 2) - 1)), m = l - c / 2;
+          const [r, g, b] = h < 60 ? [c, x, 0] : h < 120 ? [x, c, 0] : h < 180 ? [0, c, x] : h < 240 ? [0, x, c] : h < 300 ? [x, 0, c] : [c, 0, x];
+          return "#" + [r, g, b].map((v) => Math.round(Math.min(1, Math.max(0, v + m)) * 255).toString(16).padStart(2, "0")).join("");
+        };
+        // A colour as mixed on a palette: never quite the same twice.
+        const vary = (hex, dh = 8, ds = 0.08, dl = 0.07) => {
+          const [h, sa, l] = hexToHsl(hex);
+          return hsl((h + (rng() * 2 - 1) * dh + 360) % 360, Math.min(1, Math.max(0, sa + (rng() * 2 - 1) * ds)), Math.min(0.92, Math.max(0.05, l + (rng() * 2 - 1) * dl)));
+        };
+        const pick = (arr) => arr[Math.floor(rng() * arr.length)];
+        const dab = (preset, color, width, x, y, ang, len, bend = 0, press = { start: 0.9, body: 1, end: 0.35, lift: 0.35, swell: 0.1 }) => {
+          const x1 = x + Math.cos(ang) * len, y1 = y + Math.sin(ang) * len;
+          s.push({ preset, color, width, path: sCurve(x, y, x1, y1, bend), press: pressureFn(press, rng), seed: Math.floor(rng() * 1e6) });
+        };
+
+        // Block-in: broad strokes that cover the canvas, warm above, green
+        // below, as a painter lays the ground before the detail.
+        const warm = ["#e3a33a", "#d98b2b", "#efc65a", "#c97a2a", "#f0d27a", "#b8743a", "#dcae5c"];
+        const greens = ["#2f6b2a", "#3f7f35", "#5e9b3c", "#245a2c", "#7fb04a", "#1f4a2a"];
+        for (let yy = -40; yy < CH + 40; yy += 55) {
+          for (let xx = -120; xx < CW + 40; xx += 150) {
+            const x = xx + rng() * 60, y = yy + rng() * 30;
+            const low = y > CH * 0.7 + (rng() - 0.5) * 80 - (x < CW * 0.5 ? 40 : -60);
+            dab("flat", vary(pick(low ? greens : warm), 8, 0.08, 0.05), 90 + rng() * 30, x, y, -0.3 + (rng() - 0.5) * 0.8, 200 + rng() * 80, (rng() - 0.5) * 40,
+              { start: 0.9, body: 1, end: 0.6, lift: 0.2, swell: 0.1 });
+          }
+        }
+        // Ground: short strokes laid in directions that swirl a little.
+        for (let i = 0; i < 340; i++) {
+          const x = rng() * CW, y = rng() * CH * 0.78;
+          const ang = Math.sin(x * 0.004 + y * 0.006) * 1.1 - 0.6 + (rng() - 0.5) * 0.6;
+          dab(rng() < 0.5 ? "flat" : "round", vary(pick(warm)), 34 + rng() * 26, x - 40, y, ang, 60 + rng() * 70, (rng() - 0.5) * 30);
+        }
+        // Greens below: leaves in strokes leaning every way, lighter touches.
+        for (let i = 0; i < 170; i++) {
+          const x = rng() * CW, y = CH * 0.7 + rng() * CH * 0.32;
+          const ang = -1.2 + (rng() - 0.5) * 2.2;
+          dab(rng() < 0.5 ? "stiff bristle" : "flat", vary(pick(greens)), 26 + rng() * 26, x - 30, y, ang, 50 + rng() * 70, (rng() - 0.5) * 30);
+        }
+        // The vase's blue rim, low and wide, pulled across in a few strokes.
+        for (let i = 0; i < 5; i++) {
+          const y0 = CH * 0.95 + i * 7;
+          const path = [];
+          for (let k = 0; k <= 60; k++) { const t = k / 60; path.push([120 + t * 760, y0 - 60 * Math.sin(t * Math.PI)]); }
+          s.push({ preset: "round", color: vary(i % 2 ? "#1e3fa8" : "#2a62c9", 6, 0.05, 0.06), width: 24 + rng() * 10, path, press: pressureFn({ start: 0.8, end: 0.5, lift: 0.2 }, rng), seed: Math.floor(rng() * 1e6) });
+        }
+        // Flowers: petals pulled out from the centre, then the centre dabbed.
+        const flowers = [
+          { x: 230, y: 470, r: 150, petals: ["#7a1f1a", "#8f2a1e", "#5e1914", "#a3402a"] },
+          { x: 680, y: 190, r: 130, petals: ["#e08a2a", "#c8641e", "#f0a640", "#b85a20"] },
+          { x: 120, y: 120, r: 110, petals: ["#e9a23a", "#d47a22", "#f2bf55"] },
+        ];
+        for (const f of flowers) {
+          const n = 14;
+          for (let k = 0; k < n; k++) {
+            const a = (k / n) * Math.PI * 2 + rng() * 0.3;
+            const r0 = f.r * 0.22;
+            dab(rng() < 0.6 ? "flat" : "round", vary(pick(f.petals)), f.r * (0.28 + rng() * 0.1), f.x + Math.cos(a) * r0, f.y + Math.sin(a) * r0, a + (rng() - 0.5) * 0.25, f.r * (0.55 + rng() * 0.3), (rng() - 0.5) * f.r * 0.25,
+              { start: 1, body: 0.9, end: 0.15, lift: 0.5, swell: 0.1 });
+          }
+          // The centre: a dark mass worked in short round strokes, then
+          // dabbed over in many colours, densest in the middle.
+          const R0 = f.r * 0.36;
+          for (let k = 0; k < 22; k++) {
+            const a = rng() * Math.PI * 2, d = Math.sqrt(rng()) * R0 * 0.75;
+            dab("round", vary(pick(["#1b1a3a", "#2a2050", "#3a1830", "#1f2a3a"]), 8, 0.08, 0.04), R0 * 0.55, f.x + Math.cos(a) * d, f.y + Math.sin(a) * d, rng() * 6.28, R0 * 0.35, 0,
+              { start: 1, body: 1, end: 0.7, lift: 0.2, swell: 0 });
+          }
+          const centre = ["#5a1a3a", "#8a1f3a", "#1f4a2a", "#3a6a2a", "#c23a5a", "#e0b23a", "#e8e0c0", "#7a9a3a"];
+          for (let k = 0; k < 110; k++) {
+            const a = rng() * Math.PI * 2, d = Math.sqrt(rng()) * R0;
+            dab("stiff bristle", vary(pick(centre), 10, 0.1, 0.05), 7 + rng() * 7, f.x + Math.cos(a) * d, f.y + Math.sin(a) * d, rng() * 6.28, 4 + rng() * 7, 0,
+              { start: 1, body: 1, end: 0.6, lift: 0.4, swell: 0 });
+          }
+        }
+        return { strokes: s, labels: [], wash: null, lib: [] };
+      }
+
+      function buildScene() {
+        const rng = mkRng(seed);
+        const s = [];   // strokes
+        const L = [];   // labels
+        const lib = [];  // today's library strokes, for comparison
+        const add = (preset, color, width, path, press, label, lx, ly) => {
+          s.push({ preset, color, width, path, press: typeof press === "function" ? press : pressureFn(press, rng), seed: Math.floor(rng() * 1e6) });
+          if (label) L.push({ x: lx ?? path[0][0], y: ly ?? path[0][1] - width - 18, text: label, preset });
+        };
+        const C = { ink: "#1b2633", blue: "#1d3f9a", red: "#b8321a", green: "#2f5a1e", ochre: "#b07a10", umber: "#5a3a22" };
+
+        // Two columns: each preset on a wave, with a press-and-lift.
+        const names = Object.keys(PRESETS).slice(0, 6);
+        const colors = [C.blue, C.ink, C.red, C.umber, C.green, C.ink];
+        names.forEach((n, i) => {
+          const col = i % 2, row = Math.floor(i / 2);
+          const x0 = 50 + col * 580, y = 70 + row * 130;
+          const w = n.startsWith("flat") ? 24 : n === "sumi" ? 22 : 20;
+          add(n, colors[i], w, wave(x0, y, 500, 18, rng), { start: 0.6, body: 1, end: 0.2, lift: 0.3, swell: 0.15 }, n);
+        });
+
+        // Curves: the outside of a turn dries first.
+        let y = 470;
+        L.push({ x: 50, y: y - 30, text: "curves (outer bristles travel further)", preset: "round, running dry" });
+        add("round, running dry", C.blue, 26, arc(200, y + 110, 110, Math.PI * 1.05, Math.PI * 2.2), { start: 0.7, end: 0.4, lift: 0.2 });
+        add("flat, dry (scumble)", C.umber, 30, sCurve(370, y + 180, 560, y + 10, 70), { start: 0.7, end: 0.4, lift: 0.2 });
+        // Calligraphic press-lift.
+        L.push({ x: 630, y: y - 30, text: "pressure: thick–thin, lift tails", preset: "sumi" });
+        add("sumi", C.ink, 30, sCurve(640, y + 40, 1120, y + 60, -40), { start: 0.35, body: 1, end: 0.05, lift: 0.55, swell: 0.3 });
+        add("sumi", C.ink, 30, sCurve(660, y + 150, 900, y + 230, 40), { start: 0.9, body: 0.8, end: 0.05, lift: 0.7, swell: 0 });
+        add("round", C.red, 22, sCurve(930, y + 230, 1130, y + 120, -30), { start: 0.25, body: 1, end: 0.1, lift: 0.5 });
+
+        // Over a watercolour wash: short marks and overlaps.
+        y = 790;
+        L.push({ x: 50, y: y - 30, text: "over a wash: dabs, crossings, light touch", preset: "stiff bristle" });
+        for (let i = 0; i < 9; i++) {
+          const x = 80 + i * 58 + rng() * 10, yy = y + 30 + rng() * 40;
+          add(i % 2 ? "round" : "stiff bristle", i % 3 ? C.green : C.ochre, 16, sCurve(x, yy + 90, x + 30 + rng() * 20, yy, 12 * (rng() - 0.5)), { start: 0.9, end: 0.2, lift: 0.5 });
+        }
+        add("flat, dry (scumble)", C.ink, 34, sCurve(620, y + 40, 1130, y + 70, 25), { start: 0.6, body: 0.7, end: 0.4, lift: 0.2, swell: 0.3 });
+        add("flat", C.red, 28, sCurve(640, y + 230, 900, y + 10, 30), { start: 0.8, end: 0.3, lift: 0.3 });
+        add("round, running dry", C.blue, 18, sCurve(700, y + 140, 1140, y + 200, -40), { start: 0.5, body: 0.45, end: 0.2, lift: 0.3 });
+        add("sumi, slanted", C.ink, 40, sCurve(880, y + 250, 1140, y + 225, -10), { start: 0.8, body: 0.9, end: 0.4, lift: 0.3, swell: 0.1 }, "sumi, slanted", 880, y + 196);
+        const wash = { x: 30, y: y - 10, w: CW - 60, h: 280 };
+
+        // Wet into wet: strokes dragged through earlier ones.
+        y = 1150;
+        L.push({ x: 50, y: y - 30, text: "wet into wet: strokes dragged through earlier paint", preset: "flat" });
+        const under = [C.blue, C.red, "#e0b400", C.green, C.ink, C.blue, C.red];
+        under.forEach((col, i) => {
+          const x = 70 + i * 75;
+          add(i % 2 ? "flat" : "round", col, 30, sCurve(x, y + 270, x + 15, y, 10), { start: 0.9, end: 0.5, lift: 0.2 });
+        });
+        add("flat", "#f2ead8", 34, sCurve(50, y + 70, 600, y + 60, 15), { start: 0.9, end: 0.6, lift: 0.2 });
+        add("round", "#e0b400", 26, sCurve(50, y + 150, 600, y + 170, -15), { start: 0.9, end: 0.5, lift: 0.2 });
+        add("stiff bristle", C.red, 24, sCurve(50, y + 230, 600, y + 220, 10), { start: 0.9, end: 0.4, lift: 0.3 });
+        // Same idea, one colour over its complement.
+        add("flat", C.blue, 60, sCurve(660, y + 60, 1130, y + 80, 10), { start: 0.9, end: 0.7, lift: 0.15 });
+        add("flat", "#e0b400", 60, sCurve(660, y + 150, 1130, y + 130, -10), { start: 0.9, end: 0.7, lift: 0.15 });
+        add("round, running dry", C.red, 26, sCurve(700, y + 250, 1100, y + 20, 40), { start: 0.9, end: 0.4, lift: 0.3 });
+        add("flat, dry (scumble)", "#f2ead8", 40, sCurve(680, y + 230, 1130, y + 200, -10), { start: 0.8, end: 0.5, lift: 0.2 });
+        // Library markers.
+        y = 1540;
+        L.push({ x: 50, y: y - 34, text: "markers — library, with resting blobs and paper specks", preset: "" });
+        const M = [C.blue, "#d6336c", C.green, "#e0b400"];
+        M.forEach((col, i) => {
+          const path = wave(50, y + i * 52, 480, 12, rng, 1.2);
+          lib.push({ name: "marker", color: col, weight: 5, path });
+        });
+        // Layering: crossing strokes in two transparent colours.
+        y = 1780;
+        L.push({ x: 50, y: y - 24, text: "layering: crossing marker strokes", preset: "" });
+        const cross = [];
+        for (let i = 0; i < 4; i++) cross.push(["#4fa3d9", sCurve(70 + i * 40, y + 170, 110 + i * 40, y, 4)]);
+        for (let i = 0; i < 4; i++) cross.push(["#f2b705", sCurve(50, y + 30 + i * 40, 360, y + 20 + i * 40, 3)]);
+        cross.forEach(([col, path]) => {
+          lib.push({ name: "marker", color: col, weight: 6, path });
+        });
+        // Directions: the specks streak along the stroke.
+        L.push({ x: 400, y: y - 24, text: "directions", preset: "" });
+        [[400, y + 170, 540, y + 10], [400, y + 10, 540, y + 170], [470, y, 470, y + 180]].forEach(([x0, y0, x1, y1], i) => {
+          lib.push({ name: "marker", color: [C.blue, "#d6336c", C.green][i], weight: 6, path: sCurve(x0, y0, x1, y1, 0) });
+        });
+        // Library chisel markers: a flat nib at a fixed angle.
+        y = 2040;
+        L.push({ x: 50, y: y - 34, text: "chisel markers — library (nib 40°, thickness 0.22)", preset: "" });
+        const chiselZig = [];
+        for (let i = 0; i <= 160; i++) { const t = i / 160; chiselZig.push([60 + t * 300, y + 80 + 55 * Math.sin(t * 6.28 * 1.5)]); }
+        lib.push({ name: "chisel", color: C.red, weight: 9, path: chiselZig });
+        lib.push({ name: "chisel", color: C.blue, weight: 9, path: arc(520, y + 85, 70, 0, Math.PI * 1.9) });
+        lib.push({ name: "chisel", color: C.green, weight: 9, path: wave(650, y + 80, 450, 40, rng, 1.0) });
+        lib.push({ name: "chisel", color: C.ink, weight: 6, path: sCurve(650, y + 170, 1100, y + 150, -20) });
+        // Paint as an amount: glazes and cover.
+        y = 2330;
+        L.push({ x: 50, y: y - 34, text: "same colour, 1–4 layers: ink (sumi) · opaque paint (flat)", preset: "sumi" });
+        for (let i = 0; i < 4; i++) {
+          add("sumi", C.blue, 26, sCurve(60 + i * 110, y + 10, 560, y + 10, 0), { start: 0.9, body: 0.9, end: 0.9, lift: 0.05, swell: 0 });
+          add("flat", C.blue, 26, sCurve(620 + i * 110, y + 10, 1120, y + 10, 0), { start: 0.9, body: 0.9, end: 0.9, lift: 0.05, swell: 0 });
+        }
+        y = 2420;
+        L.push({ x: 50, y: y - 20, text: "yellow over blue: ink (glaze, turns green) · opaque paint (covers)", preset: "flat" });
+        for (let i = 0; i < 3; i++) {
+          add("sumi", C.blue, 30, sCurve(90 + i * 150, y + 220, 100 + i * 150, y + 10, 0), { start: 0.9, body: 0.9, end: 0.9, lift: 0.05, swell: 0 });
+          add("flat", C.blue, 30, sCurve(650 + i * 150, y + 220, 660 + i * 150, y + 10, 0), { start: 0.9, body: 0.9, end: 0.9, lift: 0.05, swell: 0 });
+        }
+        add("sumi", "#e0b400", 40, sCurve(50, y + 110, 560, y + 120, 5), { start: 0.9, body: 0.9, end: 0.8, lift: 0.1, swell: 0 });
+        add("flat", "#e0b400", 40, sCurve(610, y + 110, 1120, y + 120, 5), { start: 0.9, body: 0.9, end: 0.8, lift: 0.1, swell: 0 });
+        // Relief per stroke: the same stroke at 0, 0.5, 1 and 1.5.
+        {
+          const yR = 3560;
+          L.push({ x: 50, y: yR - 34, text: "relief per stroke: 0 · 0.5 · 1 · 1.5", preset: "flat" });
+          [0, 0.5, 1, 1.5].forEach((amt, k) => {
+            add("flat", "#1f45b5", 50, sCurve(60 + k * 280, yR + 40, 300 + k * 280, yR + 30, -15), { start: 0.9, body: 1, end: 0.5, lift: 0.25, swell: 0.1 });
+            s[s.length - 1].relief = amt;
+          });
+        }
+        // Ridges along long strokes: full at the start, then the sides go as
+        // they run low, and a push of pressure (at about 70%) squeezes a
+        // little more out.
+        y = 3200;
+        L.push({ x: 50, y: y - 34, text: "ridges along long strokes (pressure push at ~70%)", preset: "flat" });
+        const push = (t) => Math.min(1, (0.55 + 0.45 * smooth(0, 0.06, t)) * (1 - 0.25 * smooth(0.25, 0.45, t) + 0.55 * Math.exp(-(((t - 0.7) / 0.08) ** 2))) * (1 - 0.8 * smooth(0.93, 1, t)));
+        for (let k = 0; k < 3; k++) add("flat", ["#1f45b5", C.red, C.green][k], 46, sCurve(60, y + 20 + k * 95, 1120, y + 30 + k * 95, (k - 1) * 30), push);
+        // Close up: wide, overlapping strokes in one colour.
+        y = 2720;
+        L.push({ x: 50, y: y - 30, text: "close up: wide overlapping strokes (flat, round)", preset: "flat" });
+        for (let r = 0; r < 4; r++) {
+          for (let k = 0; k < 4; k++) {
+            const x0 = 40 + k * 270 + (r % 2) * 120 + rng() * 40, yy = y + 30 + r * 95 + rng() * 20;
+            const bend = (rng() - 0.5) * 60;
+            add(k % 2 ? "round" : "flat", "#1f45b5", 70 + rng() * 20, sCurve(x0, yy + 30, x0 + 230, yy - 10, bend), { start: 0.85, body: 1, end: 0.6, lift: 0.25, swell: 0.1 });
+          }
+        }
+        return { strokes: s, labels: L, wash, lib };
+      }
+
+      // ---------------------------------------------------------------------
+      // Library pass: paper and one wash.
+      // ---------------------------------------------------------------------
+      const libCanvas = brush.createCanvas(CW, CH, { id: "lib-canvas", parent: "#lib-host", pixelDensity: density });
+      // A chisel marker: the library's marker with a flat nib.
+      brush.add("chisel", {
+        type: "marker", weight: 2, scatter: 0.2, opacity: 1, spacing: 0.03,
+        pressure: { curve: [0.35, 0.25], min_max: [1.2, 0.85] },
+        nib: { angle: 40, thickness: 0.22 },
+      });
+      function drawLibrary(scene) {
+        brush.seed(seed);
+        brush.noiseSeed(seed);
+        brush.clear(PAPER);
+        brush.push();
+        brush.translate(-CW / 2, -CH / 2);
+        brush.noStroke();
+        brush.fill("#d9b04a", 90);
+        brush.fillBleed(0.12);
+        brush.fillTexture(0.5, 0.4);
+        const f = scene.wash;
+        if (f) brush.rect(f.x, f.y, f.w, f.h);
+        brush.noFill();
+        for (const st of scene.lib) {
+          brush.set(st.name, st.color, st.weight);
+          brush.beginShape(0);
+          for (const [x, y] of st.path) brush.vertex(x, y);
+          brush.endShape();
+        }
+        brush.pop();
+        brush.render();
+      }
+
+      // ---------------------------------------------------------------------
+      // GL.
+      // ---------------------------------------------------------------------
+      const canvas = document.getElementById("proto");
+      canvas.width = CW * density; canvas.height = CH * density;
+      canvas.style.width = CW + "px"; canvas.style.height = CH + "px";
+      const gl = canvas.getContext("webgl2", { premultipliedAlpha: false, antialias: false, preserveDrawingBuffer: true });
+
+      const NOISE_GLSL = `
+        uint pcg(uint v) {
+          uint state = v * 747796405u + 2891336453u;
+          uint word = ((state >> ((state >> 28u) + 4u)) ^ state) * 277803737u;
+          return (word >> 22u) ^ word;
+        }
+        float cell(ivec2 c, uint s) {
+          return float(pcg(uint(c.x) * 1597334677u ^ pcg(uint(c.y) ^ s)) >> 8) * (1.0 / 16777216.0);
+        }
+        float vnoise(vec2 p, uint s) {
+          ivec2 i = ivec2(floor(p));
+          vec2 f = fract(p);
+          f = f * f * (3.0 - 2.0 * f);
+          return mix(mix(cell(i, s), cell(i + ivec2(1, 0), s), f.x),
+                     mix(cell(i + ivec2(0, 1), s), cell(i + ivec2(1, 1), s), f.x), f.y);
+        }
+        // src/fill/paper_height.glsl, verbatim apart from names.
+        float paperHeight(vec2 q, uint seed) {
+          float h = 0.55 * vnoise(q, seed)
+                  + 0.25 * vnoise(q * 2.1 + 31.7, seed + 1u)
+                  + 0.20 * vnoise(mat2(0.94, 0.34, -0.34, 0.94) * q * vec2(0.18, 1.6) + 7.3, seed + 2u);
+          return clamp((h - 0.5) * 2.2 + 0.5, 0.0, 1.0);
+        }
+      `;
+
+      const STROKE_VS = `#version 300 es
+        in vec2 a_pos;      // logical px
+        in vec4 a_ribbon;   // arc length (px), cross (edge units), beyond (edge units; <0 start cap, >0 end cap), t
+        in vec3 a_extra;    // half width (px), pressure, turning angle (rad)
+        in vec2 a_tan;      // travel direction (logical, y down)
+        in vec3 a_side;     // paint used on the +/- side so far (pressure × distance), the brush's roll
+        uniform vec2 u_size;
+        out vec4 v_ribbon;
+        out vec3 v_extra;
+        out vec2 v_tan;
+        out vec3 v_side;
+        void main() {
+          v_side = a_side;
+          v_ribbon = a_ribbon;
+          v_extra = a_extra;
+          v_tan = a_tan;
+          gl_Position = vec4(a_pos.x / u_size.x * 2.0 - 1.0, 1.0 - a_pos.y / u_size.y * 2.0, 0.0, 1.0);
+        }`;
+
+      const STROKE_FS = `#version 300 es
+        precision highp float;
+        precision highp int;
+        in vec4 v_ribbon;
+        in vec3 v_extra;
+        in vec2 v_tan;
+        in vec3 v_side;
+        uniform uint u_seed;
+        uniform uint u_paperSeed;
+        uniform float u_density;
+        uniform float u_len;
+        uniform int u_bristles;
+        uniform bool u_fullLoop;   // check: evaluate every bristle
+        uniform float u_shape, u_thick, u_load, u_paint, u_scratch, u_clump, u_wander, u_spread, u_grain, u_tone, u_rails, u_pool, u_groove, u_tilt;
+        uniform float u_specks;
+        uniform float u_bodyS;   // the paint's body: opaque paint covers the paper's pits
+        out vec4 outColor;
+        ${NOISE_GLSL}
+
+        float rnd(int i, int k) { return cell(ivec2(i, k), u_seed); }
+
+        // The paper's pits: a sparse set of tiny spots (about half a pixel)
+        // that soak up a little more of any wet paint or ink. They belong to
+        // the paper, so every stroke darkens the same ones.
+        float paperSpecks() {
+          vec2 q = gl_FragCoord.xy / (u_density * 1.5);
+          ivec2 id = ivec2(floor(q));
+          if (cell(id, u_paperSeed + 21u) > 0.05 * u_specks) return 0.0;
+          vec2 ctr = vec2(id) + 0.3 + 0.4 * vec2(cell(id, u_paperSeed + 22u), cell(id, u_paperSeed + 23u));
+          float rad = mix(0.15, 0.38, cell(id, u_paperSeed + 24u)) * 1.5;   // logical px
+          float d = length(q - ctr) * 1.5;
+          return clamp((rad - d) * u_density + 0.5, 0.0, 1.0) * mix(0.5, 1.0, cell(id, u_paperSeed + 25u));
+        }
+
+        void main() {
+          float c = v_ribbon.y, b = v_ribbon.z;
+          float w = v_extra.x;            // half width at full pressure (px)
+          float p = v_extra.y;            // pressure
+          float theta = v_extra.z;        // turning so far
+          // Arc length, continued into the cap quads.
+          float u = b < 0.0 ? b * w : (b > 0.0 ? u_len + b * w : v_ribbon.x);
+          float uPos = max(u, 0.0);
+
+          // The footprint narrows as the brush is lifted (a round brush much
+          // more than a flat one), and only bristles long enough to reach
+          // the paper at this pressure touch it.
+          float S = mix(u_spread, 1.0, p);
+
+          // Paint left on an average bristle; as it falls the brush splits
+          // into tufts (Chu & Tai: one wet tuft, 2-5 as it dries).
+          // Paint thins out exponentially: a drying brush leaves an ever
+          // scratchier trail rather than stopping.
+          // Paint leaves the brush as it presses, so what is left goes with
+          // the pressure-weighted distance each side has travelled.
+          float RUN = u_paint * 2.0 * w;
+          float avgInk = u_load * exp(-0.5 * (v_side.x + v_side.y) / RUN);
+          // A brush is rarely loaded evenly: one side starts with less paint.
+          float lean = (cell(ivec2(3, 77), u_seed) - 0.5) * 1.6;
+          float clumping = u_clump * smoothstep(0.15, 0.85, 1.0 - avgInk);
+          int tufts = 2 + int(u_clump * 3.0 + 0.5);
+
+          // The paper: its bumps and, finer, its tooth (the fills' scales).
+          float h = 0.6 * paperHeight(gl_FragCoord.xy / (u_density * 1.26 * 2.0), u_paperSeed)
+                  + 0.4 * paperHeight(gl_FragCoord.xy / (u_density * 1.26 * 1.3) + 41.0, u_paperSeed);
+          float pool = 1.0 + u_pool * exp(-max(u + w, 0.0) / (w * 1.5));
+
+          float n = float(u_bristles);
+          float spacing = 2.0 / n;
+          float keep = 1.0, densSum = 0.0, covSum = 0.0, near = 0.0, ratioSum = 0.0;
+
+          // Only the bristles that can reach this pixel are evaluated. A
+          // bristle lands at mix(r, tuft centre, pull) plus its wander and
+          // reaches a little past that, so invert that for this pixel: once
+          // for bristles that stay loose, once per tuft for the ones it pulls
+          // in. The union is a short range of indices, exact, not sampled.
+          int iLo = 0, iHi = u_bristles - 1;
+          if (!u_fullLoop) {
+            float X = c / max(S, 0.05);
+            float M = spacing * (1.0 + 0.5 * u_wander + 1.95 * u_thick) + 1.0 / (u_density * w * max(S, 0.05));
+            float rLo = X - M, rHi = X + M;
+            float tkf = float(tufts);
+            for (int t = 0; t < 5; t++) {
+              if (t >= tufts) break;
+              float tf = float(t);
+              float tcT = -1.0 + (tf + 0.5) * 2.0 / tkf + (cell(ivec2(t, 9), u_seed) - 0.5) * 0.9 / tkf
+                        + (vnoise(vec2(uPos / (w * 5.0), tf * 5.3), u_seed + 7u) - 0.5) * 0.8 / tkf;
+              float dr = smoothstep(0.25, 0.75, vnoise(vec2(uPos / (w * 3.0), tf * 2.9 + 0.5), u_seed + 8u));
+              float pl = clumping * mix(0.35, 0.8, cell(ivec2(t, 10), u_seed)) * mix(0.3, 1.0, dr);
+              float a0 = (X - M - pl * tcT) / (1.0 - pl), a1 = (X + M - pl * tcT) / (1.0 - pl);
+              float lo = -1.0 + tf * 2.0 / tkf, hi = -1.0 + (tf + 1.0) * 2.0 / tkf;
+              if (a1 >= lo && a0 <= hi) { rLo = min(rLo, max(a0, lo)); rHi = max(rHi, min(a1, hi)); }
+            }
+            iLo = max(0, int(floor((rLo + 1.0) / spacing - 1.0)));
+            iHi = min(u_bristles - 1, int(ceil((rHi + 1.0) / spacing)));
+          }
+          for (int i = iLo; i <= iHi; i++) {
+            // Rest position across the brush and the tuft it belongs to.
+            float r = -1.0 + (float(i) + 0.5) * spacing + (rnd(i, 0) - 0.5) * spacing * 0.9;
+            float tk = float(tufts);
+            float ti = clamp(floor((r * 0.5 + 0.5) * tk), 0.0, tk - 1.0);
+            // Tufts differ in size and drift along the stroke; a few stray
+            // bristles never join one and cross the gaps.
+            float tc = -1.0 + (ti + 0.5) * 2.0 / tk + (cell(ivec2(int(ti), 9), u_seed) - 0.5) * 0.9 / tk
+                     + (vnoise(vec2(uPos / (w * 5.0), ti * 5.3), u_seed + 7u) - 0.5) * 0.8 / tk;
+            // Gaps open and close along the stroke: each tuft's pull drifts.
+            float drift = smoothstep(0.25, 0.75, vnoise(vec2(uPos / (w * 3.0), ti * 2.9 + 0.5), u_seed + 8u));
+            float pull = clumping * mix(0.35, 0.8, cell(ivec2(int(ti), 10), u_seed)) * mix(0.3, 1.0, drift) * step(0.22, rnd(i, 10));
+            float x = mix(r, tc, pull);
+            // Tracks wander slowly; they are not rails.
+            x += (vnoise(vec2(uPos / (w * 2.2), float(i) * 3.17), u_seed + 1u) - 0.5) * spacing * u_wander;
+            float xr = x;               // across the brush, before the footprint scales
+            x *= S;
+
+            // Bristle length: a round brush is longest in the middle.
+            // Slanting the brush (Chu & Tai's slanted stroke) moves the tip,
+            // the longest bristles, toward one side.
+            float rt = clamp(r - u_tilt * 0.6, -1.0, 1.0);
+            float len = mix(1.0, sqrt(max(1.0 - rt * rt, 0.0)), u_shape) * (0.86 + 0.14 * rnd(i, 1));
+            len *= 1.0 - 0.25 * abs(u_tilt) * smoothstep(0.0, 1.0, -r * sign(u_tilt));
+            float contact = smoothstep(1.0 - p - 0.15, 1.0 - p + 0.15, len);
+            if (contact <= 0.0) continue;
+
+            // Paint on this bristle: it runs out over the distance it
+            // actually travelled, which is longer on the outside of a turn.
+            // Its side's pressure-weighted travel, plus the extra distance it
+            // covers on the outside of a turn.
+            float used = mix(v_side.y, v_side.x, r * 0.5 + 0.5);
+            float travel = max(used - x * w * theta, 0.0);
+            float run = RUN * mix(0.55, 1.3, rnd(i, 2)) * (rnd(i, 3) < u_scratch ? 0.35 : 1.0);
+            float ink = clamp(u_load * clamp(1.0 - 0.35 * lean * r, 0.4, 1.4) * mix(0.85, 1.05, rnd(i, 4)) * exp(-travel / run), 0.0, 1.0);
+
+            // A wet bristle lays a wider track; a dry one a thin line.
+            // Its contact width swells and narrows as it drags, so the gaps
+            // between tracks open and close.
+            float rad = spacing * w * S * u_thick * mix(0.4, 1.3, ink) * mix(0.75, 1.2, rnd(i, 5))
+                      * mix(0.65, 1.25, vnoise(vec2(uPos / (w * 1.2), float(i) * 4.1), u_seed + 4u));
+            float dpx = abs(c - x) * w;
+            float cov = clamp((rad - dpx) * u_density + 0.5, 0.0, 1.0);
+            if (cov <= 0.0) continue;
+
+            // Each bristle lands and leaves on the footprint's round outline.
+            float cap = w * S * sqrt(max(1.0 - xr * xr, 0.0));
+            float u0 = -cap * mix(0.6, 1.0, rnd(i, 6));
+            float u1 = u_len + cap * mix(0.2, 0.7, rnd(i, 7));
+            // Where the brush lands the bristles press into one rounded front
+            // of paint: their starts differ only a little and blend.
+            cov *= smoothstep(u0 * 0.6 - w * 0.12, u0 * 0.6 + w * 0.12, u);
+            // A bristle does not stop on a cut: as the brush lifts its track
+            // thins to a point over a short tail.
+            float tailLen = w * mix(0.25, 0.8, rnd(i, 12));
+            float tailT = clamp((u - (u1 - tailLen)) / tailLen, 0.0, 1.0);
+            cov *= step(dpx, rad * (1.0 - tailT * tailT)) * mix(1.0, 0.0, smoothstep(0.85, 1.0, tailT));
+
+            // Low on paint, the bristle skips: it touches the paper's hills
+            // and its own uneven tip.
+            float nb = vnoise(vec2(uPos / (w * 0.9 + 2.0), float(i) * 7.7), u_seed + 3u);
+            // Outer bristles carry and press less, so edges break first.
+            // A bristle that barely touches skips the same way: light
+            // contact is fewer touches on the paper, not paler paint.
+            float th = 1.08 - ink * 1.7 * mix(1.0, 0.7, smoothstep(0.7, 1.0, abs(xr))) + (1.0 - contact) * 0.9;
+            float catchv = smoothstep(th - 0.2, th + 0.2, mix(nb, h, u_grain));
+
+            float tone = (1.0 - u_tone * 0.6 * rnd(i, 8)) * (1.0 - 0.3 * u_tone * vnoise(vec2(uPos / (w * 1.4), float(i) * 1.3), u_seed + 5u));
+            float rail = 1.0 + u_rails * smoothstep(0.55, 0.95, abs(xr)) * ink;
+            // Coverage (where this bristle leaves paint) and density (how
+            // much) are kept apart: overlapping tracks fill the stroke but
+            // their tones average, so streaks survive in a loaded stroke.
+            float a = clamp(cov * catchv, 0.0, 1.0);
+            float dens = tone * rail * pool * mix(0.7, 1.0, p) * mix(0.3, 1.0, ink);
+            keep *= 1.0 - a;
+            near = max(near, a * clamp(1.0 - dpx / max(rad, 0.5), 0.0, 1.0));
+            covSum += a;
+            densSum += a * dens;
+            // Paint is never mixed evenly on the palette: each bristle holds
+            // its own ratio of the two pigments, drifting along the stroke.
+            float ratio = clamp(rnd(i, 11) * 0.75 + 0.5 * (vnoise(vec2(uPos / (w * 3.5), float(i) * 0.37), u_seed + 9u) - 0.5) + 0.12, 0.0, 1.0);
+            ratioSum += a * ratio;
+            // How deep this bristle digs into wet paint it crosses.
+          }
+          // Paint lies thinner in the grooves between bristles.
+          // Paint is an amount, not a fraction: where it pools (touch-down,
+          // the rails at the sides) there is more than 1. Stored halved.
+          float paint = (1.0 - keep) * clamp(densSum / max(covSum, 1e-4), 0.0, 2.0)
+                      * mix(1.0 - u_groove * 0.45, 1.0, smoothstep(0.0, 0.6, near));
+          paint = clamp(paint + (1.0 - keep) * paperSpecks() * 0.3 * (1.0 - u_bodyS), 0.0, 2.0);
+          if (paint <= 0.003) discard;
+          // (pigment ratio, travel direction, paint): the composite needs the
+          // direction to find the paint this pixel's bristles dragged in.
+          float angle = atan(v_tan.y, v_tan.x) / 6.2831853 + 0.5;
+          // The paint's surface, from how the brush moves it. The brush
+          // flattens the middle and pushes paint out to both sides, where it
+          // stands in a lip; the lips swell and fade along the stroke, side by
+          // side, and only while the brush is wet. The fibres score fine
+          // grooves along the stroke, deep in places and smoothed away in
+          // others. Where the brush touched down the paint is piled.
+          float wet = smoothstep(0.25, 0.8, avgInk);
+          // Distance to the footprint's edge, around the ends too: the lip
+          // runs all the way round, so where the brush landed the paint
+          // stands in a rounded front.
+          float bS = b != 0.0 ? b / max(S, 0.05) : 0.0;
+          float cn = length(vec2(c / max(S, 0.05), bS));
+          float side = c < 0.0 ? 0.0 : 1.0;
+          // Each side's ridge is the paint that side pushes out. It needs
+          // enough paint at the pressure that side is under: full and tall at
+          // the start, gone once that side runs low, and back only if the
+          // pressure rises enough to squeeze out what is left. The hand's roll
+          // moves pressure between the sides, so they rarely go at once.
+          float sgn = side * 2.0 - 1.0;
+          float sideLeft = u_load * clamp(1.0 - 0.35 * lean * sgn, 0.4, 1.4) * exp(-(side > 0.5 ? v_side.x : v_side.y) / RUN);
+          float squeeze = sideLeft * p * (1.0 + sgn * v_side.z);
+          float amt = smoothstep(0.5, 0.95, squeeze);
+          // A little bunching as it is dragged, nothing more.
+          float bunchR = 1.0 + 0.12 * (vnoise(vec2(uPos / (w * 0.5), side * 5.0), u_seed + 20u) - 0.5);
+          float lipAt = 0.88 + 0.03 * (vnoise(vec2(uPos / (w * 1.5), side * 11.0 + 3.0), u_seed + 15u) - 0.5);
+          float lipW = mix(0.05, 0.12, amt);
+          float lip = 1.4 * amt * (0.85 + 0.3 * smoothstep(0.95, 1.3, squeeze)) * bunchR * exp(-pow((cn - lipAt) / lipW, 2.0));
+          // Under the brush, the layer left is the paint it carries, pressed
+          // thinner where it presses harder.
+          float flat_ = 0.4 * clamp(avgInk, 0.0, 1.2) / mix(1.0, max(p, 0.3), 0.6);
+          // Fibre lines: dense, fine and long, every pixel or two across.
+          float fibre = smoothstep(0.35, 0.8, vnoise(vec2(uPos / (w * 8.0), c * w / 0.55), u_seed + 18u));
+          // How clearly the fibres mark the paint:
+          //  - load: a full brush rides on a cushion of paint and its marks
+          //    level out; as it thins the bristles scrape through and the
+          //    marks sharpen; with little paint left there is little to score.
+          //  - pressure: a light touch hardly scores, a firm one digs in.
+          //  - clumping: wet bristles cling in groups, so marks come in bands
+          //    across the stroke with smoother lanes between, and the groups
+          //    shift slowly along it.
+          float thickness = clamp(avgInk, 0.0, 1.0);
+          float scrape = 1.0 - 0.75 * smoothstep(0.55, 1.05, avgInk);
+          float press_ = smoothstep(0.3, 0.9, p);
+          float bands = smoothstep(0.3, 0.7, vnoise(vec2(uPos / (w * 4.0), c * 2.2 + 17.0), u_seed + 22u));
+          float fibreDepth = (0.08 + 0.45 * u_groove) * thickness * scrape * press_ * mix(0.15, 1.0, bands);
+          float pile = 0.5 * wet * exp(-max(u + w * 0.3, 0.0) / (w * 0.9)) * smoothstep(1.0, 0.3, cn);
+          float height = clamp((1.0 - keep) * (flat_ + 0.55 * lip + pile - fibre * fibreDepth), 0.0, 1.0);
+          // Where the fibres scored the paint they also scratched into what
+          // lay below and dragged it up: the scratch follows the fibre lines
+          // and how hard they press. Packed with the pigment ratio in red
+          // (16 levels each).
+          float scratch = clamp(fibre * clamp(p, 0.3, 1.0) * (0.6 + 0.4 * u_groove), 0.0, 1.0);
+          float ratioQ = floor(clamp(ratioSum / max(covSum, 1e-4), 0.0, 1.0) * 15.0 + 0.5);
+          float scratchQ = floor(scratch * 15.0 + 0.5);
+          outColor = vec4((ratioQ * 16.0 + scratchQ) / 255.0, angle, height, paint * 0.5);
+        }`;
+
+      const QUAD_VS = `#version 300 es
+        in vec2 a_pos;
+        void main() { gl_Position = vec4(a_pos, 0.0, 1.0); }`;
+      const COMP_FS = `#version 300 es
+        precision highp float;
+        uniform sampler2D u_canvas;
+        uniform sampler2D u_mask;
+        // The brush's two pigments, precomputed on the CPU as the library
+        // does for its one: K/S per wavelength and luminance.
+        uniform float u_ksA[38], u_ksB[38];
+        uniform float u_lumA, u_lumB;
+        uniform vec3 u_paper;          // bare paper, which is not paint to pick up
+        uniform float u_pickup;
+        uniform float u_body;          // 0 transparent (ink, glaze) … 1 opaque (gouache, oil)
+        uniform int u_model;           // 0 today's mix (paint as a fraction), 1 paint as an amount
+        uniform float u_relief;        // light on the paint's relief (0 off)
+        uniform uint u_paperSeed;
+        uniform bool u_heightView;     // debug: show the paint's surface height
+        uniform float u_drag;          // device px
+        uniform float u_density;
+        uniform uint u_seed;
+        out vec4 outColor;
+        ${SPECTRAL_GLSL}
+        ${NOISE_GLSL}
+
+        float lum(float R[SPECTRAL_SIZE]) { return spectral_reflectance_to_xyz(R)[1]; }
+
+        // spectral_mix over four paints. K/S is linear in concentration
+        // (factor² × luminance, as in the library's spectral_mix), so the
+        // precomputed pigments only add terms; the canvas and the picked-up
+        // paint are arbitrary colours and are converted per pixel.
+        vec3 mixPaints(vec3 bg, float fBg, float fA, float fB, vec3 picked, float fP) {
+          float R0[SPECTRAL_SIZE], R3[SPECTRAL_SIZE], R[SPECTRAL_SIZE];
+          spectral_linear_to_reflectance(spectral_srgb_to_linear(bg), R0);
+          float k0 = fBg * fBg * lum(R0), k1 = fA * fA * u_lumA, k2 = fB * fB * u_lumB, k3 = 0.0;
+          if (fP > 0.0) {
+            spectral_linear_to_reflectance(spectral_srgb_to_linear(picked), R3);
+            k3 = fP * fP * lum(R3);
+          }
+          float total = k0 + k1 + k2 + k3;
+          for (int i = 0; i < SPECTRAL_SIZE; i++) {
+            float ks = KS(R0[i]) * k0 + u_ksA[i] * k1 + u_ksB[i] * k2;
+            if (k3 > 0.0) ks += KS(R3[i]) * k3;
+            R[i] = KM(ks / total);
+          }
+          return spectral_xyz_to_srgb(spectral_reflectance_to_xyz(R));
+        }
+
+        // Paint as an amount A (1 = the pigment's own colour on white paper),
+        // in two parts weighted by the medium's body:
+        //  - transparent: absorbers add up, K/S = K/S(canvas) + A K/S(paint).
+        //    A second glaze deepens the first, each wavelength by its own
+        //    absorption, so hue holds instead of greying out.
+        //  - opaque: today's normalised mix, with the cover growing with A,
+        //    so it hides what lies under it and settles on the pigment; where
+        //    it piles up beyond 1 its own pigment deepens.
+        vec3 mixAmount(vec3 bg, float A, float ratio, vec3 picked, float pick) {
+          float R0[SPECTRAL_SIZE], R3[SPECTRAL_SIZE], R[SPECTRAL_SIZE];
+          spectral_linear_to_reflectance(spectral_srgb_to_linear(bg), R0);
+          float l0 = lum(R0), l3 = 0.0;
+          if (pick > 0.0) { spectral_linear_to_reflectance(spectral_srgb_to_linear(picked), R3); l3 = lum(R3); }
+          float h = 1.0 - exp(-3.2 * A);
+          float fA = h * (1.0 - pick) * (1.0 - ratio), fB = h * (1.0 - pick) * ratio, fP = h * pick;
+          float k0 = (1.0 - h) * (1.0 - h) * l0, k1 = fA * fA * u_lumA, k2 = fB * fB * u_lumB, k3 = fP * fP * l3;
+          float total = k0 + k1 + k2 + k3;
+          for (int i = 0; i < SPECTRAL_SIZE; i++) {
+            float ks0 = KS(R0[i]);
+            float ks3 = pick > 0.0 ? KS(R3[i]) : 0.0;
+            float body = (ks0 * k0 + u_ksA[i] * k1 + u_ksB[i] * k2 + ks3 * k3) / total;
+            float dye = ks0 + A * (mix(u_ksA[i], u_ksB[i], ratio) * (1.0 - pick) + ks3 * pick);
+            // Opaque paint piled up beyond 1 (a touch-down pool, ridges at
+            // the sides) is deeper in its own pigment, not in what lies under.
+            float pile = u_body * 0.45 * max(A - 1.0, 0.0) * mix(u_ksA[i], u_ksB[i], ratio);
+            R[i] = KM(mix(dye, body, u_body) + pile);
+          }
+          return spectral_xyz_to_srgb(spectral_reflectance_to_xyz(R));
+        }
+
+        const vec3 LIGHT = vec3(-0.5, 0.55, 0.67);   // from the top left (y up)
+        float surf(ivec2 q) {
+          ivec2 lim = ivec2(textureSize(u_mask, 0)) - 1;
+          return texelFetch(u_mask, clamp(q, ivec2(0), lim), 0).b;
+        }
+        // A lip stands up toward the light from here: this point is in its
+        // shadow. Two taps along the light, a couple of logical px away.
+        // Only what stands up casts: the flattened paint does not, its lips
+        // and piles throw a hairline shadow.
+        float castShadow(ivec2 p, float h0) {
+          vec2 dir = normalize(LIGHT.xy);
+          float h1 = surf(p + ivec2(round(dir * u_density * 1.0)));
+          float h2 = surf(p + ivec2(round(dir * u_density * 2.0)));
+          float occl = max(h1 - max(h0, 0.4), (h2 - max(h0, 0.4) - 0.1) * 0.7);
+          return 1.0 - 0.14 * u_relief * smoothstep(0.05, 0.25, occl);
+        }
+        vec3 surfNormal(ivec2 p) {
+          float hl = surf(p - ivec2(1, 0)), hr = surf(p + ivec2(1, 0));
+          float hd = surf(p - ivec2(0, 1)), hu = surf(p + ivec2(0, 1));
+          vec2 g = vec2(hr - hl, hu - hd) * 0.5 * u_density * u_relief * 4.0;
+          // Paint is soft-edged: slopes stay gentle, so nothing flashes.
+          g *= min(1.0, 0.55 / max(length(g), 1e-4));
+          return normalize(vec3(-g, 1.0));
+        }
+        float reliefShade(ivec2 p, float h0, float A) {
+          vec3 n = surfNormal(p);
+          float diffuse = dot(n, normalize(LIGHT)) / normalize(LIGHT).z;
+          // Matte paint: light only modulates it a little, more as shade on
+          // the sides away from the light than as brightening on the others.
+          float shade = mix(1.0, diffuse, 0.25);
+          shade = shade > 1.0 ? 1.0 + (shade - 1.0) * 0.5 : shade;
+          return shade * castShadow(p, h0);
+        }
+        vec3 reliefGlint(ivec2 p, float h0, float A) {
+          vec3 n = surfNormal(p);
+          vec3 hv = normalize(normalize(LIGHT) + vec3(0.0, 0.0, 1.0));
+          float spec = max(pow(max(dot(n, hv), 0.0), 60.0) - pow(hv.z, 60.0), 0.0);
+          // Only raised paint shines: crests, not the flattened middle.
+          // Dried oil is near matte: no sheen, just a rare point of light on
+          // the very top of a ridge.
+          return vec3(spec * 0.03 * u_relief * smoothstep(0.55, 0.8, h0));
+        }
+
+        void main() {
+          ivec2 p = ivec2(gl_FragCoord.xy);
+          vec3 bg = texelFetch(u_canvas, p, 0).rgb;
+          vec4 m = texelFetch(u_mask, p, 0);
+          if (m.a <= 0.0) {
+            // Just outside a stroke, its lip may still shade the canvas.
+            if (u_relief > 0.0) bg = spectral_linear_to_srgb(spectral_srgb_to_linear(bg) * castShadow(p, 0.0));
+            outColor = vec4(bg, 1.0);
+            return;
+          }
+          // Concentration goes as factor² × luminance, so a dark pigment at
+          // 90% paint would still lose to bright paper. Paint covers like
+          // the library's piled-up dots: full well before the mask is.
+          float A = m.a * 2.0;
+          float a = 1.0 - pow(1.0 - min(A, 1.0), 2.5);
+          // Travel direction in device px (the canvas is y-up).
+          float ang = (m.g - 0.5) * 6.2831853;
+          vec2 dir = vec2(cos(ang), -sin(ang));
+
+          // Wet paint the bristles passed over: what lies under them now and
+          // behind them along the stroke, weighted toward the nearest.
+          // Smears are streaks along the stroke: each line across it (a
+          // bristle's track) carries paint its own distance, so the sample
+          // distances are jittered per track rather than fixed.
+          float packed = floor(m.r * 255.0 + 0.5);
+          float scratch = mod(packed, 16.0) / 15.0;
+          float track = m.b;   // the surface height
+          float reach = mix(0.35, 1.3, track);
+          vec3 picked = vec3(0.0);
+          float wsum = 0.0, paintSeen = 0.0, norm = 0.0;
+          vec2 size = vec2(textureSize(u_canvas, 0));
+          const int TAPS = 10;
+          for (int k = 0; k < TAPS; k++) {
+            float f = (float(k) + 0.5) / float(TAPS);
+            float d = u_drag * reach * f * f;
+            ivec2 q = ivec2(clamp(gl_FragCoord.xy - dir * d, vec2(0.0), size - 1.0));
+            vec3 c = texelFetch(u_canvas, q, 0).rgb;
+            // How much pigment the paint there holds: a pale wash is mostly
+            // water and gives little colour to the brush.
+            float paintness = smoothstep(0.08, 0.6, length(c - u_paper));
+            float wk = exp(-f * 2.5);
+            picked += c * wk * paintness;
+            wsum += wk * paintness;
+            paintSeen += wk * paintness;
+            norm += wk;
+          }
+          picked = wsum > 1e-4 ? picked / wsum : bg;
+          // The fibres that scratch into the wet paint below drag more of it
+          // up along their lines; between them the stroke blends less.
+          float pick = u_pickup * clamp(paintSeen / norm * 1.6, 0.0, 1.0) * mix(0.55, 1.2, track) * mix(0.4, 1.6, scratch);
+
+          // The canvas keeps 1 - a; the brush's paint is its two pigments
+          // and what it picked up.
+          float ratio = floor(packed / 16.0) / 15.0;
+          vec3 col = u_model == 1
+            ? mixAmount(bg, A, ratio, picked, pick)
+            : mixPaints(bg, 1.0 - a, a * (1.0 - pick) * (1.0 - ratio), a * (1.0 - pick) * ratio, picked, a * pick);
+          // Relief: light from the top left on the surface the stroke laid.
+          // Slopes facing it brighten and the others darken; lip crests
+          // catch a highlight (stronger for oil, set by relief); and a lip
+          // casts a short shadow on the paint beside it.
+          if (u_relief > 0.0) {
+            vec3 lin = spectral_srgb_to_linear(col) * reliefShade(p, m.b, A);
+            lin += reliefGlint(p, m.b, A);
+            col = spectral_linear_to_srgb(lin);
+          }
+          if (u_heightView) col = vec3(m.b);
+          outColor = vec4(col, 1.0);
+        }`;
+      const BLIT_FS = `#version 300 es
+        precision highp float;
+        uniform sampler2D u_tex;
+        out vec4 outColor;
+        void main() { outColor = vec4(texelFetch(u_tex, ivec2(gl_FragCoord.xy), 0).rgb, 1.0); }`;
+
+      function compile(vs, fs) {
+        const prog = gl.createProgram();
+        for (const [type, src] of [[gl.VERTEX_SHADER, vs], [gl.FRAGMENT_SHADER, fs]]) {
+          const sh = gl.createShader(type);
+          gl.shaderSource(sh, src);
+          gl.compileShader(sh);
+          if (!gl.getShaderParameter(sh, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(sh));
+          gl.attachShader(prog, sh);
+        }
+        gl.linkProgram(prog);
+        if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(prog));
+        const loc = {};
+        const n = gl.getProgramParameter(prog, gl.ACTIVE_UNIFORMS);
+        for (let i = 0; i < n; i++) { const u = gl.getActiveUniform(prog, i); loc[u.name] = gl.getUniformLocation(prog, u.name); }
+        return { prog, loc };
+      }
+      const strokeP = compile(STROKE_VS, STROKE_FS);
+      const compP = compile(QUAD_VS, COMP_FS);
+      const blitP = compile(QUAD_VS, BLIT_FS);
+
+      function makeTarget() {
+        const tex = gl.createTexture();
+        gl.bindTexture(gl.TEXTURE_2D, tex);
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, canvas.width, canvas.height, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+        for (const p of [gl.TEXTURE_MIN_FILTER, gl.TEXTURE_MAG_FILTER]) gl.texParameteri(gl.TEXTURE_2D, p, gl.NEAREST);
+        const fb = gl.createFramebuffer();
+        gl.bindFramebuffer(gl.FRAMEBUFFER, fb);
+        gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, tex, 0);
+        return { tex, fb };
+      }
+      const base = gl.createTexture();
+      let baseFb = null;
+      const mask = makeTarget();
+      const canvasT = makeTarget(), scratchT = makeTarget();
+      const quad = gl.createBuffer();
+      gl.bindBuffer(gl.ARRAY_BUFFER, quad);
+      gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW);
+      const strokeBuf = gl.createBuffer();
+
+      // Ribbon geometry: resample by arc length, offset by an inflated
+      // width (room for wander and caps), accumulate the turning angle, and
+      // add a quad past each end for the round landing and lift.
+      const INFLATE = 1.3;
+      const FLOATS = 14;
+      // The hand rolls the brush slowly as it moves, shifting pressure from
+      // one side to the other: a smooth value in [-0.3, 0.3] that changes
+      // over several widths, seeded per stroke.
+      function rollFn(seed, halfWidth) {
+        const rng = mkRng(seed ^ 0x5bd1e995);
+        const knots = Array.from({ length: 64 }, () => (rng() * 2 - 1) * 0.3);
+        const step = halfWidth * 10;
+        return (s) => {
+          const x = s / step, i = Math.floor(x), f = x - i, e = f * f * (3 - 2 * f);
+          return knots[i % 64] + (knots[(i + 1) % 64] - knots[i % 64]) * e;
+        };
+      }
+      function buildRibbon(path, halfWidth, press, seed) {
+        const cum = [0];
+        for (let i = 1; i < path.length; i++) cum.push(cum[i - 1] + Math.hypot(path[i][0] - path[i - 1][0], path[i][1] - path[i - 1][1]));
+        const len = cum[cum.length - 1];
+        const n = Math.max(2, Math.ceil(len / 1.5));
+        const pts = [];
+        let j = 0;
+        for (let k = 0; k <= n; k++) {
+          const s = (k / n) * len;
+          while (j < path.length - 2 && cum[j + 1] < s) j++;
+          const f = (s - cum[j]) / Math.max(cum[j + 1] - cum[j], 1e-6);
+          pts.push([path[j][0] + (path[j + 1][0] - path[j][0]) * f, path[j][1] + (path[j + 1][1] - path[j][1]) * f, s]);
+        }
+        const tan = pts.map((_, i) => {
+          const a = pts[Math.max(0, i - 1)], d = pts[Math.min(pts.length - 1, i + 1)];
+          const dx = d[0] - a[0], dy = d[1] - a[1], l = Math.hypot(dx, dy) || 1;
+          return [dx / l, dy / l];
+        });
+        const theta = [0];
+        for (let i = 1; i < pts.length; i++) {
+          const [ax, ay] = tan[i - 1], [bx, by] = tan[i];
+          theta.push(theta[i - 1] + Math.atan2(ax * by - ay * bx, ax * bx + ay * by));
+        }
+        // Paint leaves each side of the brush in proportion to how hard that
+        // side presses, so each side's use is the integral of its pressure
+        // along the path (logical px at full pressure).
+        const roll = rollFn(seed, halfWidth);
+        const usePos = [0], useNeg = [0], rolls = [roll(0)];
+        for (let i = 1; i < pts.length; i++) {
+          const ds = pts[i][2] - pts[i - 1][2], pm = press((pts[i][2] + pts[i - 1][2]) / 2 / len), rl = roll(pts[i][2]);
+          usePos.push(usePos[i - 1] + pm * (1 + rl) * ds);
+          useNeg.push(useNeg[i - 1] + pm * (1 - rl) * ds);
+          rolls.push(rl);
+        }
+        const last = pts.length - 1;
+        const v = (p, tx, ty, side, ext, u, beyond, t, th, pr, k) => {
+          const W = halfWidth;
+          const e = ext === 0 ? 0 : Math.sign(ext) * W * INFLATE;
+          return [
+            p[0] - ty * W * INFLATE * side + tx * e, p[1] + tx * W * INFLATE * side + ty * e,
+            u, side * INFLATE, beyond, t, W, pr, th, tx, ty, usePos[k], useNeg[k], rolls[k],
+          ];
+        };
+        const tri = [];
+        {
+          const [tx, ty] = tan[0], pr = press(0);
+          const a = v(pts[0], tx, ty, 1, -1, 0, -INFLATE, 0, 0, pr, 0), b = v(pts[0], tx, ty, -1, -1, 0, -INFLATE, 0, 0, pr, 0);
+          const c = v(pts[0], tx, ty, 1, 0, 0, 0, 0, 0, pr, 0), d = v(pts[0], tx, ty, -1, 0, 0, 0, 0, 0, pr, 0);
+          tri.push(a, b, c, b, d, c);
+        }
+        let pl = null, pr0 = null;
+        for (let i = 0; i < pts.length; i++) {
+          const [tx, ty] = tan[i], t = pts[i][2] / len, pr = press(t);
+          const l = v(pts[i], tx, ty, 1, 0, pts[i][2], 0, t, theta[i], pr, i), r = v(pts[i], tx, ty, -1, 0, pts[i][2], 0, t, theta[i], pr, i);
+          if (pl) tri.push(pl, pr0, l, pr0, r, l);
+          pl = l; pr0 = r;
+        }
+        {
+          const i = pts.length - 1, [tx, ty] = tan[i], pr = press(1), th = theta[i];
+          const a = v(pts[i], tx, ty, 1, 0, len, 0, 1, th, pr, last), b = v(pts[i], tx, ty, -1, 0, len, 0, 1, th, pr, last);
+          const c = v(pts[i], tx, ty, 1, 1, len, INFLATE, 1, th, pr, last), d = v(pts[i], tx, ty, -1, 1, len, INFLATE, 1, th, pr, last);
+          tri.push(a, b, c, b, d, c);
+        }
+        const data = new Float32Array(tri.length * FLOATS);
+        let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+        tri.forEach((x, k) => {
+          data.set(x, k * FLOATS);
+          x0 = Math.min(x0, x[0]); x1 = Math.max(x1, x[0]); y0 = Math.min(y0, x[1]); y1 = Math.max(y1, x[1]);
+        });
+        const pad = 4;
+        const bx = Math.max(0, Math.floor((x0 - pad) * density)), by = Math.max(0, Math.floor((CH - y1 - pad) * density));
+        const box = [bx, by, Math.min(canvas.width, Math.ceil((x1 + pad) * density)) - bx, Math.min(canvas.height, Math.ceil((CH - y0 + pad) * density)) - by];
+        return { data, count: tri.length, len, box };
+      }
+
+      function hexToRgb(hex) {
+        const n = parseInt(hex.slice(1), 16);
+        return [(n >> 16) & 255, (n >> 8) & 255, n & 255].map((x) => x / 255);
+      }
+      function drawQuad(prog) {
+        gl.bindBuffer(gl.ARRAY_BUFFER, quad);
+        const loc = gl.getAttribLocation(prog, "a_pos");
+        gl.enableVertexAttribArray(loc);
+        gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
+        gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+        gl.disableVertexAttribArray(loc);
+      }
+
+      function drawPrototype(scene) {
+        gl.viewport(0, 0, canvas.width, canvas.height);
+        gl.bindTexture(gl.TEXTURE_2D, base);
+        gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, gl.RGBA, gl.UNSIGNED_BYTE, libCanvas);
+        for (const p of [gl.TEXTURE_MIN_FILTER, gl.TEXTURE_MAG_FILTER]) gl.texParameteri(gl.TEXTURE_2D, p, gl.NEAREST);
+        // The canvas: the library's frame, copied once into a target the
+        // strokes are mixed into box by box.
+        baseFb ??= gl.createFramebuffer();
+        gl.bindFramebuffer(gl.FRAMEBUFFER, baseFb);
+        gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, base, 0);
+        gl.bindFramebuffer(gl.READ_FRAMEBUFFER, baseFb);
+        gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, canvasT.fb);
+        gl.blitFramebuffer(0, 0, canvas.width, canvas.height, 0, 0, canvas.width, canvas.height, gl.COLOR_BUFFER_BIT, gl.NEAREST);
+        const src = canvasT.tex;
+        const dst = scratchT;
+        const paperSeed = hashSeed(seed) % 65536;
+        const aPos = gl.getAttribLocation(strokeP.prog, "a_pos");
+        const aRib = gl.getAttribLocation(strokeP.prog, "a_ribbon");
+        const aExt = gl.getAttribLocation(strokeP.prog, "a_extra");
+        const aSide = gl.getAttribLocation(strokeP.prog, "a_side");
+        const aTan = gl.getAttribLocation(strokeP.prog, "a_tan");
+
+        for (const s of scene.strokes) {
+          const P = PRESETS[s.preset];
+          const rib = buildRibbon(s.path, s.width / 2, s.press, s.seed);
+
+          gl.bindFramebuffer(gl.FRAMEBUFFER, mask.fb);
+          gl.clearColor(0, 0, 0, 0);
+          gl.clear(gl.COLOR_BUFFER_BIT);
+          // Paint takes the MAX (a crossing stroke inks once); ratio and
+          // direction are the last written.
+          gl.enable(gl.BLEND);
+          gl.blendEquationSeparate(gl.FUNC_ADD, gl.MAX);
+          gl.blendFuncSeparate(gl.ONE, gl.ZERO, gl.ONE, gl.ONE);
+          gl.useProgram(strokeP.prog);
+          const L = strokeP.loc;
+          gl.uniform2f(L.u_size, CW, CH);
+          gl.uniform1ui(L.u_seed, s.seed >>> 0);
+          gl.uniform1ui(L.u_paperSeed, paperSeed);
+          gl.uniform1f(L.u_density, density);
+          gl.uniform1f(L.u_len, rib.len);
+          gl.uniform1i(L.u_fullLoop, PROF.full ? 1 : 0);
+          gl.uniform1i(L.u_bristles, PROF.bristles ? Math.min(PROF.bristles, Math.round(P.bristles)) : Math.round(P.bristles));
+          gl.uniform1f(L.u_bodyS, P.body);
+          for (const [k] of PARAMS_OF[P.type]) if (k !== "bristles" && L["u_" + k]) gl.uniform1f(L["u_" + k], P[k]);
+          gl.bindBuffer(gl.ARRAY_BUFFER, strokeBuf);
+          gl.bufferData(gl.ARRAY_BUFFER, rib.data, gl.STREAM_DRAW);
+          for (const l of [aPos, aRib, aExt, aTan, aSide]) gl.enableVertexAttribArray(l);
+          gl.vertexAttribPointer(aPos, 2, gl.FLOAT, false, FLOATS * 4, 0);
+          gl.vertexAttribPointer(aRib, 4, gl.FLOAT, false, FLOATS * 4, 8);
+          gl.vertexAttribPointer(aExt, 3, gl.FLOAT, false, FLOATS * 4, 24);
+          gl.vertexAttribPointer(aTan, 2, gl.FLOAT, false, FLOATS * 4, 36);
+          gl.vertexAttribPointer(aSide, 3, gl.FLOAT, false, FLOATS * 4, 44);
+          gl.drawArrays(gl.TRIANGLES, 0, rib.count);
+          for (const l of [aPos, aRib, aExt, aTan, aSide]) gl.disableVertexAttribArray(l);
+          gl.disable(gl.BLEND);
+
+          if (PROF.nocomp) continue;
+          gl.bindFramebuffer(gl.FRAMEBUFFER, dst.fb);
+          // Like the library, mix only where the stroke landed: composite the
+          // stroke's box into a scratch target, then copy that box back.
+          gl.enable(gl.SCISSOR_TEST);
+          gl.scissor(...rib.box);
+          gl.useProgram(compP.prog);
+          gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, src);
+          gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, mask.tex);
+          gl.uniform1i(compP.loc.u_canvas, 0);
+          gl.uniform1i(compP.loc.u_mask, 1);
+          const [ca, cb] = splitPigment(hexToRgb(s.color), 30 * P.split);
+          const ta = pigmentTerms(ca);
+          gl.uniform1fv(compP.loc["u_ksA[0]"], ta.ks);
+          gl.uniform1f(compP.loc.u_lumA, ta.luminance);
+          const tb = pigmentTerms(cb);
+          gl.uniform1fv(compP.loc["u_ksB[0]"], tb.ks);
+          gl.uniform1f(compP.loc.u_lumB, tb.luminance);
+          gl.uniform3f(compP.loc.u_paper, ...hexToRgb(PAPER));
+          gl.uniform1f(compP.loc.u_pickup, new URLSearchParams(location.search).has("nopickup") ? 0 : P.pickup);
+          gl.uniform1f(compP.loc.u_body, P.body);
+          // Relief per stroke: the brush's own amount, times the stroke's
+          // (a sketch could set it per stroke), times the page slider.
+          const reliefAmt = Number(document.getElementById("reliefAmt").value);
+          gl.uniform1f(compP.loc.u_relief, document.getElementById("relief").checked ? P.relief * (s.relief ?? 1) * reliefAmt : 0);
+          gl.uniform1ui(compP.loc.u_paperSeed, paperSeed);
+          gl.uniform1i(compP.loc.u_heightView, new URLSearchParams(location.search).has("height") ? 1 : 0);
+          gl.uniform1i(compP.loc.u_model, document.getElementById("amount").checked ? 1 : 0);
+          gl.uniform1f(compP.loc.u_drag, P.drag * s.width * density);
+          gl.uniform1f(compP.loc.u_density, density);
+          gl.uniform1ui(compP.loc.u_seed, s.seed >>> 0);
+          drawQuad(compP.prog);
+          gl.activeTexture(gl.TEXTURE0);
+          gl.disable(gl.SCISSOR_TEST);
+          const [bx, by, bw, bh] = rib.box;
+          gl.bindFramebuffer(gl.READ_FRAMEBUFFER, dst.fb);
+          gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, canvasT.fb);
+          gl.blitFramebuffer(bx, by, bx + bw, by + bh, bx, by, bx + bw, by + bh, gl.COLOR_BUFFER_BIT, gl.NEAREST);
+        }
+        gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+        gl.useProgram(blitP.prog);
+        gl.bindTexture(gl.TEXTURE_2D, src);
+        gl.uniform1i(blitP.loc.u_tex, 0);
+        drawQuad(blitP.prog);
+      }
+
+      // ---------------------------------------------------------------------
+      // UI.
+      // ---------------------------------------------------------------------
+      let scene;
+      const presetSel = document.getElementById("preset");
+      for (const n of Object.keys(PRESETS)) presetSel.add(new Option(n, n));
+      const slidersHost = document.getElementById("sliders");
+      function buildSliders() {
+        slidersHost.innerHTML = "";
+        const P = PRESETS[presetSel.value];
+        for (const [k, min, max, step, hint] of PARAMS_OF[P.type]) {
+          const lab = document.createElement("label");
+          lab.className = "s";
+          lab.title = hint;
+          lab.innerHTML = `<span>${k} <span class="hint">${hint}</span></span><output>${P[k]}</output><input type="range" min="${min}" max="${max}" step="${step}" value="${P[k]}">`;
+          const input = lab.querySelector("input"), out = lab.querySelector("output");
+          input.addEventListener("input", () => { P[k] = Number(input.value); out.textContent = input.value; schedule(); });
+          slidersHost.appendChild(lab);
+        }
+        renderLabels();
+      }
+      let pending = false;
+      function schedule() {
+        if (pending) return;
+        pending = true;
+        requestAnimationFrame(() => { pending = false; drawPrototype(scene); });
+      }
+      function renderLabels() {
+        const host = document.getElementById("labels");
+        host.innerHTML = "";
+        for (const l of scene?.labels ?? []) {
+          const d = document.createElement("div");
+          d.textContent = l.text;
+          d.style.left = l.x + "px"; d.style.top = l.y + "px";
+          if (l.preset === presetSel.value) d.className = "sel";
+          host.appendChild(d);
+        }
+      }
+      window.__exact = () => {
+        const read = () => { const b = new Uint8Array(canvas.width * canvas.height * 4); gl.readPixels(0, 0, canvas.width, canvas.height, gl.RGBA, gl.UNSIGNED_BYTE, b); return b; };
+        PROF.full = false; drawPrototype(scene); const a = read();
+        PROF.full = true; drawPrototype(scene); const b = read();
+        PROF.full = false; drawPrototype(scene);
+        let diff = 0, maxd = 0;
+        for (let i = 0; i < a.length; i++) { const d = Math.abs(a[i] - b[i]); if (d) { diff++; maxd = Math.max(maxd, d); } }
+        return { diff, maxd, total: a.length };
+      };
+      window.__redraw = () => { drawPrototype(scene); const px = new Uint8Array(4); gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, px); };
+      function full() {
+        document.getElementById("seedVal").textContent = String(seed);
+        scene = SCENE === "sunflowers" ? buildSunflowers() : buildScene();
+        drawLibrary(scene);
+        drawPrototype(scene);
+        renderLabels();
+        window.__ready = true;
+      }
+      presetSel.addEventListener("change", buildSliders);
+      document.getElementById("amount").addEventListener("change", schedule);
+      document.getElementById("relief").addEventListener("change", schedule);
+      document.getElementById("reliefAmt").addEventListener("input", (e) => {
+        document.getElementById("reliefOut").textContent = e.target.value;
+        schedule();
+      });
+      if (new URLSearchParams(location.search).has("norelief")) document.getElementById("relief").checked = false;
+      document.getElementById("amount").checked = new URLSearchParams(location.search).has("amount");
+      document.getElementById("reseed").addEventListener("click", () => { seed = 100000 + Math.floor(Math.random() * 900000); full(); });
+      document.getElementById("dump").addEventListener("click", () => {
+        const txt = JSON.stringify({ [presetSel.value]: PRESETS[presetSel.value] });
+        navigator.clipboard?.writeText(txt);
+        console.log(txt);
+      });
+      document.getElementById("zoom").addEventListener("change", (e) => {
+        const z = e.target.checked ? 2 : 1;
+        canvas.style.width = CW * z + "px"; canvas.style.height = CH * z + "px";
+        document.getElementById("labels").style.transform = `scale(${z})`;
+      });
+      full();
+      buildSliders();
+    </script>
+    <script src="../test-nav.js"></script>
+  </body>
+</html>
