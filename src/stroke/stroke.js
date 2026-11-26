@@ -34,7 +34,6 @@ import { createTipSurface, loadImageTip } from "./runtime.js";
 // Internal module imports
 import { initStrokeComposite } from "./composite.js";
 import {
-  SUBSTEPS,
   isReady,
   invalidateTexEntry,
   snapshotMatrix,
@@ -96,11 +95,6 @@ export function BrushSetState(state) {
 // =============================================================================
 
 /**
- * Adds a new brush with the specified parameters to the brush list.
- * @param {string} name - The unique name for the new brush.
- * @param {object} params - The parameters defining the brush behavior and appearance.
- */
-/**
  * Normalizes the pressure parameter to the internal { type, min_max, curve } format.
  * Accepts:
  *   [start, end]         — linear ramp between two pressure values
@@ -109,7 +103,7 @@ export function BrushSetState(state) {
  *   { mode: "gaussian", curve, min_max } — advanced built-in pressure profile
  *   { curve, min_max }   — legacy gaussian format, preserved for compatibility
  */
-export function normalizePressure(p) {
+function normalizePressure(p) {
   if (!p) return p;
   if (typeof p === "function")
     return {
@@ -164,13 +158,12 @@ export function normalizePressure(p) {
   }
 }
 
-/** A custom pressure curve sampled for the GPU, at t = 0 … 1. */
-function sampleCurve(curve) {
-  const table = new Float32Array(TABLE_SAMPLES);
-  for (let i = 0; i < TABLE_SAMPLES; i++) table[i] = curve(i / (TABLE_SAMPLES - 1));
-  return table;
-}
-
+/**
+ * Adds a new brush with the specified parameters to the brush list.
+ * @param {string} name - The unique name for the new brush.
+ * @param {object} params - The parameters defining the brush behavior and appearance.
+ * @returns {Promise|undefined} For image brushes, resolves once the tip has loaded.
+ */
 export function add(name, params) {
   if (params.spacing !== undefined && (!Number.isFinite(params.spacing) || params.spacing <= 0)) {
     throw new Error(`Brush "${name}" spacing must be finite and greater than zero.`);
@@ -337,76 +330,147 @@ export function noClip() {
 }
 
 // ---------------------------------------------------------------------------
-// Drawing Variables and Functions
+// Drawing a Stroke
 // ---------------------------------------------------------------------------
+// A stroke is queued for the GPU as pieces of path (straight runs or arcs,
+// see Plot.pieces()) together with the brush's pressure model; the shaders
+// walk them step by step (gl_draw.js).
+
+// A flow field turns each step by where the last one landed, so a stroke in
+// a field is walked here into straight pieces of up to this many logical px
+// and fine steps.
+const FIELD_PIECE_LENGTH = 4;
+const FIELD_PIECE_STEPS = 40;
+
+// The stroke being drawn: its position (position space: user coords +
+// Cwidth/2, Cheight/2), length, plot (or null) and direction in degrees.
 let _position, _length, _plot, _dir;
+// Per-stroke brush state, set by prepareStroke().
 const current = {};
 
+// Reused from stroke to stroke: a straight line's single piece, the end
+// cap's piece, and the pressure models handed to queuePiece().
+const newPiece = () => ({ x: 0, y: 0, heading: 0, turn: 0, start: 0, length: 0, pressure: 1, pressureSlope: 0 });
+const newPressure = (model) => ({
+  model, from: 0, to: 0, shape: [0, 0, 0, 0], length: 0,
+  table: null, min: 0, max: 0, minPositive: 0,
+});
+const LINE_PIECES = [newPiece()];
+const CAP_PIECE = newPiece();
+const STROKE_PRESSURE = newPressure(PRESSURE_BUMP);
+const CAP_PRESSURE = newPressure(PRESSURE_LINEAR);
+
 /**
- * Initializes the drawing state.
- * @param {number} x - Starting x-coordinate.
- * @param {number} y - Starting y-coordinate.
- * @param {number} length - Length of stroke.
- * @param {Plot|false} [plot=false] - Plot object for path-following strokes.
+ * Draws a stroke from (x, y): straight for `length` along `dir` (degrees),
+ * or along `plot` drawn at `scale`.
+ * @param {number} x
+ * @param {number} y
+ * @param {number} length - In the plot's units for a plot.
+ * @param {number} dir - Ignored for a plot.
+ * @param {Plot|null} plot
+ * @param {number} scale - The plot's; 1 for a straight stroke.
  */
-function initializeDrawingState(x, y, length, plot = false) {
-  if (![x, y, length].every(Number.isFinite) || length < 0) {
-    throw new Error("Stroke coordinates and length must be finite, with a non-negative length.");
+function drawStroke(x, y, length, dir, plot, scale) {
+  if (![x, y, length, dir].every(Number.isFinite) || length < 0) {
+    throw new Error("Stroke coordinates, direction and length must be finite, with a non-negative length.");
+  }
+  if (!Number.isFinite(scale) || scale <= 0) {
+    throw new Error("Plot scale must be finite and greater than zero.");
+  }
+  const stepSize = list.get(State.stroke.type)?.param.spacing ?? 1;
+  const totalSteps = Math.round((length * scale) / stepSize);
+  if (!Number.isFinite(stepSize) || stepSize <= 0 || !Number.isFinite(totalSteps) || totalSteps > 10_000_000) {
+    throw new Error("Stroke spacing must be positive and produce a bounded number of steps.");
   }
   snapshotMatrix();
   _position = new Position(x + Cwidth / 2, y + Cheight / 2);
   _length = length;
   _plot = plot;
-  if (_plot) _plot.calcIndex(0);
-}
-
-/**
- * Executes the drawing operation.
- * @param {number} angleScale - Angle (in degrees) or scaling factor.
- * @param {boolean} isPlot - True if plotting a shape.
- */
-function draw(angleScale, isPlot) {
-  if (!Number.isFinite(angleScale) || (isPlot && angleScale <= 0)) {
-    throw new Error("Stroke direction/scale must be finite, with a positive plot scale.");
-  }
-  const stepSize = list.get(State.stroke.type)?.param.spacing ?? 1;
-  const totalSteps = Math.round((_length * (isPlot ? angleScale : 1)) / stepSize);
-  if (!Number.isFinite(stepSize) || stepSize <= 0 || !Number.isFinite(totalSteps) || totalSteps > 10_000_000) {
-    throw new Error("Stroke spacing must be positive and produce a bounded number of steps.");
-  }
-  if (!isPlot) _dir = angleScale;
+  _dir = dir;
+  if (plot) plot.calcIndex(0);
   try {
-    saveState();
-    queueStroke(totalSteps, stepSize, isPlot ? angleScale : 1);
-    markerTip();
+    prepareStroke();
+    endCap();
+    queueStroke(totalSteps, stepSize, scale);
+    endCap();
   } catch (error) {
     discardStroke();
     throw error;
   }
 }
 
-const LINE = [{ x: 0, y: 0, heading: 0, turn: 0, start: 0, length: 0, pressure: 1, pressureSlope: 0 }];
+/**
+ * Sets up the current brush for a new stroke: its random pressure shape and
+ * alpha, the GL state, and the batch it joins.
+ */
+function prepareStroke() {
+  current.seed = rr() * 999999;
+  const { param } = list.get(State.stroke.type) ?? {};
+  if (!param) throw new Error(`Brush "${State.stroke.type}" is not registered.`);
+  current.p = param;
+
+  // The pressure's shape varies from stroke to stroke.
+  const { pressure } = param;
+  current.isCustomPressure = pressure.type === "custom";
+  if (!current.isCustomPressure) {
+    // A bump peaking near the middle, steeper after the peak (bumpPressure()).
+    const shift = rr(-1, 1);
+    const narrowing = rr(1, 1.5);
+    current.exponent = 2 * rr(3, 3.5);
+    const width = 1 - pressure.curve[1] * narrowing;
+    current.peak = (0.5 + pressure.curve[0] * shift) * _length;
+    current.halfBefore = width * 1.2 * (_length / 2);
+    current.halfAfter = width * 0.8 * (_length / 2);
+  } else {
+    // The brush's curve, offset, warped, stretched and tilted (curvePressure()).
+    const variation = pressure.variation ?? DEFAULT_CUSTOM_PRESSURE_VARIATION;
+    current.offset = rr(-variation.offset, variation.offset);
+    current.warp = rr(-variation.warp, variation.warp);
+    current.stretch = rr(1 - variation.scale, 1 + variation.scale);
+    current.tilt = rr(-variation.tilt, variation.tilt);
+  }
+  [current.min, current.max] = pressure.min_max;
+
+  isReady();
+  const switchingToBrush = Mix.isBrush !== true;
+  Mix.isBrush = true;
+  if (switchingToBrush) Mix.justChanged = true;
+  Mix.blend(State.stroke.color);
+
+  // Stroke-level noise: modulate alpha once per stroke so whole strokes are
+  // subtly lighter or darker — organic variation without per-tip cost.
+  const baseAlpha = calculateAlpha();
+  const noiseStrength = 0.1 * (current.p.noise ?? 0);
+  current.alpha = noiseStrength > 0
+    ? Math.max(0, baseAlpha * (1 + gaussian(0, noiseStrength)))
+    : baseAlpha;
+
+  const tipKey = param.type === "image" ? param.image.src : param.type === "custom" ? param.tipKey : null;
+  beginStroke(current.seed, current.alpha, param, tipKey ? { key: tipKey, image: T.tips.get(tipKey) } : null);
+  if (tipKey) setStrokeOverscan(getImageTipOverscan());
+}
 
 /**
  * Queues the stroke as pieces of path for the GPU to walk. Steps fall at 0,
  * stepSize, … (totalSteps − 1) × stepSize along it; `scale` is the plot's.
+ * Leaves _position at the stroke's end.
  */
 function queueStroke(totalSteps, stepSize, scale) {
   const length = totalSteps * stepSize;
-  let pieces = LINE;
+  let pieces = LINE_PIECES;
   if (State.field.isActive) {
     pieces = fieldPieces(totalSteps, stepSize, scale);
   } else if (_plot) {
     pieces = _plot.pieces(_position.x, _position.y, scale);
   } else {
-    const line = LINE[0];
+    const line = LINE_PIECES[0];
     line.x = _position.x;
     line.y = _position.y;
     line.heading = (_dir * Math.PI) / 180;
     line.length = length;
   }
   if (pieces.length === 0) return;
-  const pressure = gpuPressure(scale, totalSteps, stepSize);
+  const pressure = pressureModel(scale, totalSteps, stepSize);
   // Each piece takes the steps that fall on it, the last any past the end.
   const stepAt = (distance) => Math.ceil(distance / stepSize - 1e-6);
   for (let i = 0; i < pieces.length; i++) {
@@ -420,14 +484,9 @@ function queueStroke(totalSteps, stepSize, scale) {
   _position.plotted = length / scale;
 }
 
-const SEGMENT_LENGTH = 4;
-
-/**
- * Walks the stroke through the flow field, which turns each step by where
- * the last one landed, into straight pieces of up to SEGMENT_LENGTH px.
- */
+/** Walks the stroke through the flow field into straight pieces. */
 function fieldPieces(totalSteps, stepSize, scale) {
-  const steps = Math.max(1, Math.min(SUBSTEPS, Math.round(SEGMENT_LENGTH / stepSize)));
+  const steps = Math.max(1, Math.min(FIELD_PIECE_STEPS, Math.round(FIELD_PIECE_LENGTH / stepSize)));
   const plotPressure = () => (_plot ? _plot.pressure(_position.plotted) : 1);
   const pieces = [];
   let pressure = plotPressure();
@@ -456,33 +515,44 @@ function fieldPieces(totalSteps, stepSize, scale) {
   return pieces;
 }
 
+// ---------------------------------------------------------------------------
+// Pressure
+// ---------------------------------------------------------------------------
+
 /**
  * The stroke's pressure model for the GPU (pressure.glsl), in position-space
- * distances, and its range along the stroke. Reused from stroke to stroke.
+ * distances, and its range along the stroke.
  */
-function gpuPressure(scale, totalSteps, stepSize) {
-  const custom = current.isCustomPressure;
-  const pressure = GPU_PRESSURE;
-  pressure.model = custom ? PRESSURE_CUSTOM : PRESSURE_BUMP;
+function pressureModel(scale, totalSteps, stepSize) {
+  const pressure = STROKE_PRESSURE;
+  const shape = pressure.shape;
   pressure.from = current.min;
   pressure.to = current.max;
   pressure.length = _length * scale;
-  const shape = pressure.shape;
-  if (custom) {
-    shape[0] = current.ct;
-    shape[1] = current.cs;
-    shape[2] = current.cp;
-    shape[3] = current.ck;
+  if (current.isCustomPressure) {
+    pressure.model = PRESSURE_CUSTOM;
+    shape[0] = current.warp;
+    shape[1] = current.stretch;
+    shape[2] = current.offset;
+    shape[3] = current.tilt;
     pressure.table = current.p.pressure.table ??= sampleCurve(current.p.pressure.curve);
   } else {
+    pressure.model = PRESSURE_BUMP;
     shape[0] = current.peak * scale;
     shape[1] = current.halfBefore * scale;
     shape[2] = current.halfAfter * scale;
-    shape[3] = 2 * current.cp;
+    shape[3] = current.exponent;
     pressure.table = null;
   }
   setPressureRange(pressure, ((totalSteps - 1) * stepSize) / scale);
   return pressure;
+}
+
+/** A custom pressure curve sampled for the GPU, at t = 0 … 1. */
+function sampleCurve(curve) {
+  const table = new Float32Array(TABLE_SAMPLES);
+  for (let i = 0; i < TABLE_SAMPLES; i++) table[i] = curve(i / (TABLE_SAMPLES - 1));
+  return table;
 }
 
 /**
@@ -498,11 +568,11 @@ function setPressureRange(pressure, last) {
     if (p > 0 && p < minPositive) minPositive = p;
   };
   if (current.isCustomPressure) {
-    for (let i = 0; i <= 32; i++) include(simPressure((last * i) / 32));
+    for (let i = 0; i <= 32; i++) include(brushPressure((last * i) / 32));
   } else {
-    include(simPressure(0));
-    include(simPressure(last));
-    if (current.peak > 0 && current.peak < last) include(simPressure(current.peak));
+    include(brushPressure(0));
+    include(brushPressure(last));
+    if (current.peak > 0 && current.peak < last) include(brushPressure(current.peak));
   }
   if (_plot) {
     let plotMin = Infinity, plotMax = -Infinity, plotMinPositive = Infinity;
@@ -523,94 +593,22 @@ function setPressureRange(pressure, last) {
   pressure.minPositive = minPositive;
 }
 
-const GPU_PRESSURE = {
-  model: PRESSURE_BUMP, from: 0, to: 0, shape: [0, 0, 0, 0], length: 0,
-  table: null, min: 0, max: 0, minPositive: 0,
-};
-
 /**
- * Prepares the environment for a brush stroke.
+ * The brush's own pressure at distance `at` along the stroke (without the
+ * plot's). pressure.glsl mirrors it on the GPU.
+ * @param {number} at
+ * @returns {number}
  */
-function saveState() {
-  current.seed = rr() * 999999;
-  const { param } = list.get(State.stroke.type) ?? {};
-  if (!param) throw new Error(`Brush "${State.stroke.type}" is not registered.`);
-  current.p = param;
-
-  // Set pressure values for the stroke
-  const { pressure } = param;
-  current.isCustomPressure = pressure.type === "custom";
-  current.a = !current.isCustomPressure ? rr(-1, 1) : 0;
-  current.b = !current.isCustomPressure ? rr(1, 1.5) : 0;
-  if (!current.isCustomPressure) {
-    current.cp = rr(3, 3.5);
-    current.ct = 0;
-    current.cs = 1;
-    current.ck = 0;
-    // The pressure bump's shape is fixed for the stroke (see gauss()).
-    const width = 1 - pressure.curve[1] * current.b;
-    current.peak = (0.5 + pressure.curve[0] * current.a) * _length;
-    current.halfBefore = width * 1.2 * (_length / 2);
-    current.halfAfter = width * 0.8 * (_length / 2);
-  } else {
-    const variation = pressure.variation ?? DEFAULT_CUSTOM_PRESSURE_VARIATION;
-    current.cp = rr(-variation.offset, variation.offset);
-    current.ct = rr(-variation.warp, variation.warp);
-    current.cs = rr(1 - variation.scale, 1 + variation.scale);
-    current.ck = rr(-variation.tilt, variation.tilt);
-  }
-  [current.min, current.max] = pressure.min_max;
-
-  // Ensure GL is ready and blend state
-  isReady();
-  const switchingToBrush = Mix.isBrush !== true;
-  Mix.isBrush = true;
-  if (switchingToBrush) Mix.justChanged = true;
-  Mix.blend(State.stroke.color);
-
-  // Stroke-level noise: modulate alpha once per stroke so whole strokes are
-  // subtly lighter or darker — organic variation without per-tip cost.
-  const baseAlpha = calculateAlpha();
-  const noiseStrength = 0.1 * (current.p.noise ?? 0);
-  current.alpha = noiseStrength > 0
-    ? Math.max(0, baseAlpha * (1 + gaussian(0, noiseStrength)))
-    : baseAlpha;
-
-  const tipKey = param.type === "image" ? param.image.src : param.type === "custom" ? param.tipKey : null;
-  beginStroke(current.seed, current.alpha, param, tipKey ? { key: tipKey, image: T.tips.get(tipKey) } : null);
-  if (tipKey) setStrokeOverscan(getImageTipOverscan());
-
-  markerTip();
+function brushPressure(at) {
+  return current.isCustomPressure ? curvePressure(at) : bumpPressure(at);
 }
 
-/**
- * Calculates the effective brush pressure.
- * @returns {number} The calculated pressure.
- */
-function calculatePressure() {
-  const pressure = _plot
-    ? simPressure() * _plot.pressure(_position.plotted)
-    : simPressure();
-  if (!Number.isFinite(pressure)) {
-    throw new Error("Brush pressure must be finite.");
-  }
-  return pressure;
-}
-
-/**
- * Simulates brush pressure based on stroke parameters.
- * @param {number} [at] - Distance along the stroke.
- * @returns {number} Simulated pressure value.
- */
-function simPressure(at = _position.plotted) {
-  if (!current.isCustomPressure) return gauss(at);
+/** The brush's custom curve, varied for this stroke and mapped to its range. */
+function curvePressure(at) {
   const t = at / _length;
+  const x = Math.max(0, Math.min(1, 0.5 + (t - 0.5 + current.warp) * current.stretch));
   return map(
-    current.p.pressure.curve(
-      Math.max(0, Math.min(1, 0.5 + (t - 0.5 + current.ct) * current.cs)),
-    ) +
-      current.cp +
-      current.ck * (t - 0.5),
+    current.p.pressure.curve(x) + current.offset + current.tilt * (t - 0.5),
     0,
     1,
     current.min,
@@ -620,17 +618,14 @@ function simPressure(at = _position.plotted) {
 }
 
 /**
- * Pressure along a default stroke: a bump peaking at current.peak, steeper
- * after the peak than before it, mapped to the brush's pressure range.
- * pressure.glsl mirrors it on the GPU.
- * @param {number} [at] - Distance along the stroke.
- * @returns {number}
+ * The default pressure: a bump peaking at current.peak, steeper after the
+ * peak than before it, mapped to the brush's range.
  */
-function gauss(at = _position.plotted) {
+function bumpPressure(at) {
   const d = at - current.peak;
   const halfWidth = at < current.peak ? current.halfBefore : current.halfAfter;
   return map(
-    1 / (1 + Math.pow(Math.abs(d / halfWidth), 2 * current.cp)),
+    1 / (1 + Math.pow(Math.abs(d / halfWidth), current.exponent)),
     0,
     1,
     current.min,
@@ -661,41 +656,45 @@ function getImageTipOverscan() {
 }
 
 // ---------------------------------------------------------------------------
-// Brush Tips
+// End Caps
 // ---------------------------------------------------------------------------
 
 /**
- * Draws the blended end cap for marker and image/custom brushes: a short
- * burst of stamps at the current position. A marker's nib rests there and
- * soaks a round spot a little wider than the line: 9 dots from 0.85 to 1.15
- * of the tip pressure at 8× alpha. Image tips ramp from 0.1 to 0.4 (4 stamps
- * at 2× alpha).
+ * Draws the blended end cap of marker and image/custom brushes (unless the
+ * brush sets markerTip: false): a short burst of stamps at the current
+ * position. A marker's nib rests there and soaks a round spot a little wider
+ * than the line: 9 dots from 0.85 to 1.15 of the tip pressure at 8× alpha.
+ * Image tips ramp from 0.1 to 0.4 (4 stamps at 2× alpha).
  */
-function markerTip() {
+function endCap() {
   if (current.p.markerTip === false) return;
   const isMarker = current.p.type === "marker";
   if (!isMarker && current.p.type !== "custom" && current.p.type !== "image") return;
-  const p = calculatePressure();
+  const at = _position.plotted;
+  const p = brushPressure(at) * (_plot ? _plot.pressure(at) : 1);
+  if (!Number.isFinite(p)) throw new Error("Brush pressure must be finite.");
   const count = isMarker ? 9 : 4;
   // A zero-length piece whose steps ramp in pressure.
-  TIP.x = _position.x;
-  TIP.y = _position.y;
-  TIP.heading = ((_plot ? _plot.angle(_position.plotted) : _dir) * Math.PI) / 180;
-  const ramp = TIP_PRESSURE;
+  CAP_PIECE.x = _position.x;
+  CAP_PIECE.y = _position.y;
+  CAP_PIECE.heading = ((_plot ? _plot.angle(at) : _dir) * Math.PI) / 180;
+  const ramp = CAP_PRESSURE;
   ramp.from = ramp.min = ramp.minPositive = isMarker ? p * 0.85 : p * 0.1;
   ramp.to = ramp.max = isMarker ? p * 1.15 : p * 0.1 * (count + 1);
-  queuePiece(TIP, 0, count, 0, ramp, isMarker ? 8 : 2);
+  queuePiece(CAP_PIECE, 0, count, 0, ramp, isMarker ? 8 : 2);
 }
-
-const TIP = { x: 0, y: 0, heading: 0, turn: 0, start: 0, length: 0, pressure: 1, pressureSlope: 0 };
-const TIP_PRESSURE = {
-  model: PRESSURE_LINEAR, from: 0, to: 0, shape: [0, 0, 0, 0], length: 0,
-  table: null, min: 0, max: 0, minPositive: 0,
-};
 
 // ---------------------------------------------------------------------------
 // Basic Drawing Operations
 // ---------------------------------------------------------------------------
+
+function requireStroke() {
+  if (!State.stroke.isActive || !State.stroke.color) {
+    throw new Error(
+      "No brush or color set. Call brush.set('brushName', color) before drawing.",
+    );
+  }
+}
 
 /**
  * Draws a line using the current brush.
@@ -705,17 +704,11 @@ const TIP_PRESSURE = {
  * @param {number} y2 - End y-coordinate.
  */
 export function line(x1, y1, x2, y2) {
-  if (!State.stroke.isActive || !State.stroke.color) {
-    throw new Error(
-      "No brush or color set. Call brush.set('brushName', color) before drawing.",
-    );
-  }
+  requireStroke();
   isFieldReady();
-  let d = dist(x1, y1, x2, y2);
+  const d = dist(x1, y1, x2, y2);
   if (d == 0) return;
-  initializeDrawingState(x1, y1, d);
-  let angle = calcAngle(x1, y1, x2, y2);
-  draw(angle, false);
+  drawStroke(x1, y1, d, calcAngle(x1, y1, x2, y2), null, 1);
 }
 
 /**
@@ -726,27 +719,9 @@ export function line(x1, y1, x2, y2) {
  * @param {number} dir - Direction, interpreted using the current runtime angle units.
  */
 export function flowLine(x, y, length, dir) {
-  if (!State.stroke.isActive || !State.stroke.color) {
-    throw new Error(
-      "No brush or color set. Call brush.set('brushName', color) before drawing.",
-    );
-  }
+  requireStroke();
   isFieldReady();
-  initializeDrawingState(x, y, length);
-  draw(toDegrees(dir), false);
-}
-
-/**
- * Draws a predefined plot.
- * @param {object} p - Shape object representing the plot.
- * @param {number} x - Starting x-coordinate.
- * @param {number} y - Starting y-coordinate.
- * @param {number} scale - Scale factor.
- */
-function plot(p, x, y, scale) {
-  isFieldReady();
-  initializeDrawingState(x, y, p.length, p);
-  draw(scale, true);
+  drawStroke(x, y, length, toDegrees(dir), null, 1);
 }
 
 // ---------------------------------------------------------------------------
@@ -911,7 +886,8 @@ Polygon.prototype.draw = function (_brush = false, _color, _weight) {
 Plot.prototype.draw = function (x, y, scale) {
   if (BrushState().isActive) {
     if (this.origin) ((x = this.origin[0]), (y = this.origin[1]), (scale = 1));
-    plot(this, x, y, scale);
+    isFieldReady();
+    drawStroke(x, y, this.length, 0, this, scale);
   }
   return this;
 };

@@ -1,6 +1,6 @@
 // Brush pressure at step j of a record's `count`, at distance c from the
-// stroke's start and s from the piece's origin (see gauss() and simPressure()
-// in stroke.js).
+// stroke's start and s from the piece's origin. Mirrors bumpPressure() and
+// curvePressure() in stroke.js, times the plot's own pressure.
 //   press = (from, to, model, table row): model 0 is a linear ramp across the
 //           record, 1 the default bump and 2 a custom curve, mapped from → to
 //   shape = bump (peak, half-width before, after, exponent) or custom curve

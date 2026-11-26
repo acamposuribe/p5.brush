@@ -38,8 +38,6 @@ import stampsFragSrc from "./stamps.frag";
 // Section: State
 // =============================================================================
 
-/** Most fine steps in a piece of a stroke walked through a flow field (stroke.js). */
-export const SUBSTEPS = 40;
 /** Most fine steps in one record. */
 const RECORD_STEPS = 1024;
 
@@ -73,8 +71,9 @@ let isLoaded = false,
 let loadedWidth = 0,
   loadedHeight = 0;
 
-const dots = { program: null, vao: null, attr: {}, uni: {} };
-const stamps = { program: null, vao: null, attr: {}, uni: {} };
+// The two programs: attributes lists each record attribute's location.
+const dots = { program: null, vao: null, attributes: [], uni: {} };
+const stamps = { program: null, vao: null, attributes: [], uni: {} };
 let recordBuffer = null;
 let recordBufferSize = 0;
 
@@ -105,7 +104,12 @@ let _ma = 1,
 //   20 first step's hash index, turn per unit, natural tip angle, stroke weight
 //   24 seed (uint)
 //   25 brush weight, scatter, sharpness, grain
+// The shaders read them as the attributes below (offsets in bytes).
 const RECORD_WORDS = 29;
+const RECORD_ATTRIBUTES = [
+  ["a_path", 4, 0], ["a_steps", 4, 16], ["a_press", 4, 32], ["a_shape", 4, 48],
+  ["a_plot", 4, 64], ["a_misc", 4, 80], ["a_seed", 1, 96], ["a_brush", 4, 100],
+];
 let recordData = new Float32Array(1024 * RECORD_WORDS);
 let recordSeeds = new Uint32Array(recordData.buffer);
 let recordGroups = new Uint8Array(1024);
@@ -224,11 +228,11 @@ function releaseGlResources() {
  * Compiles a program and builds a VAO over the record buffer, one record per
  * instance; the shaders take its fine steps from the vertex index.
  */
-function setupProgram(target, vertSrc, fragSrc, attributes, uniforms) {
+function setupProgram(target, vertSrc, fragSrc, uniforms) {
   target.program = createProgram(gl, vertSrc, fragSrc);
   for (const n of uniforms) target.uni[n] = gl.getUniformLocation(target.program, n);
   target.attributes = [];
-  for (const [name, size, offset] of attributes) {
+  for (const [name, size, offset] of RECORD_ATTRIBUTES) {
     const loc = gl.getAttribLocation(target.program, name);
     if (loc >= 0) target.attributes.push({ loc, size, offset, integer: name === "a_seed" });
   }
@@ -291,16 +295,12 @@ export function isReady() {
   gl.bufferData(gl.ARRAY_BUFFER, recordData.byteLength, gl.DYNAMIC_DRAW);
   recordBufferSize = recordData.byteLength;
 
-  const attributes = [
-    ["a_path", 4, 0], ["a_steps", 4, 16], ["a_press", 4, 32], ["a_shape", 4, 48],
-    ["a_plot", 4, 64], ["a_misc", 4, 80], ["a_seed", 1, 96], ["a_brush", 4, 100],
-  ];
-  setupProgram(dots, dotsVertSrc, dotsFragSrc, attributes, [
+  setupProgram(dots, dotsVertSrc, dotsFragSrc, [
     "u_matrix", "u_affine", "u_translate", "u_half", "u_sizeScale", "u_density",
     "u_type", "u_perStep", "u_pressureTable", "u_groupSteps", "u_stride",
     "u_color", "u_affineCircle", "u_tipInverse", "u_specks", "u_paperSeed", "u_paperInverse", "u_paperPx", "u_nib", ...CLIP_UNIFORMS,
   ]);
-  setupProgram(stamps, stampsVertSrc, stampsFragSrc, attributes, [
+  setupProgram(stamps, stampsVertSrc, stampsFragSrc, [
     "u_proj", "u_tipLinear", "u_translate", "u_half",
     "u_rotate", "u_color", "u_tex", "u_pressureTable", "u_groupSteps", "u_stride", ...CLIP_UNIFORMS,
   ]);
@@ -353,7 +353,7 @@ export function beginStroke(seed, alpha, param, tip = null) {
 /**
  * Whether a stroke can join the queued batch. Everything the shaders read as
  * a uniform must match: target, colour, transform, and the brush state that
- * is not per segment (type, stamp tip and rotation, marker nib).
+ * is not in the records (type, stamp tip and rotation, marker nib).
  */
 function joinsBatch(b, param, tip, color) {
   if (!b) return false;
@@ -381,7 +381,7 @@ function sameValues(a, b) {
 }
 
 /**
- * Drops the segments of the stroke being queued (e.g. after it threw),
+ * Drops the records of the stroke being queued (e.g. after it threw),
  * keeping earlier strokes in the batch.
  */
 export function discardStroke() {
@@ -389,8 +389,10 @@ export function discardStroke() {
 }
 
 /**
- * Queues `count` fine steps along one piece of the stroke's path (see
- * Plot.pieces()), from the stroke's step `first`, `stepSize` apart.
+ * Queues `count` fine steps along one piece of the stroke's path, from the
+ * stroke's step `first`, `stepSize` apart.
+ * @param {{x: number, y: number, heading: number, turn: number, start: number,
+ *   pressure: number, pressureSlope: number}} piece - See Plot.pieces().
  * @param {{model: number, from: number, to: number, shape: number[],
  *   length: number, table: Float32Array|null, min: number, max: number,
  *   minPositive: number}} pressure - Its model (pressure.glsl), and the range
@@ -407,7 +409,7 @@ export function queuePiece(piece, first, count, stepSize, pressure, alphaScale =
   for (let i = 0; i < count; i += RECORD_STEPS) {
     const n = Math.min(RECORD_STEPS, count - i);
     const fromStart = (first + i) * stepSize;
-    const o = appendRecord(n, alphaScale);
+    const o = appendRecord(n);
     recordData[o] = piece.x;
     recordData[o + 1] = piece.y;
     recordData[o + 2] = cos;
@@ -427,8 +429,19 @@ export function queuePiece(piece, first, count, stepSize, pressure, alphaScale =
     recordData[o + 16] = piece.pressure;
     recordData[o + 17] = piece.pressureSlope;
     recordData[o + 18] = pressure.length;
+    recordData[o + 19] = stroke.alpha * alphaScale;
+    // Each record takes the stroke's next n hash indices, so no two of its
+    // steps share their randomness.
+    recordData[o + 20] = stroke.hash;
+    stroke.hash += n;
     recordData[o + 21] = piece.turn;
     recordData[o + 22] = -piece.heading;
+    recordData[o + 23] = stroke.weight;
+    recordSeeds[o + 24] = stroke.seed;
+    recordData[o + 25] = param.weight;
+    recordData[o + 26] = param.scatter;
+    recordData[o + 27] = param.sharpness ?? 0;
+    recordData[o + 28] = param.grain ?? 0;
   }
 
   // An arc stays within half its length of its midpoint.
@@ -445,11 +458,10 @@ export function queuePiece(piece, first, count, stepSize, pressure, alphaScale =
 }
 
 /**
- * Appends a record of `count` steps with the current stroke's own fields and
- * returns its first word. Each record takes the stroke's next `count` hash
- * indices, so no two of its steps share their randomness.
+ * Makes room for one more record of `count` steps, files it under its draw
+ * group, and returns its first word.
  */
-function appendRecord(count, alphaScale) {
+function appendRecord(count) {
   if ((recordCount + 1) * RECORD_WORDS > recordData.length) {
     const next = new Float32Array(recordData.length * 2);
     next.set(recordData);
@@ -459,20 +471,8 @@ function appendRecord(count, alphaScale) {
     groups.set(recordGroups);
     recordGroups = groups;
   }
-  const param = stroke.param;
-  const o = recordCount * RECORD_WORDS;
-  recordData[o + 19] = stroke.alpha * alphaScale;
-  recordData[o + 20] = stroke.hash;
-  recordData[o + 23] = stroke.weight;
-  recordSeeds[o + 24] = stroke.seed;
-  recordData[o + 25] = param.weight;
-  recordData[o + 26] = param.scatter;
-  recordData[o + 27] = param.sharpness ?? 0;
-  recordData[o + 28] = param.grain ?? 0;
-  stroke.hash += count;
   recordGroups[recordCount] = groupOf(count);
-  recordCount++;
-  return o;
+  return recordCount++ * RECORD_WORDS;
 }
 
 /** The custom pressure curve's row in the table texture, adding it if new. */
@@ -613,9 +613,9 @@ export function setStrokeOverscan(overscan) {
 }
 
 /**
- * Draws all queued segments in one call and clears the queue.
+ * Draws the queued records, one call per draw group, and clears the queue.
  */
-export function flushStrokes() {
+function flushStrokes() {
   if (recordCount === 0) return;
   const b = batch;
   // The context may have been lost since the batch started.

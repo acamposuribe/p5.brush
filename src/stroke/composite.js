@@ -42,7 +42,7 @@ function needsStrokeMask(Renderer, Cwidth, Cheight, Density) {
  * @param {number} Density - Active pixel density.
  * @returns {object} The framebuffer used as stroke mask.
  */
-export function ensureStrokeCompositeResources(
+function ensureStrokeCompositeResources(
   Renderer,
   Cwidth,
   Cheight,
@@ -74,7 +74,7 @@ export function ensureStrokeCompositeResources(
  * @param {object|null} target - Stroke mask framebuffer.
  * @param {Function} clearTarget - Shared low-level clear helper from core.
  */
-export function clearStrokeMask(target, clearTarget) {
+function clearStrokeMask(target, clearTarget) {
   if (!target) return;
   clearTarget(target);
   target.isDrawn = false;
@@ -98,7 +98,7 @@ export function clearStrokeMask(target, clearTarget) {
  * @param {number} padding - Extra brush padding in pixels.
  * @returns {{minX:number,minY:number,maxX:number,maxY:number}|null} Composite rect.
  */
-export function getStrokeCompositeRect(
+function getStrokeCompositeRect(
   target,
   getActiveFramebuffer,
   getFullDirtyRect,
@@ -121,7 +121,7 @@ export function getStrokeCompositeRect(
  * @param {object} mask - Stroke mask framebuffer.
  * @returns {object} Stroke mask framebuffer.
  */
-export function getStrokeShaderMask(_Renderer, mask) {
+function getStrokeShaderMask(_Renderer, mask) {
   return mask;
 }
 
